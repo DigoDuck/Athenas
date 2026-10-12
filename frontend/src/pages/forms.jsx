@@ -1,6 +1,6 @@
-import { useId, useState } from "react";
+import { useState } from "react";
 
-import { Button, TextField } from "../ui/index.js";
+import { Button, Inline, TextField } from "../ui/index.js";
 
 // A labelled text field and one button. Clears itself after a successful submit and shows
 // the API's message on the field when it fails.
@@ -24,30 +24,14 @@ export function NameForm({ label, button, onSubmit }) {
   }
 
   return (
-    <form onSubmit={submit}>
+    <Inline as="form" align="end" onSubmit={submit}>
       <TextField label={label} value={value} error={error} onChange={(e) => setValue(e.target.value)} />
       <Button type="submit" variant="secondary" loading={saving} loadingLabel="Adicionando…">
         {button}
       </Button>
-    </form>
+    </Inline>
   );
 }
 
-// Native select with the base field classes. There is no Select base component yet.
-export function SelectField({ label, value, options, onChange }) {
-  const id = useId();
-  return (
-    <div className="ui-field">
-      <label className="ui-field__label" htmlFor={id}>
-        {label}
-      </label>
-      <select id={id} className="ui-input" value={value} onChange={(e) => onChange(e.target.value)}>
-        {options.map(([v, text]) => (
-          <option key={v} value={v}>
-            {text}
-          </option>
-        ))}
-      </select>
-    </div>
-  );
-}
+// [[value, label], ...] as the options the Select base component takes.
+export const toOptions = (pairs) => pairs.map(([value, label]) => ({ value, label }));
