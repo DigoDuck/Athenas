@@ -27,18 +27,25 @@ export default function Roadmap() {
     setActionError(failure ?? null);
   }
 
-  if (error) {
+  // The title stays in place while loading or failing, so the page does not jump.
+  if (error || !data) {
     return (
-      <StateMessage
-        kind="error"
-        title="Não foi possível carregar o roadmap."
-        action={<Button onClick={reload}>Tentar novamente</Button>}
-      >
-        {error}
-      </StateMessage>
+      <Stack gap={6}>
+        <h1>Roadmap</h1>
+        {error ? (
+          <StateMessage
+            kind="error"
+            title="Não foi possível carregar o roadmap."
+            action={<Button onClick={reload}>Tentar novamente</Button>}
+          >
+            {error}
+          </StateMessage>
+        ) : (
+          <p className="t-meta">Carregando…</p>
+        )}
+      </Stack>
     );
   }
-  if (!data) return <p className="t-meta">Carregando…</p>;
   const [tracks, concepts, areas] = data;
   const areaName = Object.fromEntries(areas.map((a) => [a.id, a.name]));
 
@@ -142,6 +149,7 @@ function Track({ track, concepts, areaName, act, onRemove }) {
                   <Button
                     variant="tertiary"
                     icon="close"
+                    aria-label={`Tirar da trilha ${step.concept_name}`}
                     onClick={() => act(() => api.delete(`/api/steps/${step.id}/`))}
                   >
                     Tirar da trilha
@@ -175,7 +183,12 @@ function Track({ track, concepts, areaName, act, onRemove }) {
         </p>
       )}
       <Inline justify="end">
-        <Button variant="tertiary" icon="close" onClick={onRemove}>
+        <Button
+          variant="tertiary"
+          icon="close"
+          aria-label={`Remover trilha ${track.name}`}
+          onClick={onRemove}
+        >
           Remover trilha
         </Button>
       </Inline>

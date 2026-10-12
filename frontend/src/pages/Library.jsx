@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { api } from "../api.js";
 import {
@@ -62,20 +62,34 @@ export default function Library() {
     setActionError(await run(() => api.delete(url)));
   }
 
-  if (error) {
+  // The title stays in place while loading or failing, so the page does not jump.
+  if (error || !data) {
     return (
-      <StateMessage
-        kind="error"
-        title="Não foi possível carregar a biblioteca."
-        action={<Button onClick={reload}>Tentar novamente</Button>}
-      >
-        {error}
-      </StateMessage>
+      <Stack gap={6}>
+        <h1>Biblioteca</h1>
+        {error ? (
+          <StateMessage
+            kind="error"
+            title="Não foi possível carregar a biblioteca."
+            action={<Button onClick={reload}>Tentar novamente</Button>}
+          >
+            {error}
+          </StateMessage>
+        ) : (
+          <p className="t-meta">Carregando…</p>
+        )}
+      </Stack>
     );
   }
-  if (!data) return <p className="t-meta">Carregando…</p>;
   const [areas, concepts, subtopics] = data;
   const editingSubtopic = subtopics.find((s) => s.id === editing);
+
+  // Closing hands focus back to the row's "Classificar" button, so keyboard users keep their place.
+  function closeEditor() {
+    const id = editing;
+    setEditing(null);
+    document.getElementById(`classificar-${id}`)?.focus();
+  }
 
   return (
     <Stack gap={6}>
@@ -97,6 +111,7 @@ export default function Library() {
             <Button
               variant="tertiary"
               icon="close"
+              aria-label={`Remover área ${area.name}`}
               onClick={() => remove(`/api/areas/${area.id}/`, area.name)}
             >
               Remover área
@@ -124,9 +139,10 @@ export default function Library() {
       ))}
       {editingSubtopic && (
         <SubtopicEditor
+          key={editingSubtopic.id}
           subtopic={editingSubtopic}
           run={run}
-          onClose={() => setEditing(null)}
+          onClose={closeEditor}
         />
       )}
       <NameForm
@@ -146,6 +162,7 @@ function Concept({ concept, subtopics, editing, onEdit, run, remove }) {
         <Button
           variant="tertiary"
           icon="close"
+          aria-label={`Remover conceito ${concept.name}`}
           onClick={() => remove(`/api/concepts/${concept.id}/`, concept.name)}
         >
           Remover conceito
@@ -168,8 +185,10 @@ function Concept({ concept, subtopics, editing, onEdit, run, remove }) {
               action={
                 <>
                   <Button
+                    id={`classificar-${s.id}`}
                     variant="tertiary"
                     icon="pencil"
+                    aria-label={`Classificar ${s.name}`}
                     aria-pressed={editing === s.id}
                     onClick={() => onEdit(editing === s.id ? null : s.id)}
                   >
@@ -178,6 +197,7 @@ function Concept({ concept, subtopics, editing, onEdit, run, remove }) {
                   <Button
                     variant="tertiary"
                     icon="close"
+                    aria-label={`Remover ${s.name}`}
                     onClick={() => remove(`/api/subtopics/${s.id}/`, s.name)}
                   >
                     Remover
@@ -203,8 +223,12 @@ function SubtopicEditor({ subtopic, run, onClose }) {
   const url = `/api/subtopics/${subtopic.id}/`;
   const save = async (field, value) => setError(await run(() => api.patch(url, { [field]: value })));
 
+  // The editor opens below every area, so focusing it also scrolls it into view.
+  const panel = useRef(null);
+  useEffect(() => panel.current?.focus(), []);
+
   return (
-    <Panel raised aria-labelledby="classificar-subtema">
+    <Panel raised ref={panel} tabIndex={-1} aria-labelledby="classificar-subtema">
       <h2 id="classificar-subtema">Classificar {subtopic.name}</h2>
       {error && (
         <StateMessage kind="error" title="Não foi possível salvar.">
