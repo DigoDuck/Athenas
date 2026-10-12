@@ -34,6 +34,12 @@ const navItems = [
 ];
 const secondaryItems = [{ id: "config", label: "Configurações", icon: "settings", href: "#design" }];
 
+const scenes = [
+  { value: "garden", label: "Jardim (telas internas)" },
+  { value: "home", label: "Principal (tela inicial)" },
+  { value: "none", label: "Nenhum" },
+];
+
 const colors = [
   ["background", "Mármore"],
   ["surface", "Superfície"],
@@ -64,6 +70,7 @@ function Section({ title, children }) {
 export default function Showcase() {
   const [tab, setTab] = useState("explicacao");
   const [focusMode, setFocusMode] = useState(false);
+  const [scene, setScene] = useState("garden");
   const [saving, setSaving] = useState(false);
   const [name, setName] = useState("");
 
@@ -76,11 +83,45 @@ export default function Showcase() {
     setTimeout(() => setSaving(false), 1500);
   }
 
+  const sceneSelect = (
+    <Select
+      label="Cenário"
+      options={scenes}
+      value={scene}
+      onChange={(event) => setScene(event.target.value)}
+    />
+  );
+
+  // The home scene has no sheet: text only inside opaque panels, as the opening screen will do.
+  if (scene === "home") {
+    return (
+      <AppShell items={navItems} secondaryItems={secondaryItems} current="inicio" scene="home">
+        <div className="showcase__home">
+          <Panel raised aria-labelledby="retomar">
+            <Stack>
+              <h2 id="retomar">Retomar o estudo</h2>
+              <p>Polimorfismo · Programação orientada a objetos</p>
+              <ProgressBar label="Progresso do conceito" value={2} max={5} />
+              <Inline>
+                <Button>Continuar</Button>
+              </Inline>
+              {sceneSelect}
+            </Stack>
+          </Panel>
+        </div>
+      </AppShell>
+    );
+  }
+
   return (
-    <AppShell items={navItems} secondaryItems={secondaryItems} current="biblioteca">
+    <AppShell
+      items={navItems}
+      secondaryItems={secondaryItems}
+      current="biblioteca"
+      scene={scene === "none" ? null : scene}
+    >
       <div className="showcase">
         <header className="showcase__header">
-          <div className="showcase__scene decor" />
           <p className="t-eyebrow">Athenas · Design system v1</p>
           <h1 className="t-display">Componentes base</h1>
         </header>
@@ -281,7 +322,8 @@ export default function Showcase() {
           </div>
         </Section>
 
-        <Section title="Foco">
+        <Section title="Foco e cenário">
+          {sceneSelect}
           <Switch
             label="Modo de foco"
             description="Oculta o cenário e os elementos decorativos."

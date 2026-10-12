@@ -7,11 +7,17 @@ The guide below is Diogo's design system v1, copied verbatim from `athenas-desig
 - Tokens live in `frontend/src/styles/tokens.css`. Screens use the variables only, never raw values.
 - Base components live in `frontend/src/ui/` (import from `frontend/src/ui/index.js`). In dev mode, `/#design` shows all of them.
 - Fonts are self-hosted from `frontend/src/assets/fonts/` (SIL OFL 1.1), latin subset only, so use mode works offline.
-- Where the guide and `docs/spec.md` disagree, the spec wins until Diogo decides otherwise:
+- Where the guide and `docs/spec.md` disagree, the spec wins. Diogo confirmed the four adaptations below for v1 on 2026-10-12:
   - The guide's main menu lists "Assistente" and an AI side panel, and the Rubber Duck pattern shows AI feedback. Integrated AI is out of scope for v1 (spec 2.2), so neither is built.
   - The guide's flashcard rating shows "Rever / Com esforço / Com facilidade". The spec has three ratings, errei, parcial and acertei, and no Easy (spec 4.6.2).
   - The guide has one "Revisão pendente" badge. The spec keeps the manual review flag and the automatic "has cards due" indicator separate and never merged (spec 3.2). There are two badges: "Marcado para revisar" and "Cartões para hoje".
   - The guide describes tablet and phone layouts. v1 is desktop only (spec 2.3). Below 1200 px the navigation collapses behind a "Menu" button, so a snapped desktop window still works; no phone screens are designed.
+- Backgrounds (`frontend/src/assets/scenes/`, WebP copies of Diogo's `athenas-planos-de-fundo/`) are set by the `scene` prop of `AppShell`:
+  - `garden` (default, `02-fundo-jardim`): internal screens such as Biblioteca and Roadmap. The page sits on an opaque marble sheet and the colonnade shows only in the margins.
+  - `home` (`01-fundo-principal`): the opening screen. There is no sheet, so every piece of text on that screen goes inside an opaque `Panel`, never on the photograph.
+  - `null`: no background.
+  - The scene is decorative: hidden in focus mode and in print, invisible to screen readers. The portrait image (`03-fundo-celular`) is not used, since v1 is desktop only. The scenes replace the separate marble texture.
+- The owl emblem is used at every size; there is no simplified small version.
 - Not in the guide, added here: success, warning and error tint backgrounds for badges (each pair is at least 5:1), and a darker error for the destructive button hover.
 
 ---
