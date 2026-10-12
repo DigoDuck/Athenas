@@ -35,8 +35,8 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
 - Date: 2026-10-12. Source: interrogation, decision 4.
 - Decision: measure the first month; write the verdict on day 28. No stop rule and no freeze.
 - Why: without a written consequence, the metric is decoration.
-- Note: a separate discussion is weighing what each verdict result leads to. If it changes this
-  entry, it is recorded as a new entry that supersedes D-004.
+- Note: D-010 defines the window, the unit and the pre-written reading of each result. It keeps
+  this entry's "no stop rule and no freeze".
 
 ### D-005: Review without pressure: Py-FSRS, daily caps, silent return
 
@@ -75,6 +75,28 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
 - Date: 2026-10-12. Source: interrogation, decision 9 (ZEUZ DEC-088).
 - Decision: Athenas does not integrate with ZEUZ.
 - Why: the DEC-087 test found no concrete reason to.
+
+### D-010: Day 28 rule: pre-written reading, no automatic stop
+
+- Date: 2026-10-12. Source: Diogo's choice of "rule A, adjusted" in the day 28 discussion.
+- Decision: the verdict on day 28 applies a reading written in advance for each result. There
+  is no automatic stop and no freeze, so D-004 stands.
+  - Window: 4 blocks of 7 consecutive days from day 1, in Bahia time. Day 1 is the first day
+    use mode works with at least one concept registered (to be confirmed when recorded, spec
+    `[Q1]`).
+  - Unit: a distinct day with at least one completed activity. Several sessions on the same
+    day count once.
+  - 3 or 4 blocks with 3 or more days of use: success. Move on to the portfolio phase.
+  - 2 of 4: neither success nor failure. One single 14-day extension, with no new features.
+    Success if both extra blocks meet the bar. If the 2 blocks that met it are the last two of
+    the original window, the tie-break leans toward success.
+  - 0 or 1 of 4: hypothesis not confirmed. A written diagnosis from the session event table
+    comes before any new feature; the next decision is Diogo's.
+  - The verdict contains, in this order: numbers per block, features that shipped that month,
+    sessions lost to being away from the computer, the reading applied.
+- Why: without a written consequence the metric is decoration (D-004), and four weeks of one
+  person's data is too small a sample to freeze the project on.
+- Open: how a completed activity is recorded in the event table (spec `[Q1]`).
 
 ## Proposed
 

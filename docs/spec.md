@@ -7,7 +7,7 @@ wins over the Library.
 
 References in brackets point to the source:
 
-- `[D1]`..`[D9]`: interrogation decisions, recorded in `DECISIONS.md`.
+- `[D1]`..`[D9]`: interrogation decisions; `[D10]`: the day 28 rule. All recorded in `DECISIONS.md`.
 - `[R1]`..`[R7]`: review rules ("Regras de revisão").
 - `[C1]`..`[C5]`: content contract rules ("Contrato do conteúdo").
 - `[V1]`: the "V1" table; `[Medição]`: the "Medição e veredito" section; `[briefing]`: the original
@@ -81,7 +81,7 @@ folders deeper than three levels, multi-user. Any change to this list needs Diog
 | Flashcard | Cartão | Front and back. Either manual or declared in the Markdown with label `C<n>`. |
 | Review | Revisão | One rating of one flashcard, fed to Py-FSRS. |
 | Activity | Atividade | A unit of work recorded for measurement: reading, notebook, question, explanation, review session. |
-| Session | Sessão | For the success metric: at least one completed activity `[Medição]`. See `[Q1]`. |
+| Session | Sessão | At least one completed activity `[Medição]`. The success metric counts distinct days with a session `[D10]`. |
 | AI complement | Complemento da IA | A `> [!ia]` callout in the content. |
 
 ### 3.2 Entities
@@ -313,13 +313,15 @@ blocks studying and never competes visually with the content.
 ### 4.11 Measurement
 
 1. Session events are recorded for every activity. There is no screen for them in v1.
-2. Primary success metric: at least 3 sessions per week in at least 3 of the first 4 weeks of
-   real use. A session is at least one completed activity.
+2. Primary success metric `[D10]`: at least 3 distinct days with a completed activity, in at
+   least 3 of 4 blocks of 7 consecutive days counted from day 1, in Bahia time. Several sessions
+   on the same day count once.
 3. Support metrics: time between opening the app and starting an activity; fraction of the
    day's reviews done; accuracy on cards from concepts completed more than 14 days earlier.
-4. Day 28: a verdict written in `DECISIONS.md` with the numbers, the features that shipped that
-   month, and the sessions lost to being away from the computer `[D4]`.
-5. Day 1, the definition of a week, and what the verdict leads to are `[Q1]`.
+4. Day 28: a verdict written in `DECISIONS.md` with, in this order, the numbers per block, the
+   features that shipped that month, the sessions lost to being away from the computer, and the
+   pre-written reading that applies `[D4]`, `[D10]`.
+5. How a completed activity is recorded, and confirming the date of day 1, are `[Q1]`.
 
 ## 5. Environments
 
@@ -420,7 +422,7 @@ is not a decision until Diogo says so.
 
 | # | Question | Blocks | Suggestion |
 | --- | --- | --- | --- |
-| Q1 | How is a completed activity recorded in the session events, and what are day 1 of real use and a "week"? Do two sessions on the same day count as two? | 4.7, 4.11, metrics | A `completed_at` (or result) field per event; day 1 = first day use mode is up with one concept registered; weeks = four 7-day blocks from day 1 in Bahia time; count distinct days. See the day 28 thread. |
+| Q1 | How is a completed activity recorded in the session events? And is day 1 confirmed as the first day use mode is up with at least one concept registered (D-010)? | 4.7, 4.11, metrics | A `completed_at` field per event, empty when the activity was abandoned; confirm day 1 as written in D-010. |
 | Q2 | Is "app opened" an event, so the "time between opening and starting" metric can be computed? | 4.11 | Yes, one event per page load of the home screen. |
 | Q3 | What are the fixed criteria for suggesting a subtopic or concept is complete? | 4.4, core tests | Subtopic: all blocks read and at least one attempt rated right or partial. Concept: all subtopics completed. |
 | Q4 | Do status and the other classification fields live on the concept, the subtopic, or both? What moves a subtopic to "in progress"? | 3.2, 4.4 | Fields on the subtopic; concept status derived from its subtopics; "in progress" on first block opened. |
