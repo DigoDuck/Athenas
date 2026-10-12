@@ -146,3 +146,19 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
 - Risk: re-import identity follows the `P` and `C` labels (spec 4.2.6), not blocks, so an empty
   heading does not collide today. If a later slice matches blocks by heading, this entry has to be
   revisited.
+
+### D-015: A block's read mark lives on the block and survives re-import only for identical text
+
+- Date: 2026-10-12. Source: card approval slice; Diogo chose option A of three.
+- Context: spec 4.4.4 suggests completion when all of a subtopic's blocks were read, but does not
+  say where "read" is stored. Blocks are rebuilt on every import and have no identity of their own
+  (spec 4.2.6), so a read mark cannot follow a block across re-imports by heading: the empty
+  heading of D-014 would collide.
+- Decision: each block has a nullable `read_at`. On re-import, a new block whose kind, heading and
+  body are all identical to an old block that was read takes over that mark. Any other block
+  starts unread.
+- Why: fixing a typo in one section unmarks only that section, and nothing matches by heading.
+  The alternatives were resetting every mark on re-import (any edit erases reading progress) and
+  deriving reads from session events (they do not exist yet and would point to rebuilt blocks).
+- Risk: two blocks with identical text are interchangeable, so their marks are shared one to one
+  in no particular order.
