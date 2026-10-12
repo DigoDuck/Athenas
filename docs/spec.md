@@ -215,7 +215,8 @@ not UI copy.
    under "Prática" `[C1]`. A question without a reference answer does not count `[Q11]`.
    Otherwise it is saved as `draft`.
 3. A `##` heading not in the contract becomes an `extra` block, kept in its original
-   position. Content is never discarded `[C3]`.
+   position. Content is never discarded `[C3]`. Text before the first `##` becomes an `extra`
+   block with an empty heading (`DECISIONS.md` D-014).
 4. Questions are `### P<n>: <prompt>` under "Prática", followed by an optional line
    starting with `Resposta de referência:`.
 5. Cards are list items `- C<n>: <front> :: <back>` under "Flashcards".

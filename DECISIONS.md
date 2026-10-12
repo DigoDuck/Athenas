@@ -133,3 +133,16 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
   - The review cap counts distinct cards per day; a same-day repeat does not use a slot (Q14).
   - The day in Bahia time starts at midnight (Q9).
 - Why: the source left these open, and the core acceptance tests depend on them.
+
+### D-014: Text before the first heading is kept as an extra block with an empty heading
+
+- Date: 2026-10-12. Source: parser slice (`backend/content/parser.py`); Diogo asked for it to be
+  recorded.
+- Context: spec 4.2 says an unknown `##` heading becomes an `extra` block and `[C3]` says content
+  is never discarded, but nothing defines text that comes before the first `##`.
+- Decision: such text becomes an `extra` block with an empty heading, in first position. Blank
+  text creates no block.
+- Why: it is the smallest way to honor `[C3]` without a new block kind.
+- Risk: re-import identity follows the `P` and `C` labels (spec 4.2.6), not blocks, so an empty
+  heading does not collide today. If a later slice matches blocks by heading, this entry has to be
+  revisited.
