@@ -66,6 +66,8 @@ class Flashcard(models.Model):
     front = models.TextField()
     back = models.TextField()
     state = models.CharField(max_length=9, choices=State, default=State.PENDING)
+    # Where the card goes back to when its label returns to the Markdown (spec 4.2.6, Q8).
+    state_before_suspension = models.CharField(max_length=9, blank=True, default="")
 
     class Meta:
         ordering = ["subtopic_id", "id"]

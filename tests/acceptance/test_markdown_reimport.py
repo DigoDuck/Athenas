@@ -106,6 +106,59 @@ def test_33_reimport_without_c2_suspends_c2(subtopic):
     assert Flashcard.objects.get(subtopic=subtopic, label="C1").state == Flashcard.State.PENDING
 
 
+def test_34_c2_back_restores_it_with_its_review_history_in_the_state_it_had(subtopic):
+    run_import(subtopic, cards=[("C1", "Um", "Um."), ("C2", "Dois", "Dois.")])
+    card = Flashcard.objects.get(subtopic=subtopic, label="C2")
+    card.state = Flashcard.State.ACTIVE
+    card.save()
+    ReviewLog.objects.create(flashcard=card, rating=ReviewLog.Rating.HARD)
+    run_import(subtopic, cards=[("C1", "Um", "Um.")])
+
+    run_import(subtopic, cards=[("C1", "Um", "Um."), ("C2", "Dois", "Dois.")])
+
+    restored = Flashcard.objects.get(subtopic=subtopic, label="C2")
+    assert restored.pk == card.pk
+    assert restored.state == Flashcard.State.ACTIVE
+    assert restored.reviews.count() == 1
+
+
+def test_34_a_pending_card_that_comes_back_is_pending_again(subtopic):
+    run_import(subtopic, cards=[("C2", "Dois", "Dois.")])
+    run_import(subtopic)
+
+    run_import(subtopic, cards=[("C2", "Dois", "Dois.")])
+
+    assert Flashcard.objects.get(subtopic=subtopic, label="C2").state == Flashcard.State.PENDING
+
+
+def test_34_p2_back_restores_the_archived_question_with_its_attempts(subtopic):
+    run_import(subtopic, questions=[("P2", "Segunda?", "Também.")])
+    p2 = PracticeQuestion.objects.get(subtopic=subtopic, label="P2")
+    Attempt.objects.create(
+        subtopic=subtopic,
+        kind=Attempt.Kind.QUESTION,
+        question=p2,
+        text="Minha resposta",
+        self_assessment=Attempt.SelfAssessment.WRONG,
+    )
+    run_import(subtopic)
+
+    run_import(subtopic, questions=[("P2", "Segunda?", "Também.")])
+
+    p2.refresh_from_db()
+    assert p2.archived is False
+    assert p2.attempts.count() == 1
+
+
+def test_36_a_document_with_duplicate_labels_is_not_saved(subtopic):
+    parsed = parse_markdown(doc(cards=[("C1", "Um", "Um."), ("C1", "Outro", "Outro.")]))
+
+    with pytest.raises(ValueError, match="C1"):
+        import_content(subtopic, parsed)
+
+    assert Flashcard.objects.count() == 0
+
+
 def test_35_new_c3_on_reimport_enters_as_pending(subtopic):
     run_import(subtopic, cards=[("C1", "Um", "Um.")])
 
