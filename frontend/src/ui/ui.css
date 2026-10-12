@@ -620,8 +620,36 @@ a.ui-list__title:hover {
 }
 
 .ui-shell__nav-column {
+  position: relative;
+  z-index: 1;
   border-right: var(--border-width) solid var(--color-border);
   background: var(--color-surface);
+}
+
+/* Sunset backgrounds (decor): fixed behind the work area, never under study text. */
+.ui-shell__scene {
+  position: fixed;
+  inset: 0 0 0 var(--layout-nav-width);
+  background-color: var(--color-background);
+  background-position: center;
+  background-size: cover;
+}
+
+.ui-shell__scene--garden {
+  background-image: url("../assets/scenes/garden.webp");
+}
+
+.ui-shell__scene--home {
+  background-image: url("../assets/scenes/home.webp");
+}
+
+/* Internal screens: the page is an opaque sheet; the scene shows only in the margins. */
+.ui-shell[data-scene="garden"] .ui-shell__content {
+  min-height: calc(100vh - 2 * var(--layout-margin));
+  padding: var(--space-6);
+  border-radius: var(--radius-panel);
+  background: var(--color-background);
+  box-shadow: var(--shadow-panel);
 }
 
 .ui-nav {
@@ -682,6 +710,8 @@ a.ui-list__title:hover {
 }
 
 .ui-shell__main {
+  position: relative;
+  z-index: 1;
   min-width: 0;
   padding: var(--layout-margin);
 }
@@ -696,6 +726,8 @@ a.ui-list__title:hover {
 }
 
 .ui-shell__aside {
+  position: relative;
+  z-index: 1;
   width: var(--layout-aside-width);
   border-left: var(--border-width) solid var(--color-border);
   background: var(--color-surface);
@@ -734,6 +766,14 @@ a.ui-list__title:hover {
     border-right: 0;
   }
 
+  .ui-shell__scene {
+    left: 0;
+  }
+
+  .ui-shell[data-scene="garden"] .ui-shell__content {
+    padding: var(--space-5);
+  }
+
   .ui-nav {
     display: none;
     position: static;
@@ -762,6 +802,11 @@ a.ui-list__title:hover {
 @media print {
   .ui-shell {
     display: block;
+  }
+
+  .ui-shell[data-scene] .ui-shell__content {
+    min-height: 0;
+    padding: 0;
   }
 
   .ui-panel,
