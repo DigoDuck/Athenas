@@ -144,3 +144,66 @@ def test_39_frontmatter_naming_another_subtopic_shows_a_warning():
 
     assert len(parsed.warnings) == 1
     assert "subtema" in parsed.warnings[0]
+
+
+# Extra scenarios, not in spec section 8 (edge cases of the import rules).
+
+
+def test_a_heading_inside_a_fenced_code_block_does_not_become_a_block():
+    exemplo = "## Exemplo\n```python\n## isto é um comentário\nx = 1\n```"
+
+    parsed = parse_markdown(md(exemplo, IDEIA))
+
+    assert [b.heading for b in parsed.blocks] == ["Exemplo", "Ideia central"]
+    assert "## isto é um comentário" in parsed.blocks[0].body
+
+
+def test_b_crlf_text_parses_the_same_as_lf_text():
+    lf = md(IDEIA, PRATICA_COM_RESPOSTA)
+
+    crlf = parse_markdown(lf.replace("\n", "\r\n"))
+
+    assert crlf == parse_markdown(lf)
+
+
+def test_c_multi_line_reference_answer_is_kept_whole():
+    pratica = (
+        "## Prática\n"
+        "### P1: Qual problema o encapsulamento resolve?\n"
+        "Resposta de referência: Evita acesso direto ao estado interno.\n"
+        "Também permite mudar a implementação sem quebrar quem usa a classe.\n"
+        "### P2: Outra pergunta?\n"
+        "Resposta de referência: Outra resposta."
+    )
+
+    parsed = parse_markdown(md(pratica))
+
+    assert parsed.questions[0].reference_answer == (
+        "Evita acesso direto ao estado interno.\n"
+        "Também permite mudar a implementação sem quebrar quem usa a classe."
+    )
+    assert parsed.questions[1].reference_answer == "Outra resposta."
+
+
+def test_d_text_before_the_first_heading_is_not_discarded():
+    parsed = parse_markdown(FRONT + "\nTexto solto antes de tudo.\n\n" + IDEIA + "\n")
+
+    assert [b.kind for b in parsed.blocks] == ["extra", "Ideia central"]
+    assert parsed.blocks[0].body == "Texto solto antes de tudo."
+
+
+def test_e_content_without_frontmatter_parses_with_empty_frontmatter():
+    parsed = parse_markdown(IDEIA + "\n\n" + PRATICA_COM_RESPOSTA + "\n")
+
+    assert parsed.frontmatter == {}
+    assert parsed.state == "ready"
+
+
+def test_f_card_line_without_double_colon_warns_and_is_not_a_card():
+    flashcards = "## Flashcards\n- C1: Frente sem verso"
+
+    parsed = parse_markdown(md(flashcards))
+
+    assert parsed.cards == []
+    assert len(parsed.warnings) == 1
+    assert "C1" in parsed.warnings[0]
