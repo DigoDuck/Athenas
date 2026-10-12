@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import { Button, Inline, TextField } from "../ui/index.js";
+import { Button, Icon, Inline, TextField } from "../ui/index.js";
 
 // A labelled text field and one button. Clears itself after a successful submit and shows
 // the API's message on the field when it fails.
@@ -30,6 +30,18 @@ export function NameForm({ label, button, onSubmit }) {
         {button}
       </Button>
     </Inline>
+  );
+}
+
+// A failed action, shown inside the section it came from instead of at the top of the page.
+// Same look as a field error; renders nothing when there is no message.
+export function ActionError({ children }) {
+  if (!children) return null;
+  return (
+    <p className="ui-field__error" role="alert">
+      <Icon name="alert-circle" />
+      {children}
+    </p>
   );
 }
 
