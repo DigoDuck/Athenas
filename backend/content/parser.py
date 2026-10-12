@@ -18,6 +18,7 @@ KNOWN_HEADINGS = {
 
 QUESTION_RE = re.compile(r"^###\s+(P\d+):\s*(.+?)\s*$")
 CARD_RE = re.compile(r"^-\s+(C\d+):\s*(.+?)\s*::\s*(.+?)\s*$")
+CARD_LABEL_RE = re.compile(r"^-\s+(C\d+):")
 SOURCE_RE = re.compile(r"Fonte:\s*(https?://\S+)")
 REFERENCE_PREFIX = "Resposta de referência:"
 
@@ -84,7 +85,8 @@ def parse_markdown(text: str, target: Target | None = None) -> ParsedContent:
         if block.kind == "Prática":
             parsed.questions = _parse_questions(block.body)
         elif block.kind == "Flashcards":
-            parsed.cards = _parse_cards(block.body)
+            parsed.cards, card_warnings = _parse_cards(block.body)
+            parsed.warnings.extend(card_warnings)
     parsed.callouts = _parse_callouts(body)
 
     for label in _duplicates([q.label for q in parsed.questions]):
@@ -143,9 +145,11 @@ def _split_blocks(body: str) -> list[Block]:
     current: list[str] = []
 
     def close():
-        if heading is not None:
+        body_text = "\n".join(current).strip()
+        # Text before the first heading has no heading: keep it as an extra block ([C3]).
+        if heading is not None or body_text:
             kind = heading if heading in KNOWN_HEADINGS else "extra"
-            blocks.append(Block(kind, heading, "\n".join(current).strip()))
+            blocks.append(Block(kind, heading or "", body_text))
 
     for line, in_fence in _outside_fences(body.split("\n")):
         if not in_fence and line.startswith("## "):
@@ -174,9 +178,15 @@ def _reference_answer(lines: list[str]) -> str | None:
     return (rest.strip() or None) if sep else None
 
 
-def _parse_cards(body: str) -> list[Card]:
-    cards = (CARD_RE.match(line) for line in body.split("\n"))
-    return [Card(*m.groups()) for m in cards if m]
+def _parse_cards(body: str) -> tuple[list[Card], list[str]]:
+    cards: list[Card] = []
+    warnings: list[str] = []
+    for line in body.split("\n"):
+        if match := CARD_RE.match(line):
+            cards.append(Card(*match.groups()))
+        elif label := CARD_LABEL_RE.match(line):
+            warnings.append(f"Cartão {label.group(1)} sem '::' entre frente e verso, ignorado")
+    return cards, warnings
 
 
 def _parse_callouts(body: str) -> list[Callout]:
