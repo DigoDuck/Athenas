@@ -177,6 +177,57 @@
   color: var(--color-text-muted);
 }
 
+.ui-select {
+  position: relative;
+  display: block;
+}
+
+.ui-select__control {
+  appearance: none;
+  padding-right: calc(var(--space-3) * 2 + var(--icon-sm));
+  cursor: pointer;
+}
+
+.ui-select__icon {
+  position: absolute;
+  top: 50%;
+  right: var(--space-3);
+  transform: translateY(-50%);
+  color: var(--color-text-muted);
+  pointer-events: none;
+}
+
+/* Spacing primitives */
+
+.ui-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-gap);
+}
+
+.ui-inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-gap);
+}
+
+.ui-inline[data-align="start"] {
+  align-items: flex-start;
+}
+
+.ui-inline[data-align="end"] {
+  align-items: flex-end;
+}
+
+.ui-inline[data-justify="between"] {
+  justify-content: space-between;
+}
+
+.ui-inline[data-justify="end"] {
+  justify-content: flex-end;
+}
+
 /* Tabs */
 
 .ui-tabs__list {
@@ -317,7 +368,11 @@
 
 /* Panel */
 
+/* Direct children are spaced like a Stack, so sections inside a panel never touch. */
 .ui-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
   padding: var(--space-5);
   border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-panel);
@@ -552,6 +607,11 @@ a.ui-list__title:hover {
   display: none;
 }
 
+.ui-shell__nav-column {
+  border-right: var(--border-width) solid var(--color-border);
+  background: var(--color-surface);
+}
+
 .ui-nav {
   position: sticky;
   top: 0;
@@ -559,8 +619,6 @@ a.ui-list__title:hover {
   flex-direction: column;
   height: 100vh;
   padding: var(--space-5) var(--space-3);
-  border-right: var(--border-width) solid var(--color-border);
-  background: var(--color-surface);
   overflow-y: auto;
 }
 
@@ -658,11 +716,14 @@ a.ui-list__title:hover {
     cursor: pointer;
   }
 
+  .ui-shell__nav-column {
+    border-right: 0;
+  }
+
   .ui-nav {
     display: none;
     position: static;
     height: auto;
-    border-right: 0;
     border-bottom: var(--border-width) solid var(--color-border);
   }
 

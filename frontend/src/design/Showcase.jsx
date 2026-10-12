@@ -6,11 +6,14 @@ import {
   Button,
   Callout,
   CardsDueBadge,
+  Inline,
   List,
   ListRow,
   Panel,
   ProgressBar,
   ReviewFlagBadge,
+  Select,
+  Stack,
   StateMessage,
   StudyStatusBadge,
   Switch,
@@ -140,6 +143,48 @@ export default function Showcase() {
             placeholder="Escreva aqui sua explicação…"
             status="Rascunho salvo às 14:32"
           />
+          <div className="showcase__grid">
+            <Select
+              label="Nível"
+              defaultValue=""
+              options={[
+                { value: "", label: "Não definido" },
+                { value: "iniciante", label: "Iniciante" },
+                { value: "intermediario", label: "Intermediário" },
+              ]}
+            />
+            <Select
+              label="Conceito"
+              placeholder="Escolha um conceito"
+              defaultValue=""
+              help="Só aparecem conceitos fora da trilha."
+              options={[
+                { value: "1", label: "Polimorfismo (POO)" },
+                { value: "2", label: "Herança (POO)" },
+              ]}
+            />
+          </div>
+        </Section>
+
+        <Section title="Espaçamento">
+          <Panel>
+            <Stack gap={2}>
+              <h3>Nova área</h3>
+              <p className="t-meta">Stack empilha com um passo da escala; Inline põe lado a lado e quebra linha.</p>
+            </Stack>
+            <form onSubmit={(e) => e.preventDefault()}>
+              <Inline gap={3} align="end">
+                <div className="showcase__grow">
+                  <TextField label="Nome da área" />
+                </div>
+                <Button type="submit">Adicionar área</Button>
+              </Inline>
+            </form>
+            <Inline justify="between">
+              <span className="t-meta">3 áreas</span>
+              <Button variant="tertiary">Ver todas</Button>
+            </Inline>
+          </Panel>
         </Section>
 
         <Section title="Navegação">

@@ -63,3 +63,7 @@
   border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-control);
 }
+
+.showcase__grow {
+  flex: 1 1 16rem;
+}
