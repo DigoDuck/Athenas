@@ -13,6 +13,7 @@ INSTALLED_APPS = [
     "django.contrib.auth",
     "rest_framework",
     "organization",
+    "content",
 ]
 
 # No sessions, no CSRF cookie, no login: single user, listens on 127.0.0.1 only.
