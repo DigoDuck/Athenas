@@ -3,17 +3,19 @@ import { useState } from "react";
 import { api } from "../api.js";
 import {
   Button,
+  Inline,
   List,
   ListRow,
   Panel,
   ReviewFlagBadge,
+  Select,
+  Stack,
   StateMessage,
   StudyStatusBadge,
   Switch,
-  Tag,
 } from "../ui/index.js";
 import { useCollections } from "../useCollections.js";
-import { NameForm, SelectField } from "./forms.jsx";
+import { NameForm, toOptions } from "./forms.jsx";
 
 const LEVELS = [
   ["", "Não definido"],
@@ -76,7 +78,7 @@ export default function Library() {
   const editingSubtopic = subtopics.find((s) => s.id === editing);
 
   return (
-    <>
+    <Stack gap={6}>
       <h1>Biblioteca</h1>
       {actionError && (
         <StateMessage kind="error" title="Não foi possível remover.">
@@ -90,14 +92,16 @@ export default function Library() {
       )}
       {areas.map((area) => (
         <Panel key={area.id} aria-labelledby={`area-${area.id}`}>
-          <h2 id={`area-${area.id}`}>{area.name}</h2>
-          <Button
-            variant="tertiary"
-            icon="close"
-            onClick={() => remove(`/api/areas/${area.id}/`, area.name)}
-          >
-            Remover área
-          </Button>
+          <Inline justify="between">
+            <h2 id={`area-${area.id}`}>{area.name}</h2>
+            <Button
+              variant="tertiary"
+              icon="close"
+              onClick={() => remove(`/api/areas/${area.id}/`, area.name)}
+            >
+              Remover área
+            </Button>
+          </Inline>
           {concepts
             .filter((c) => c.area === area.id)
             .map((concept) => (
@@ -130,22 +134,24 @@ export default function Library() {
         button="Adicionar área"
         onSubmit={(name) => run(() => api.post("/api/areas/", { name }))}
       />
-    </>
+    </Stack>
   );
 }
 
 function Concept({ concept, subtopics, editing, onEdit, run, remove }) {
   return (
-    <section aria-labelledby={`concept-${concept.id}`}>
-      <h3 id={`concept-${concept.id}`}>{concept.name}</h3>
+    <Stack as="section" gap={3} aria-labelledby={`concept-${concept.id}`}>
+      <Inline justify="between">
+        <h3 id={`concept-${concept.id}`}>{concept.name}</h3>
+        <Button
+          variant="tertiary"
+          icon="close"
+          onClick={() => remove(`/api/concepts/${concept.id}/`, concept.name)}
+        >
+          Remover conceito
+        </Button>
+      </Inline>
       {concept.objective && <p className="t-meta">{concept.objective}</p>}
-      <Button
-        variant="tertiary"
-        icon="close"
-        onClick={() => remove(`/api/concepts/${concept.id}/`, concept.name)}
-      >
-        Remover conceito
-      </Button>
       {subtopics.length > 0 && (
         <List label={`Subtemas de ${concept.name}`}>
           {subtopics.map((s) => (
@@ -187,7 +193,7 @@ function Concept({ concept, subtopics, editing, onEdit, run, remove }) {
         button="Adicionar subtema"
         onSubmit={(name) => run(() => api.post("/api/subtopics/", { concept: concept.id, name }))}
       />
-    </section>
+    </Stack>
   );
 }
 
@@ -205,33 +211,35 @@ function SubtopicEditor({ subtopic, run, onClose }) {
           {error}
         </StateMessage>
       )}
-      <SelectField
+      <Select
         label="Nível"
         value={subtopic.level}
-        options={LEVELS}
-        onChange={(v) => save("level", v)}
+        options={toOptions(LEVELS)}
+        onChange={(e) => save("level", e.target.value)}
       />
-      <SelectField
+      <Select
         label="Dificuldade percebida"
         value={subtopic.perceived_difficulty}
-        options={DIFFICULTIES}
-        onChange={(v) => save("perceived_difficulty", v)}
+        options={toOptions(DIFFICULTIES)}
+        onChange={(e) => save("perceived_difficulty", e.target.value)}
       />
-      <SelectField
+      <Select
         label="Status de estudo"
         value={subtopic.study_status}
-        options={STATUSES}
-        onChange={(v) => save("study_status", v)}
+        options={toOptions(STATUSES)}
+        onChange={(e) => save("study_status", e.target.value)}
       />
       <Switch
         label="Marcado para revisar"
         checked={subtopic.review_needed}
         onChange={(v) => save("review_needed", v)}
       />
-      <Tag>Cada campo é salvo assim que muda.</Tag>
-      <Button variant="secondary" onClick={onClose}>
-        Fechar
-      </Button>
+      <Inline justify="between">
+        <p className="t-meta">Cada campo é salvo assim que muda.</p>
+        <Button variant="secondary" onClick={onClose}>
+          Fechar
+        </Button>
+      </Inline>
     </Panel>
   );
 }

@@ -1,9 +1,9 @@
 import { useState } from "react";
 
 import { api } from "../api.js";
-import { Button, List, ListRow, StateMessage, Tabs } from "../ui/index.js";
+import { Button, Inline, List, ListRow, Select, Stack, StateMessage, Tabs } from "../ui/index.js";
 import { useCollections } from "../useCollections.js";
-import { NameForm, SelectField } from "./forms.jsx";
+import { NameForm } from "./forms.jsx";
 
 export default function Roadmap() {
   const { data, error, reload } = useCollections(["/api/tracks/", "/api/concepts/", "/api/areas/"]);
@@ -57,7 +57,7 @@ export default function Roadmap() {
   }
 
   return (
-    <>
+    <Stack gap={6}>
       <h1>Roadmap</h1>
       {actionError && (
         <StateMessage kind="error" title="Não foi possível concluir.">
@@ -89,7 +89,7 @@ export default function Roadmap() {
         />
       )}
       <NameForm label="Nome da trilha" button="Criar trilha" onSubmit={createTrack} />
-    </>
+    </Stack>
   );
 }
 
@@ -109,7 +109,7 @@ function Track({ track, concepts, areaName, act, onRemove }) {
   }
 
   return (
-    <>
+    <Stack gap={5}>
       {track.steps.length === 0 ? (
         <StateMessage title="Nenhum conceito nesta trilha.">
           Adicione um conceito abaixo. Ele pode entrar antes de ter conteúdo.
@@ -153,26 +153,32 @@ function Track({ track, concepts, areaName, act, onRemove }) {
         </List>
       )}
       {available.length > 0 && (
-        <form onSubmit={addStep}>
-          <SelectField
+        <Inline as="form" align="end" onSubmit={addStep}>
+          <Select
             label="Conceito"
             value={conceptId}
-            options={[["", "Escolha um conceito"], ...available.map((c) => [String(c.id), `${c.name} (${areaName[c.area]})`])]}
-            onChange={setConceptId}
+            placeholder="Escolha um conceito"
+            options={available.map((c) => ({
+              value: String(c.id),
+              label: `${c.name} (${areaName[c.area]})`,
+            }))}
+            onChange={(e) => setConceptId(e.target.value)}
           />
           <Button type="submit" variant="secondary" disabled={!conceptId}>
             Adicionar à trilha
           </Button>
-        </form>
+        </Inline>
       )}
       {concepts.length === 0 && (
         <p className="t-meta">
           Crie conceitos na <a href="#/biblioteca">Biblioteca</a> para montar a trilha.
         </p>
       )}
-      <Button variant="tertiary" icon="close" onClick={onRemove}>
-        Remover trilha
-      </Button>
-    </>
+      <Inline justify="end">
+        <Button variant="tertiary" icon="close" onClick={onRemove}>
+          Remover trilha
+        </Button>
+      </Inline>
+    </Stack>
   );
 }
