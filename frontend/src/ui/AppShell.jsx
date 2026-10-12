@@ -1,5 +1,6 @@
 import { useState } from "react";
 
+import emblem from "../assets/brand/athenas-emblem.svg";
 import Icon from "./Icon.jsx";
 
 // Desktop layout: 224px side navigation, flexible work area with a 32px margin.
@@ -7,9 +8,12 @@ import Icon from "./Icon.jsx";
 // items: [{ id, label, icon, href }]; `current` is the active item id.
 // Routing is left to the caller: items are plain links.
 
-export function Brand() {
+// The owl emblem with the wordmark. The image is decorative: the wordmark names the link.
+// `compact` puts them side by side, for the collapsed top bar.
+export function Brand({ compact = false }) {
   return (
-    <a className="ui-brand" href="/">
+    <a className={`ui-brand${compact ? " ui-brand--compact" : ""}`} href="/">
+      <img className="ui-brand__emblem" src={emblem} alt="" width={compact ? 32 : 56} height={compact ? 32 : 56} />
       <span className="ui-brand__word">Athenas</span>
     </a>
   );
@@ -52,7 +56,7 @@ export default function AppShell({ items, secondaryItems = [], current, aside, c
           <Icon name={open ? "close" : "menu"} size={24} />
           Menu
         </button>
-        <Brand />
+        <Brand compact />
       </header>
       {/* The column carries the background so it reaches the bottom of long pages;
           the nav inside stays in view while the page scrolls. */}
