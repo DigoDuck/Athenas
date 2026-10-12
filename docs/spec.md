@@ -1,6 +1,6 @@
 # Athenas v1 specification
 
-Status: draft for review. Source: `Athenas.md` (project Library, 2026-10-12). Where the
+Status: draft for review, open questions answered on 2026-10-12. Source: `Athenas.md` (project Library, 2026-10-12). Where the
 "Decisões do interrogatório" table and the original briefing disagree, the table wins.
 Once merged, this file and `DECISIONS.md` are the source of truth; in a conflict, the repo
 wins over the Library.
@@ -12,8 +12,8 @@ References in brackets point to the source:
 - `[C1]`..`[C5]`: content contract rules ("Contrato do conteúdo").
 - `[V1]`: the "V1" table; `[Medição]`: the "Medição e veredito" section; `[briefing]`: the original
   briefing, used only where the decisions table is silent.
-- `[Q1]`..`[Q17]`: open questions in section 9. Text that depends on an open question says so
-  and must not be implemented until the question is answered.
+- `[Q1]`..`[Q17]`: questions the source left open, answered by Diogo on 2026-10-12. Section 9
+  lists each answer.
 
 ## 1. Purpose
 
@@ -81,7 +81,7 @@ folders deeper than three levels, multi-user. Any change to this list needs Diog
 | Flashcard | Cartão | Front and back. Either manual or declared in the Markdown with label `C<n>`. |
 | Review | Revisão | One rating of one flashcard, fed to Py-FSRS. |
 | Activity | Atividade | A unit of work recorded for measurement: reading, notebook, question, explanation, review session. |
-| Session | Sessão | At least one completed activity `[Medição]`. The success metric counts distinct days with a session `[D10]`. |
+| Session | Sessão | At least one completed activity `[Medição]`, that is, an event with `completed_at` set `[Q1]`. The success metric counts distinct days with a session `[D10]`. |
 | AI complement | Complemento da IA | A `> [!ia]` callout in the content. |
 
 ### 3.2 Entities
@@ -110,11 +110,14 @@ which are independent of each other `[briefing]`:
 | Level | iniciante, intermediário, avançado, especialista | Markdown frontmatter `nivel`, editable |
 | Perceived difficulty | easy, hard, unset | Diogo, any time |
 | Study status | not started, in progress, completed | Rules in 4.4 |
-| Review need | see `[Q5]` | see `[Q5]` |
+| Review need | flag on or off | Diogo, any time `[Q5]` |
 
 A completed subtopic can still need review; a beginner subtopic can be hard. The UI never
-merges these fields into one indicator. Whether concepts carry these fields themselves or
-derive them from subtopics is `[Q4]`.
+merges these fields into one indicator. Next to the review need flag, the UI shows an
+automatic "has cards due" indicator; the two are never merged `[Q5]`.
+
+Concepts do not store these fields. A concept's study status is derived from its subtopics
+(4.4) `[Q4]`.
 
 **Track**: name, ordered list of steps. Each step points to one concept. Order is changed
 without drag and drop (for example, move up and move down).
@@ -131,7 +134,7 @@ flag. The label is the identity `[C2]`.
 `question`), text, self-assessment (`right`, `partial`, `wrong`), created at. Attempts are
 never edited or deleted by the app; they are kept for comparison between attempts.
 
-**Flashcard**: subtopic (Markdown cards) or subtopic or concept (manual cards, see `[Q6]`),
+**Flashcard**: subtopic (Markdown cards), or subtopic or concept (manual cards) `[Q6]`,
 origin (`markdown` or `manual`), label (`C<n>` for Markdown cards, empty for manual), front,
 back, approval state, and the Py-FSRS card state (stored as given by the library, in UTC).
 
@@ -140,18 +143,20 @@ back, approval state, and the Py-FSRS card state (stored as given by the library
 | pending | Declared in the Markdown, not yet reviewed by Diogo | No |
 | active | Approved, or created manually | Yes |
 | suspended | Its label was removed from the Markdown | No |
-| rejected | Diogo refused it during approval, see `[Q7]` | No |
+| rejected | Diogo refused it during approval `[Q7]` | No |
 
 **ReviewLog**: flashcard, rating (`again`, `hard`, `good`), reviewed at (UTC), and the
 Py-FSRS review log as given by the library.
 
-**SessionEvent**: one row per activity: started at, ended at, activity type, and the subject
-(subtopic, question or review session) when there is one `[Medição]`. How completion is
-recorded is `[Q1]`. The "time between opening and starting" metric also needs an "app opened"
-event, which the source does not list `[Q2]`.
+**SessionEvent**: one row per activity: started at, ended at, `completed_at`, activity type,
+and the subject (subtopic, question or review session) when there is one `[Medição]`.
+`completed_at` is set when the activity is finished and stays empty when it is abandoned (for
+example, the browser was closed) `[Q1]`. An `app_opened` event is recorded on each load of the
+home screen, so the "time between opening and starting" metric can be computed `[Q2]`.
 
 **Settings**: daily review cap (default 20), daily new card cap (default 5), desired retention
-(see `[Q10]`), pomodoro focus and break durations, backup folder path.
+(default 0.9, the library's default) `[Q10]`, pomodoro focus and break durations, backup folder
+path.
 
 ### 3.3 Invariants
 
@@ -161,8 +166,8 @@ event, which the source does not list `[Q2]`.
 3. A pending, suspended or rejected card is never shown in a review session and never
    counted in "reviews today".
 4. Py-FSRS works in UTC. Every "day" in the product (caps, return session, measurement)
-   is a calendar day in `America/Bahia` (UTC-3, no daylight saving) `[R7]`. When the day
-   starts is `[Q9]`.
+   is a calendar day in `America/Bahia` (UTC-3, no daylight saving) `[R7]`, starting at
+   midnight `[Q9]`.
 5. Rating or editing a card never erases its review history. Editing question text never
    erases its attempts `[C2]`.
 
@@ -207,8 +212,8 @@ not UI copy.
 1. Diogo pastes the Markdown, sees a preview of the parsed blocks, questions, cards and
    warnings, then saves. Saving incomplete content is allowed.
 2. Content is `ready` only when it has a non-empty "Ideia central" and at least one question
-   under "Prática" `[C1]`. Otherwise it is saved as `draft`. Whether a question without a
-   reference answer counts is `[Q11]`.
+   under "Prática" `[C1]`. A question without a reference answer does not count `[Q11]`.
+   Otherwise it is saved as `draft`.
 3. A `##` heading not in the contract becomes an `extra` block, kept in its original
    position. Content is never discarded `[C3]`.
 4. Questions are `### P<n>: <prompt>` under "Prática", followed by an optional line
@@ -219,32 +224,38 @@ not UI copy.
    - Label no longer present: the question is archived (its attempts are kept), the card is
      suspended.
    - New label: a new question, or a new card in `pending` `[C5]`.
-   - What happens when a removed label comes back is `[Q8]`.
+   - A removed label that comes back restores the archived question or the suspended card,
+     with its history `[Q8]`.
 7. Duplicate labels in one document block the save, with a message naming the label.
-8. A `[!ia]` callout without a source is shown marked "complemento sem fonte" `[C4]`. What
-   counts as a source is `[Q12]`.
+8. A `[!ia]` callout without a source is shown marked "complemento sem fonte" `[C4]`. A
+   source is a `Fonte:` followed by a URL `[Q12]`.
 9. If the frontmatter `area`, `conceito` or `subtema` does not match the subtopic the
-   Markdown is being saved into, the behavior is `[Q13]`.
+   Markdown is being saved into, the preview shows a warning and the save goes into the
+   subtopic being edited `[Q13]`.
 
 ### 4.3 Pending card approval
 
 1. Cards declared in the Markdown enter as `pending`, outside the review queue `[D7]`.
 2. Approval is one card at a time, with keyboard shortcuts. There is no "approve all" `[C5]`.
 3. An approved card becomes `active` and new; the daily new card cap applies to it `[C5]`.
-4. Manual cards are created `active` (they are Diogo's own and need no approval).
+4. Diogo can also reject a pending card. A rejected label stays rejected on later re-imports
+   until it is removed from the Markdown and added again, which makes it pending `[Q7]`.
+5. Manual cards are created `active` (they are Diogo's own and need no approval).
 
 ### 4.4 Study status and completion
-
-This is a core area, and the source leaves most of it open. Known rules:
 
 1. Study status values: not started, in progress, completed `[briefing]`.
 2. The app may suggest completion; the decision is always Diogo's `[briefing]`.
 3. Completing a step ends that study cycle. Reviews stay available afterwards `[briefing]`.
-4. Configurable completion criteria are out of scope `[V1]`, so v1 has fixed
-   suggestion criteria. What they are is `[Q3]`.
-
-What moves a subtopic from not started to in progress, and how a concept's status relates to
-its subtopics' statuses, is `[Q4]`.
+4. Configurable completion criteria are out of scope `[V1]`, so v1 has fixed suggestion
+   criteria `[Q3]`:
+   - A subtopic is suggested complete when all its blocks were read and it has at least one
+     attempt rated right or partial.
+   - A concept is complete when all its subtopics are complete.
+5. A subtopic moves from not started to in progress when its first block is opened `[Q4]`.
+6. A concept's status is derived from its subtopics `[Q4]`: not started while all are not
+   started, completed when all are completed, in progress otherwise. A concept with no
+   subtopics is not started.
 
 ### 4.5 Roadmap and home screen
 
@@ -269,17 +280,21 @@ its subtopics' statuses, is `[Q4]`.
 5. Cards due beyond the cap are redistributed silently, lowest estimated retention first
    `[R3]`: when the day's queue is built, due cards are ordered by current retrievability,
    ascending, and the cap takes the first ones. The ones left out stay due and compete again
-   the next day. Whether this is done at queue time (without changing the stored due date) or
-   by rewriting due dates is a proposed decision, `DECISIONS.md` P-01.
-6. Whether a card failed and shown again the same day (Py-FSRS learning and relearning
-   steps) uses another slot of the cap is `[Q14]`.
+   the next day. Stored due dates are never rewritten (`DECISIONS.md` D-011).
+6. The review cap counts distinct cards per day. A card failed and shown again the same day
+   (Py-FSRS learning and relearning steps) does not use another slot `[Q14]`.
 
 ### 4.7 Return session
 
 After 3 or more days without a session, the app opens a return session: the point where Diogo
-stopped and at most 5 reviews. No text mentions the absence `[R4]`. How "3 days" is counted
-(by calendar day in Bahia time, which day is the last session) depends on `[Q1]` and `[Q9]`.
-Whether the normal caps apply for the rest of that day is `[Q15]`.
+stopped and at most 5 reviews. No text mentions the absence `[R4]`.
+
+"3 or more days without a session" means at least 3 full Bahia calendar days with no completed
+activity between the last day with a session and today. Example: last session on Monday, the
+return session opens from Friday on.
+
+After the return session, the normal caps apply for the rest of the day, and the return
+session's reviews count toward them `[Q15]`.
 
 ### 4.8 Study, notebook mode and practice
 
@@ -288,7 +303,8 @@ Whether the normal caps apply for the rest of that day is `[Q15]`.
 2. Notebook mode is a separate presentation for copying into a paper notebook: clear titles,
    short definitions, essential points, selected examples. It can end with one
    "explain in my words" prompt or one question to answer without looking `[briefing]`.
-   Which blocks it uses is `[Q16]`.
+   It shows, in order: Objetivo, Ideia central, Exemplo, Resumo para o caderno, then one
+   practice prompt `[Q16]`.
 3. Practice offers questions with a reference answer, and "explain in my words". The
    reference answer is shown only after Diogo submits. Diogo then rates the attempt: right,
    partial or wrong. Previous attempts are visible for comparison.
@@ -306,9 +322,11 @@ blocks studying and never competes visually with the content.
    subtopic, in the content contract format), written to a folder inside the Obsidian vault,
    which syncs to Google Drive `[D8]`.
 2. The folder is configured, not hard-coded.
-3. Restore through the UI is out of scope. When the export runs if the computer was off at
-   the scheduled time, how many exports are kept, and how a restore is done and checked are
-   `[Q17]`.
+3. If the computer was off at the scheduled time, the export runs at startup when the last
+   one is older than 24 hours `[Q17]`.
+4. Exports are kept for 30 days `[Q17]`.
+5. Restore through the UI is out of scope. A documented restore command exists, and it is
+   tried once before day 1 `[Q17]`.
 
 ### 4.11 Measurement
 
@@ -321,7 +339,8 @@ blocks studying and never competes visually with the content.
 4. Day 28: a verdict written in `DECISIONS.md` with, in this order, the numbers per block, the
    features that shipped that month, the sessions lost to being away from the computer, and the
    pre-written reading that applies `[D4]`, `[D10]`.
-5. How a completed activity is recorded, and confirming the date of day 1, are `[Q1]`.
+5. Day 1 is the first day use mode works with at least one concept registered `[D10]`, `[Q1]`.
+   Its date is recorded in `DECISIONS.md` when it happens.
 
 ## 5. Environments
 
@@ -348,7 +367,7 @@ v1 is done when all of the following hold in use mode on Diogo's computer:
 1. Full cycle: pick a concept in the roadmap, paste its Markdown, study it, answer a question
    or explain it, rate the attempt, and come back to review its cards on a later day.
 2. Review runs on Py-FSRS with both daily caps, never shows overdue totals, and opens a return
-   session after 3 or more days away.
+   session after 3 or more full days away.
 3. Markdown import follows section 4.2: blocks, fixed `P`/`C` labels across re-imports,
    pending cards with one-by-one approval, unsourced AI callouts marked.
 4. Use mode starts with Windows, listens on `127.0.0.1`, keeps its data apart from dev, and
@@ -368,8 +387,7 @@ edits files there. Section 8 proposes scenario titles.
 
 ## 8. Proposed acceptance scenario titles
 
-Titles only, for Diogo to accept, change or drop. Scenarios marked with a question depend on
-it being answered first.
+Titles only, for Diogo to accept, change or drop.
 
 ### Scheduling and caps
 
@@ -377,65 +395,76 @@ it being answered first.
 2. There is no Easy rating.
 3. With 30 cards due and a cap of 20, today's queue has 20 cards.
 4. The 20 cards picked are the ones with the lowest retrievability.
-5. Cards left out by the cap are still due the next day.
+5. Cards left out by the cap are still due the next day, with their stored due date unchanged.
 6. With 8 approved new cards and a new card cap of 5, today's queue introduces 5.
 7. Pending, suspended and rejected cards never enter the queue.
 8. "Reviews today" never exceeds the remaining cap and never shows overdue counts.
 9. Changing the review cap changes today's remaining count.
-10. A review at 22:30 in Bahia counts toward that Bahia day, not the UTC day (`[Q9]`).
-11. After 3 days without a session, the home screen opens a return session with at most 5
-    reviews (`[Q1]`, `[Q15]`).
-12. A card failed and shown again the same day does or does not use another slot (`[Q14]`).
+10. A review at 22:30 in Bahia counts toward that Bahia day, not the UTC day.
+11. A card failed and shown again the same day does not use another slot of the cap.
+12. With the last session on Monday, opening the app on Friday starts a return session with at
+    most 5 reviews.
+13. With the last session on Monday, opening the app on Thursday does not start a return
+    session.
+14. Reviews done in the return session count toward that day's cap.
+15. An activity abandoned without `completed_at` does not count as a session.
 
 ### Status and completion
 
-13. Content without "Ideia central" is saved as draft.
-14. Content without a question under "Prática" is saved as draft.
-15. Content with "Ideia central" and one question is ready.
-16. A subtopic's level, perceived difficulty, study status and review need change
+16. Content without "Ideia central" is saved as draft.
+17. Content whose only question has no reference answer is saved as draft.
+18. Content with "Ideia central" and one question with a reference answer is ready.
+19. Opening the first block moves a subtopic from not started to in progress.
+20. A subtopic's level, perceived difficulty, study status and review need change
     independently.
-17. The app suggests completion when the fixed criteria are met, and the status changes only
-    when Diogo confirms (`[Q3]`).
-18. Completing a concept keeps its cards in review.
+21. A subtopic with all blocks read and one attempt rated partial is suggested complete.
+22. A subtopic with all blocks read and only wrong attempts is not suggested complete.
+23. A suggested completion changes the status only when Diogo confirms it.
+24. A concept is completed when all its subtopics are, and in progress when only some are.
+25. Completing a concept keeps its cards in review.
 
 ### Markdown import
 
-19. Each known `##` heading becomes its own block, in order.
-20. An unknown `##` heading becomes an extra block in its original position.
-21. `P1` with its reference answer becomes a question.
-22. `C1: front :: back` becomes a pending card.
-23. Re-importing with changed text under `P1` keeps the attempts of `P1`.
-24. Re-importing with changed text under `C1` keeps the review history of `C1`.
-25. Re-importing without `P2` archives `P2` and keeps its attempts.
-26. Re-importing without `C2` suspends `C2`.
-27. A new `C3` on re-import enters as pending.
-28. Two `C1` labels in one document block the save.
-29. A `[!ia]` callout without a source is marked "complemento sem fonte" (`[Q12]`).
-30. A `[!ia]` callout with a source is not marked.
-31. Approving a pending card makes it active and subject to the new card cap.
-32. There is no way to approve all pending cards at once.
+26. Each known `##` heading becomes its own block, in order.
+27. An unknown `##` heading becomes an extra block in its original position.
+28. `P1` with its reference answer becomes a question.
+29. `C1: front :: back` becomes a pending card.
+30. Re-importing with changed text under `P1` keeps the attempts of `P1`.
+31. Re-importing with changed text under `C1` keeps the review history of `C1`.
+32. Re-importing without `P2` archives `P2` and keeps its attempts.
+33. Re-importing without `C2` suspends `C2`.
+34. Re-importing with `C2` back restores it with its review history.
+35. A new `C3` on re-import enters as pending.
+36. Two `C1` labels in one document block the save.
+37. A `[!ia]` callout without a `Fonte:` URL is marked "complemento sem fonte".
+38. A `[!ia]` callout with a `Fonte:` URL is not marked.
+39. A frontmatter naming another subtopic shows a warning and saves into the subtopic being
+    edited.
+40. Approving a pending card makes it active and subject to the new card cap.
+41. There is no way to approve all pending cards at once.
+42. A rejected card stays rejected when the same Markdown is imported again.
 
-## 9. Open questions
+## 9. Answered questions
 
-Each one blocks the part of the spec that cites it. A suggestion is given where one exists; it
-is not a decision until Diogo says so.
+Questions the source left open, answered by Diogo on 2026-10-12 by accepting the suggestions in
+the first draft of this spec (`DECISIONS.md` D-013).
 
-| # | Question | Blocks | Suggestion |
-| --- | --- | --- | --- |
-| Q1 | How is a completed activity recorded in the session events? And is day 1 confirmed as the first day use mode is up with at least one concept registered (D-010)? | 4.7, 4.11, metrics | A `completed_at` field per event, empty when the activity was abandoned; confirm day 1 as written in D-010. |
-| Q2 | Is "app opened" an event, so the "time between opening and starting" metric can be computed? | 4.11 | Yes, one event per page load of the home screen. |
-| Q3 | What are the fixed criteria for suggesting a subtopic or concept is complete? | 4.4, core tests | Subtopic: all blocks read and at least one attempt rated right or partial. Concept: all subtopics completed. |
-| Q4 | Do status and the other classification fields live on the concept, the subtopic, or both? What moves a subtopic to "in progress"? | 3.2, 4.4 | Fields on the subtopic; concept status derived from its subtopics; "in progress" on first block opened. |
-| Q5 | What is "review need": a manual flag, a value derived from the cards, or both? | 3.2 | Manual flag Diogo sets, shown next to an automatic "has cards due" indicator. |
-| Q6 | Can a manual card be linked to a concept without a subtopic? | 3.2 | Allow concept or subtopic. |
-| Q7 | Is there a "reject" action in approval, and does a rejected label come back on re-import? | 4.3 | Reject exists; a rejected label stays rejected until removed and re-added. |
-| Q8 | When a removed label comes back on re-import, is the old question or card restored with its history? | 4.2 | Restore with history. |
-| Q9 | When does the Bahia day start: midnight or a later hour? | 3.3, 4.6, 4.7 | Midnight, unless late-night study is common. |
-| Q10 | Default desired retention? | Settings | 0.9 (the library's default). |
-| Q11 | Does a question without a reference answer count toward "ready"? | 4.2 | No. |
-| Q12 | What counts as a source in a `[!ia]` callout? | 4.2, scenario 29 | A `Fonte:` followed by a URL. |
-| Q13 | If the frontmatter names a different area, concept or subtopic than the one being edited, what happens? | 4.2 | Show a warning in the preview and save into the subtopic being edited. |
-| Q14 | Does a same-day repeat of a failed card use another slot of the review cap? | 4.6, scenario 12 | No: the cap counts distinct cards per day. |
-| Q15 | After a return session, do the normal caps apply for the rest of the day? | 4.7 | Yes, with the return session's reviews counted toward them. |
-| Q16 | Which blocks does notebook mode use? | 4.8 | Objetivo, Ideia central, Exemplo, Resumo para o caderno, then one practice prompt. |
-| Q17 | Backup: catch-up run if the computer was off, retention, and how a restore is done and checked? | 4.10 | Run at startup if the last export is older than 24 h; keep 30 days; a documented restore command, tried once before day 1. |
+| # | Question | Answer |
+| --- | --- | --- |
+| Q1 | How is a completed activity recorded, and what is day 1? | A `completed_at` field per session event, empty when the activity is abandoned. Day 1 as written in D-010. |
+| Q2 | Is "app opened" an event? | Yes, one `app_opened` event per load of the home screen. |
+| Q3 | What are the fixed completion suggestion criteria? | Subtopic: all blocks read and at least one attempt rated right or partial. Concept: all subtopics completed. |
+| Q4 | Where do status and the classification fields live, and what starts "in progress"? | On the subtopic. Concept status is derived from its subtopics. A subtopic is in progress once its first block is opened. |
+| Q5 | What is "review need"? | A manual flag, shown next to an automatic "has cards due" indicator. |
+| Q6 | Can a manual card belong to a concept without a subtopic? | Yes: concept or subtopic. |
+| Q7 | Is there a reject action in approval? | Yes. A rejected label stays rejected until removed from the Markdown and added again. |
+| Q8 | Does a removed label that comes back restore its history? | Yes. |
+| Q9 | When does the Bahia day start? | At midnight. |
+| Q10 | Default desired retention? | 0.9. |
+| Q11 | Does a question without a reference answer count toward ready? | No. |
+| Q12 | What counts as a source in a `[!ia]` callout? | A `Fonte:` followed by a URL. |
+| Q13 | What if the frontmatter names another area, concept or subtopic? | A warning in the preview; the save goes into the subtopic being edited. |
+| Q14 | Does a same-day repeat of a failed card use another cap slot? | No: the cap counts distinct cards per day. |
+| Q15 | Do the normal caps apply after a return session? | Yes, and the return session's reviews count toward them. |
+| Q16 | Which blocks does notebook mode use? | Objetivo, Ideia central, Exemplo, Resumo para o caderno, then one practice prompt. |
+| Q17 | Backup catch-up, retention and restore? | Run at startup if the last export is older than 24 h; keep 30 days; a documented restore command, tried once before day 1. |

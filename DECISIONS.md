@@ -2,7 +2,6 @@
 
 Decisions that shape Athenas, newest last. Each entry says what was decided, why, and where it
 came from. Accepted entries change only through a new entry that supersedes them.
-Proposed entries are not decisions until Diogo accepts them.
 
 The day 28 verdict (spec section 4.11) is written here as its own entry.
 
@@ -96,16 +95,14 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
     sessions lost to being away from the computer, the reading applied.
 - Why: without a written consequence the metric is decoration (D-004), and four weeks of one
   person's data is too small a sample to freeze the project on.
-- Open: how a completed activity is recorded in the event table (spec `[Q1]`).
+- Completion recording: answered in D-013 (`completed_at`).
 
-## Proposed
+### D-011: Redistribute overflow when building the queue, without rewriting due dates
 
-### P-01: Redistribute overflow when building the queue, without rewriting due dates
-
-- Date: 2026-10-12. Status: proposed, needs Diogo's ok.
+- Date: 2026-10-12. Source: proposal P-01 in the first spec draft, accepted by Diogo.
 - Context: review rule 3 says cards due beyond the cap are redistributed silently, lowest
   estimated retention first. This can be done two ways.
-- Proposal: keep the due date Py-FSRS computed. When the day's queue is built, order due cards
+- Decision: keep the due date Py-FSRS computed. When the day's queue is built, order due cards
   by current retrievability, ascending, and take up to the cap. Cards left out stay due and
   compete again the next day.
 - Why: the stored state stays exactly what Py-FSRS produced, so the future optimizer trains on
@@ -115,10 +112,24 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
   The UI still never shows it (rule 2), but the support metric "fraction of the day's reviews
   done" must be read against the capped queue, not the backlog.
 
-### P-02: Repository documents in English
+### D-012: Repository documents in English
 
-- Date: 2026-10-12. Status: proposed, needs Diogo's ok.
-- Proposal: `docs/spec.md`, `DECISIONS.md` and other repo documents are in English, like
+- Date: 2026-10-12. Source: proposal P-02 in the first spec draft, accepted by Diogo.
+- Decision: `docs/spec.md`, `DECISIONS.md` and other repo documents are in English, like
   commits and pull requests. Contract text that the app parses (Markdown headings such as
   "Ideia central", the "Resposta de referência" line) and UI copy stay in Portuguese.
 - Why: the repo becomes a portfolio piece after the first month (D-002).
+
+### D-013: Answers to the spec's open questions
+
+- Date: 2026-10-12. Source: Diogo accepted the suggestions for Q1 to Q17 in the first spec
+  draft.
+- Decision: the answers are listed in `docs/spec.md` section 9 and written into the rules they
+  affect. The ones that shape the core most:
+  - A session event has `completed_at`, empty when the activity is abandoned. Only events with
+    it count as sessions (Q1).
+  - Completion is suggested for a subtopic when all its blocks were read and one attempt is
+    rated right or partial; a concept's status is derived from its subtopics (Q3, Q4).
+  - The review cap counts distinct cards per day; a same-day repeat does not use a slot (Q14).
+  - The day in Bahia time starts at midnight (Q9).
+- Why: the source left these open, and the core acceptance tests depend on them.
