@@ -1,19 +1,44 @@
 import { useEffect, useState } from "react";
 
+import Organization from "./pages/Organization.jsx";
+import Roadmap from "./pages/Roadmap.jsx";
+
+const PAGES = {
+  organizacao: { label: "Organização", Component: Organization },
+  roadmap: { label: "Roadmap", Component: Roadmap },
+};
+
+function currentPage() {
+  const key = window.location.hash.replace("#/", "");
+  return key in PAGES ? key : "roadmap";
+}
+
 export default function App() {
-  const [api, setApi] = useState("verificando");
+  const [page, setPage] = useState(currentPage);
 
   useEffect(() => {
-    fetch("/api/health/")
-      .then((r) => (r.ok ? "ok" : "erro"))
-      .catch(() => "erro")
-      .then(setApi);
+    const onHashChange = () => setPage(currentPage());
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
 
+  const { Component } = PAGES[page];
+
   return (
-    <main>
-      <h1>Athenas</h1>
-      <p>API: {api}</p>
-    </main>
+    <>
+      <header className="topbar">
+        <strong>Athenas</strong>
+        <nav>
+          {Object.entries(PAGES).map(([key, { label }]) => (
+            <a key={key} href={`#/${key}`} aria-current={key === page ? "page" : undefined}>
+              {label}
+            </a>
+          ))}
+        </nav>
+      </header>
+      <main>
+        <Component />
+      </main>
+    </>
   );
 }
