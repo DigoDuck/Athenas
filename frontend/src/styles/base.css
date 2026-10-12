@@ -119,6 +119,14 @@ pre {
   line-height: var(--leading-code);
 }
 
+/* Keyboard shortcut next to its action, such as "Aprovar A". */
+kbd {
+  padding: 0 0.35em;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  font-size: 0.8em;
+}
+
 :not(pre) > code {
   padding: 0.1em 0.3em;
   border-radius: 4px;
