@@ -54,17 +54,21 @@ export default function AppShell({ items, secondaryItems = [], current, aside, c
         </button>
         <Brand />
       </header>
-      <nav className="ui-nav" id="navegacao-principal" aria-label="Principal" data-print="hide">
-        <div className="ui-nav__brand">
-          <Brand />
-        </div>
-        <NavList items={items} current={current} />
-        {secondaryItems.length > 0 && (
-          <div className="ui-nav__secondary">
-            <NavList items={secondaryItems} current={current} />
+      {/* The column carries the background so it reaches the bottom of long pages;
+          the nav inside stays in view while the page scrolls. */}
+      <div className="ui-shell__nav-column" data-print="hide">
+        <nav className="ui-nav" id="navegacao-principal" aria-label="Principal">
+          <div className="ui-nav__brand">
+            <Brand />
           </div>
-        )}
-      </nav>
+          <NavList items={items} current={current} />
+          {secondaryItems.length > 0 && (
+            <div className="ui-nav__secondary">
+              <NavList items={secondaryItems} current={current} />
+            </div>
+          )}
+        </nav>
+      </div>
       <main className="ui-shell__main" id="conteudo" tabIndex={-1}>
         <div className="ui-shell__content">{children}</div>
       </main>

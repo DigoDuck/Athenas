@@ -74,3 +74,31 @@ export function TextArea({ label, help, error, status, required, rows = 6, class
     </FieldShell>
   );
 }
+
+// Native select, styled like the other controls. options: [{ value, label }].
+// `placeholder` adds an empty first option, such as "Escolha um conceito".
+export function Select({ label, help, error, required, options, placeholder, className = "", ...rest }) {
+  const ids = useFieldIds(error, help);
+  return (
+    <FieldShell ids={ids} label={label} required={required} help={help} error={error}>
+      <span className="ui-select">
+        <select
+          id={ids.id}
+          className={`ui-input ui-select__control ${className}`.trim()}
+          required={required}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={ids.describedBy}
+          {...rest}
+        >
+          {placeholder !== undefined && <option value="">{placeholder}</option>}
+          {options.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+        <Icon name="chevron-down" className="ui-select__icon" />
+      </span>
+    </FieldShell>
+  );
+}

@@ -95,6 +95,7 @@ const paths = {
     </>
   ),
   "chevron-right": <path d="m9 6 6 6-6 6" />,
+  "chevron-down": <path d="m6 9 6 6 6-6" />,
   "file-text": (
     <>
       <path d="M14 3H6v18h12V7Z" />
