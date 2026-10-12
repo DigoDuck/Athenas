@@ -1,5 +1,5 @@
 from django.db import connection
-from django.urls import path
+from django.urls import include, path
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
@@ -11,4 +11,7 @@ def health(request):
     return Response({"status": "ok"})
 
 
-urlpatterns = [path("api/health/", health)]
+urlpatterns = [
+    path("api/health/", health),
+    path("api/", include("organization.urls")),
+]
