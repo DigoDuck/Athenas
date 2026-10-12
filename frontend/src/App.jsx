@@ -1,12 +1,20 @@
 import { useEffect, useState } from "react";
 
-import Organization from "./pages/Organization.jsx";
+import Library from "./pages/Library.jsx";
 import Roadmap from "./pages/Roadmap.jsx";
+import { AppShell } from "./ui/index.js";
 
 const PAGES = {
-  organizacao: { label: "Organização", Component: Organization },
-  roadmap: { label: "Roadmap", Component: Roadmap },
+  roadmap: { label: "Roadmap", icon: "roadmap", Component: Roadmap },
+  biblioteca: { label: "Biblioteca", icon: "library", Component: Library },
 };
+
+const NAV_ITEMS = Object.entries(PAGES).map(([id, { label, icon }]) => ({
+  id,
+  label,
+  icon,
+  href: `#/${id}`,
+}));
 
 function currentPage() {
   const key = window.location.hash.replace("#/", "");
@@ -25,20 +33,8 @@ export default function App() {
   const { Component } = PAGES[page];
 
   return (
-    <>
-      <header className="topbar">
-        <strong>Athenas</strong>
-        <nav>
-          {Object.entries(PAGES).map(([key, { label }]) => (
-            <a key={key} href={`#/${key}`} aria-current={key === page ? "page" : undefined}>
-              {label}
-            </a>
-          ))}
-        </nav>
-      </header>
-      <main>
-        <Component />
-      </main>
-    </>
+    <AppShell items={NAV_ITEMS} current={page}>
+      <Component />
+    </AppShell>
   );
 }
