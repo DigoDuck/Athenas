@@ -3,7 +3,7 @@ import { useState } from "react";
 import { api } from "../api.js";
 import { Button, Inline, List, ListRow, Select, Stack, StateMessage, Tabs } from "../ui/index.js";
 import { useCollections } from "../useCollections.js";
-import { NameForm } from "./forms.jsx";
+import { ActionError, NameForm } from "./forms.jsx";
 
 export default function Roadmap() {
   const { data, error, reload } = useCollections(["/api/tracks/", "/api/concepts/", "/api/areas/"]);
@@ -66,11 +66,6 @@ export default function Roadmap() {
   return (
     <Stack gap={6}>
       <h1>Roadmap</h1>
-      {actionError && (
-        <StateMessage kind="error" title="Não foi possível concluir.">
-          {actionError}
-        </StateMessage>
-      )}
       {tracks.length === 0 ? (
         <StateMessage title="Nenhuma trilha ainda.">
           Uma trilha é a ordem em que você quer estudar os conceitos.
@@ -89,6 +84,7 @@ export default function Roadmap() {
                 concepts={concepts}
                 areaName={areaName}
                 act={act}
+                actionError={actionError}
                 onRemove={() => removeTrack(track)}
               />
             ),
@@ -100,7 +96,7 @@ export default function Roadmap() {
   );
 }
 
-function Track({ track, concepts, areaName, act, onRemove }) {
+function Track({ track, concepts, areaName, act, actionError, onRemove }) {
   const [conceptId, setConceptId] = useState("");
   const inTrack = new Set(track.steps.map((s) => s.concept));
   const available = concepts.filter((c) => !inTrack.has(c.id));
@@ -160,6 +156,7 @@ function Track({ track, concepts, areaName, act, onRemove }) {
           ))}
         </List>
       )}
+      <ActionError>{actionError && `Não foi possível concluir. ${actionError}`}</ActionError>
       {available.length > 0 && (
         <Inline as="form" align="end" onSubmit={addStep}>
           <Select
