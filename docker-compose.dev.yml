@@ -1,0 +1,53 @@
+# Dev mode: hot reload, its own database and volume (spec 5.2).
+name: athenas-dev
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: athenas
+      POSTGRES_USER: athenas
+      POSTGRES_PASSWORD: athenas-dev
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U athenas -d athenas"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      target: dev
+    command: python backend/manage.py runserver 0.0.0.0:8000
+    environment:
+      DJANGO_SECRET_KEY: dev-only-not-secret
+      DJANGO_DEBUG: "1"
+      DJANGO_ALLOWED_HOSTS: "*"
+      POSTGRES_DB: athenas
+      POSTGRES_USER: athenas
+      POSTGRES_PASSWORD: athenas-dev
+    volumes:
+      - .:/repo
+    ports:
+      - "127.0.0.1:8471:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: frontend
+      target: dev
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "127.0.0.1:5470:5173"
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:
