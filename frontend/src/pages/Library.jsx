@@ -15,6 +15,7 @@ import {
   Switch,
 } from "../ui/index.js";
 import { useCollections } from "../useCollections.js";
+import ContentEditor from "./ContentEditor.jsx";
 import { ActionError, NameForm, toOptions } from "./forms.jsx";
 
 const LEVELS = [
@@ -46,6 +47,7 @@ export default function Library() {
   // A failed removal shows next to the section it came from: { at: "area-1", message }.
   const [actionError, setActionError] = useState(null);
   const [editing, setEditing] = useState(null);
+  const [contentOf, setContentOf] = useState(null);
 
   // Runs a write and reloads. Returns the error message, or null when it worked.
   async function run(write) {
@@ -86,12 +88,21 @@ export default function Library() {
   }
   const [areas, concepts, subtopics, tracks] = data;
   const editingSubtopic = subtopics.find((s) => s.id === editing);
+  const contentSubtopic = subtopics.find((s) => s.id === contentOf);
 
   // Closing hands focus back to the row's "Classificar" button, so keyboard users keep their place.
   function closeEditor() {
     const id = editing;
     setEditing(null);
     document.getElementById(`classificar-${id}`)?.focus();
+  }
+
+  // Saving can change the level (frontmatter `nivel`), so the list reloads on close.
+  function closeContent() {
+    const id = contentOf;
+    setContentOf(null);
+    reload();
+    document.getElementById(`conteudo-${id}`)?.focus();
   }
 
   return (
@@ -133,6 +144,8 @@ export default function Library() {
                 trackCount={tracks.filter((t) => t.steps.some((s) => s.concept === concept.id)).length}
                 editing={editing}
                 onEdit={setEditing}
+                contentOf={contentOf}
+                onContent={setContentOf}
                 run={run}
                 remove={remove}
                 actionError={actionError}
@@ -154,6 +167,9 @@ export default function Library() {
           onClose={closeEditor}
         />
       )}
+      {contentSubtopic && (
+        <ContentEditor key={contentSubtopic.id} subtopic={contentSubtopic} onClose={closeContent} />
+      )}
       <NameForm
         label="Nome da área"
         button="Adicionar área"
@@ -166,7 +182,18 @@ export default function Library() {
 // The removal error message for one section, or false when it failed somewhere else.
 const removeFailure = (error, at) => error?.at === at && `Não foi possível remover. ${error.message}`;
 
-function Concept({ concept, subtopics, trackCount, editing, onEdit, run, remove, actionError }) {
+function Concept({
+  concept,
+  subtopics,
+  trackCount,
+  editing,
+  onEdit,
+  contentOf,
+  onContent,
+  run,
+  remove,
+  actionError,
+}) {
   const at = `concept-${concept.id}`;
   // Removing a concept also removes it from every track (steps cascade), so the question says so.
   const question =
@@ -207,6 +234,16 @@ function Concept({ concept, subtopics, trackCount, editing, onEdit, run, remove,
               }
               action={
                 <>
+                  <Button
+                    id={`conteudo-${s.id}`}
+                    variant="tertiary"
+                    icon="file-text"
+                    aria-label={`Conteúdo de ${s.name}`}
+                    aria-pressed={contentOf === s.id}
+                    onClick={() => onContent(contentOf === s.id ? null : s.id)}
+                  >
+                    Conteúdo
+                  </Button>
                   <Button
                     id={`classificar-${s.id}`}
                     variant="tertiary"

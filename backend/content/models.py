@@ -3,6 +3,40 @@ from django.utils import timezone
 from organization.models import Subtopic
 
 
+class Content(models.Model):
+    """The subtopic's Markdown as pasted, always kept (spec 3.2), and its state (spec 4.2.2)."""
+
+    class State(models.TextChoices):
+        DRAFT = "draft", "rascunho"
+        READY = "ready", "pronto"
+
+    subtopic = models.OneToOneField(Subtopic, on_delete=models.PROTECT, related_name="content")
+    raw_markdown = models.TextField()
+    state = models.CharField(max_length=5, choices=State, default=State.DRAFT)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.subtopic_id} {self.state}"
+
+
+class Block(models.Model):
+    """One `##` section. Rebuilt on every import; blocks have no identity of their own (4.2.6)."""
+
+    content = models.ForeignKey(Content, on_delete=models.CASCADE, related_name="blocks")
+    order = models.PositiveIntegerField()
+    kind = models.CharField(max_length=30)
+    heading = models.TextField(blank=True)
+    body = models.TextField(blank=True)
+    # Carried over on re-import by identical text, never by heading (DECISIONS.md D-015).
+    read_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["content_id", "order"]
+
+    def __str__(self):
+        return f"{self.order} {self.kind}"
+
+
 class PracticeQuestion(models.Model):
     """Identity is the label (`P1`...) inside a subtopic (spec 3.3, item 2, and `[C2]`)."""
 

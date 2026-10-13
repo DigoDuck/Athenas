@@ -1,0 +1,17 @@
+/* The pending card under approval: front and back at reading size, separated by a rule. */
+.card-approval__card {
+  margin: 0;
+  padding-block: var(--space-4);
+  border-block: 1px solid var(--color-border);
+}
+
+.card-approval__card dd {
+  margin: 0 0 var(--space-4);
+  font-size: var(--text-reading);
+  line-height: var(--leading-reading);
+  max-width: 66ch;
+}
+
+.card-approval__card dd:last-child {
+  margin-bottom: 0;
+}

@@ -1,8 +1,10 @@
 """Re-import of a parsed document into a subtopic. Identity follows the labels (spec 4.2.6)."""
 
+from collections import defaultdict
+
 from django.db import transaction
 
-from .models import Flashcard, PracticeQuestion
+from .models import Block, Content, Flashcard, PracticeQuestion
 from .parser import ParsedContent
 
 
@@ -10,8 +12,37 @@ from .parser import ParsedContent
 def import_content(subtopic, parsed: ParsedContent) -> None:
     if parsed.errors:
         raise ValueError("; ".join(parsed.errors))
+    _save_content(subtopic, parsed)
     _sync_questions(subtopic, parsed)
     _sync_cards(subtopic, parsed)
+    if parsed.level is not None:
+        subtopic.level = parsed.level
+        subtopic.save(update_fields=["level"])
+
+
+def _save_content(subtopic, parsed):
+    content, _ = Content.objects.update_or_create(
+        subtopic=subtopic, defaults={"raw_markdown": parsed.raw, "state": parsed.state}
+    )
+    # A block with identical kind, heading and body keeps its read mark (DECISIONS.md D-015).
+    read = defaultdict(list)
+    for old in content.blocks.exclude(read_at=None):
+        read[(old.kind, old.heading, old.body)].append(old.read_at)
+    content.blocks.all().delete()
+    blocks = []
+    for order, block in enumerate(parsed.blocks):
+        marks = read[(block.kind, block.heading, block.body)]
+        blocks.append(
+            Block(
+                content=content,
+                order=order,
+                kind=block.kind,
+                heading=block.heading,
+                body=block.body,
+                read_at=marks.pop() if marks else None,
+            )
+        )
+    Block.objects.bulk_create(blocks)
 
 
 def _sync_questions(subtopic, parsed):
@@ -43,8 +74,27 @@ def _sync_cards(subtopic, parsed):
             card.state_before_suspension = ""
         card.save()
     kept = {item.label for item in parsed.cards}
-    suspendable = (Flashcard.State.PENDING, Flashcard.State.ACTIVE)
     for label, card in existing.items():
-        if label not in kept and card.state in suspendable:
-            card.state_before_suspension, card.state = card.state, Flashcard.State.SUSPENDED
+        if label not in kept and card.state != Flashcard.State.SUSPENDED:
+            # A rejected label that leaves and comes back starts over as pending (spec 4.3.4).
+            rejected = card.state == Flashcard.State.REJECTED
+            card.state_before_suspension = Flashcard.State.PENDING if rejected else card.state
+            card.state = Flashcard.State.SUSPENDED
             card.save()
+
+
+def approve_card(card) -> None:
+    """Pending becomes active and new; the new card cap applies to it (spec 4.3.3)."""
+    _decide(card, Flashcard.State.ACTIVE)
+
+
+def reject_card(card) -> None:
+    _decide(card, Flashcard.State.REJECTED)
+
+
+def _decide(card, state):
+    # One card at a time, and only a pending one: there is no "approve all" (spec 4.3.2).
+    if card.state != Flashcard.State.PENDING:
+        raise ValueError(f"O cartão {card.label} não está pendente")
+    card.state = state
+    card.save(update_fields=["state"])

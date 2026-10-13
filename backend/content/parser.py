@@ -1,6 +1,7 @@
 """Pure parser for the subtopic Markdown contract (spec 4.1 and 4.2). No Django, no database."""
 
 import re
+import unicodedata
 from dataclasses import dataclass, field
 
 KNOWN_HEADINGS = {
@@ -21,6 +22,8 @@ CARD_RE = re.compile(r"^-\s+(C\d+):\s*(.+?)\s*::\s*(.+?)\s*$")
 CARD_LABEL_RE = re.compile(r"^-\s+(C\d+):")
 SOURCE_RE = re.compile(r"Fonte:\s*(https?://\S+)")
 REFERENCE_PREFIX = "Resposta de referência:"
+# Stored without accents, like `Subtopic.Level` ("intermediário" -> "intermediario").
+LEVELS = {"iniciante", "intermediario", "avancado", "especialista"}
 
 
 @dataclass(frozen=True)
@@ -64,6 +67,8 @@ class Callout:
 
 @dataclass
 class ParsedContent:
+    raw: str = field(default="", compare=False)  # as pasted; "parses the same" ignores it
+    level: str | None = None
     frontmatter: dict[str, str] = field(default_factory=dict)
     blocks: list[Block] = field(default_factory=list)
     questions: list[Question] = field(default_factory=list)
@@ -76,9 +81,10 @@ class ParsedContent:
 
 def parse_markdown(text: str, target: Target | None = None) -> ParsedContent:
     """Parse one subtopic document. `errors` non-empty means the save is blocked."""
+    raw = text
     text = text.replace("\r\n", "\n").replace("\r", "\n")
     frontmatter, body = _split_frontmatter(text)
-    parsed = ParsedContent(frontmatter=frontmatter)
+    parsed = ParsedContent(raw=raw, frontmatter=frontmatter)
 
     parsed.blocks = _split_blocks(body)
     for block in parsed.blocks:
@@ -103,10 +109,21 @@ def parse_markdown(text: str, target: Target | None = None) -> ParsedContent:
                     f"{getattr(target, key)}"
                 )
 
+    if nivel := frontmatter.get("nivel"):
+        level = _without_accents(nivel).lower()
+        if level in LEVELS:
+            parsed.level = level
+        else:
+            parsed.warnings.append(f"Nível desconhecido no frontmatter: {nivel}; o nível não muda")
+
     has_idea = any(b.kind == "Ideia central" and b.body for b in parsed.blocks)
     has_answered_question = any(q.reference_answer for q in parsed.questions)
     parsed.state = "ready" if has_idea and has_answered_question else "draft"
     return parsed
+
+
+def _without_accents(value: str) -> str:
+    return unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode()
 
 
 def _split_frontmatter(text: str) -> tuple[dict[str, str], str]:
