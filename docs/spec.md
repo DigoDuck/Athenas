@@ -136,7 +136,8 @@ never edited or deleted by the app; they are kept for comparison between attempt
 
 **Flashcard**: subtopic (Markdown cards), or subtopic or concept (manual cards) `[Q6]`,
 origin (`markdown` or `manual`), label (`C<n>` for Markdown cards, empty for manual), front,
-back, approval state, and the Py-FSRS card state (stored as given by the library, in UTC).
+back, approval state, and the Py-FSRS card state (stored as given by the library, in UTC). The
+field layout is in `DECISIONS.md` D-018.
 
 | Approval state | Meaning | In the review queue |
 | --- | --- | --- |
@@ -149,7 +150,8 @@ back, approval state, and the Py-FSRS card state (stored as given by the library
 Py-FSRS review log as given by the library.
 
 **SessionEvent**: one row per activity: started at, ended at, `completed_at`, activity type,
-and the subject (subtopic, question or review session) when there is one `[Medição]`.
+and the subject (subtopic, question or review session) when there is one `[Medição]`, never a
+block (`DECISIONS.md` D-017).
 `completed_at` is set when the activity is finished and stays empty when it is abandoned (for
 example, the browser was closed) `[Q1]`. An `app_opened` event is recorded on each load of the
 home screen, so the "time between opening and starting" metric can be computed `[Q2]`.
@@ -340,8 +342,9 @@ blocks studying and never competes visually with the content.
 4. Day 28: a verdict written in `DECISIONS.md` with, in this order, the numbers per block, the
    features that shipped that month, the sessions lost to being away from the computer, and the
    pre-written reading that applies `[D4]`, `[D10]`.
-5. Day 1 is the first day use mode works with at least one concept registered `[D10]`, `[Q1]`.
-   Its date is recorded in `DECISIONS.md` when it happens.
+5. Day 1 is the first day use mode runs a release that passes the M1 gate of `docs/plan.md`,
+   with at least one concept registered (`DECISIONS.md` D-016). Its date is recorded in
+   `DECISIONS.md` when it happens.
 
 ## 5. Environments
 
