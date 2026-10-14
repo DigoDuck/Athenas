@@ -231,7 +231,26 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
   - If it does not: a Windows scheduled task on the host runs the same command through
     `docker compose exec`.
   The spike result is added to this entry.
-- Why: the folder stays configured, not hard-coded (spec 4.10.2), in the only place a container
-  can honor it, and an hourly check needs no scheduler of its own.
+- Spike result (2026-10-14, H2): it does not work. Docker Desktop (WSL 2) shares only `C:` with
+  its VM; `G:` is not shared even when Drive is mounted before the engine starts. A `-v` bind of
+  a `G:` path does not fail: Docker creates an empty folder on the VM's own disk, the write exits
+  0, and nothing reaches the vault. The accented `Núcleo` segment is not the cause, since the same
+  test on an accented `C:` folder works.
+- Outcome: the scheduled task branch, with one change. `docker compose exec` runs the command
+  inside the container, which cannot see `G:` either, so the file reaches the vault from Windows:
+  - The use-mode `backend` service bind-mounts a local staging folder on `C:`, outside the repo
+    because use mode checks out tags in the same folder. The command writes the exports there
+    and applies the 30-day retention.
+  - A Windows scheduled task runs every hour: the command through `docker compose exec`, which
+    exports only when the last export is older than 24 h (spec 4.10.3), then a copy from the
+    staging folder to the vault folder with `robocopy`.
+  - Both folder paths live in `.env.use`. `Settings.backup_folder` is dropped, with spec 3.2
+    updated in the same PR.
+- Why: the folder stays configured, not hard-coded (spec 4.10.2), in the only place the
+  container and the task can both honor it. Copying every hour, not only after an export, also
+  catches up when Drive was not running at export time.
 - Risk: with the scheduled task, backup depends on a Windows setting outside the repo. The
-  restore drill before day 1 has to cover that path.
+  restore drill before day 1 has to cover that path. A `G:` bind fails silently, so nothing in
+  compose mounts `G:`, and the task treats a `robocopy` exit code of 8 or more as a failure.
+  Retention must reach the vault without a bare `robocopy /MIR`, which would wipe the vault if the
+  path were wrong; S7 picks how.

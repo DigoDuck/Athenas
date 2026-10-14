@@ -63,7 +63,7 @@ and a to f. Still open: 1 to 15 and 19 to 25.
 | P-03, D-016 | When does day 1 start? | The first day use mode runs a tag that passes the M1 gate. Notebook mode, pomodoro and the settings screen ship during the month and are listed in the verdict, as D-010 already expects ("features that shipped that month"). This amends only D-010's day 1 line, which was marked "to be confirmed". | Tagging anything |
 | P-04, D-017 | What does a session event reference? | `subtopic` (protected FK) plus `block_order` (integer) for reading, `question` (FK) for practice, nothing for a review session. No FK to `Block`. "Continue where I stopped" reads the latest reading event. | S1 |
 | P-05, D-018 | Card model for manual cards and FSRS | `origin` (markdown or manual); `subtopic` and `concept` both nullable, with a check constraint that exactly one is set and that markdown cards have a subtopic; the label constraint applies only to markdown cards; `fsrs_card` JSON from `Card.to_dict()` plus an indexed `due` column kept in sync; `ReviewLog.fsrs_log` JSON. | S4 |
-| P-06, D-019 | How does backup run, and where does its path live? | Decide after the M0 spike. If the mount works: a `backup` service in the use-mode compose that checks every hour and exports when the last export is older than 24 h, which also covers the startup catch-up rule; the host path lives in `.env.use` and `Settings.backup_folder` is dropped. If it does not: a Windows scheduled task on the host runs the same management command through `docker compose exec`. | S7 |
+| P-06, D-019 | How does backup run, and where does its path live? | The M0 spike showed a container cannot write to `G:`. An hourly Windows scheduled task runs the management command through `docker compose exec`, which exports into a staging folder on `C:` when the last export is older than 24 h, then copies that folder to the vault with `robocopy`. Both paths live in `.env.use` and `Settings.backup_folder` is dropped. | S7 |
 | P-07 | Hours per week and target date | Open. In the vault note since 2026-10-12. Needed to turn section 4 into dates. | Dating the plan |
 
 ## 4. Milestones and slices
@@ -79,7 +79,7 @@ three, L more.
   `.gitignore`. The two stale worktrees under `.claude/worktrees/` and the merged local branches
   are removed, with Diogo's ok.
 - H2: spike for P-06: write a file into the vault folder from a container and confirm it reaches
-  Drive.
+  Drive. Done 2026-10-14: it does not work, see D-019.
 - H3: Docker Desktop set to start with Windows (spec 5.1).
 
 ### M1: Day 1 gate, release `v0.1.0`
@@ -92,7 +92,7 @@ three, L more.
 | S4 | `feat/review-scheduling` | CORE | Card model change (P-05) with a data migration for existing cards; rating through Py-FSRS; day queue: due cards by retrievability up to the cap, distinct cards per Bahia day, new card cap; "reviews today" count | 1 to 11, 25 | P-05 | L |
 | S5 | `feat/review-session` | PLUMBING | Review screen with three buttons and keyboard shortcuts; review session event; manual card creation on a subtopic or a concept | none | S4 | M |
 | S6 | `feat/home` | CORE | Home screen: continue where I stopped, next step, "revisões de hoje: N"; `app_opened` event; return session after 3 full Bahia days, at most 5 reviews, no mention of the absence | 12 to 14; new: each home load records `app_opened` | S1, S3, S4 | M |
-| S7 | `feat/backup` | PLUMBING | Management command exporting JSON (everything) and Markdown (`Content.raw_markdown`, one file per subtopic); 24 h catch-up; 30-day retention; documented restore command | none; restore drill by hand | P-06, S4 | M |
+| S7 | `feat/backup` | PLUMBING | Management command exporting JSON (everything) and Markdown (`Content.raw_markdown`, one file per subtopic) into the staging folder; 24 h catch-up; 30-day retention; hourly Windows scheduled task, registered by a script in `scripts/`, that runs the command and copies the staging folder to the vault (D-019); documented restore command | none; restore drill by hand | P-06, S4 | M |
 | R1 | tag `v0.1.0` | release | Release checklist (section 5); restore drill; the full cycle of spec 6.1 by hand; day 1 date written in `DECISIONS.md` | everything green | S1 to S7 | S |
 
 Why this order:
