@@ -96,6 +96,7 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
 - Why: without a written consequence the metric is decoration (D-004), and four weeks of one
   person's data is too small a sample to freeze the project on.
 - Completion recording: answered in D-013 (`completed_at`).
+- Note: D-016 supersedes the day 1 line. The rest of this entry stands.
 
 ### D-011: Redistribute overflow when building the queue, without rewriting due dates
 
@@ -162,3 +163,75 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
   deriving reads from session events (they do not exist yet and would point to rebuilt blocks).
 - Risk: two blocks with identical text are interchangeable, so their marks are shared one to one
   in no particular order.
+
+### D-016: Day 1 starts with the first release that passes the M1 gate
+
+- Date: 2026-10-14. Source: proposal P-03 in `docs/plan.md`, accepted by Diogo.
+- Context: D-010 set day 1 as the first day use mode works with at least one concept registered,
+  marked "to be confirmed when recorded". Under that line, tagging the current skeleton and
+  registering a concept would start the 28-day window before the app could run the cycle or
+  record session events.
+- Decision: day 1 is the first day use mode runs a tag that passes the M1 gate of `docs/plan.md`
+  (study, practice, completion rules, review, home screen with the return session, session events
+  and backup), with at least one concept registered. Notebook mode, pomodoro and the settings
+  screen may ship during the month; the verdict lists them under the features that shipped that
+  month. This supersedes only D-010's day 1 line.
+- Why: the verdict must judge an app that can run the full cycle, and days of use before session
+  events exist cannot be counted.
+- Risk: the window starts later, and the features that ship during the month change the app under
+  measurement. D-010 already expects that, and the verdict names them.
+
+### D-017: A session event references the subtopic or the question, never a block
+
+- Date: 2026-10-14. Source: proposal P-04 in `docs/plan.md`, accepted by Diogo.
+- Context: spec 3.2 says a session event references the activity's subject. Blocks are rebuilt on
+  every re-import (D-015) and cascade from `Content`, so a foreign key to `Block` would either be
+  deleted by a re-import or block it.
+- Decision: events about a subtopic (reading, notebook, explanation) store the `subtopic` as a
+  protected foreign key; a reading event also stores `block_order`, an integer. A question event
+  stores the `question` as a protected foreign key. A review session event has no subject.
+  "Continue where I stopped" reads the latest reading event.
+- Why: subtopics and questions keep their identity across re-imports (questions are archived,
+  never deleted, spec 4.2.6), so the measurement survives any edit to the content.
+- Risk: after a re-import that reorders sections, `block_order` can point at another block than
+  the one read; "continue where I stopped" then opens a nearby block, and the metric does not use
+  the block. A subtopic with events can no longer be deleted, as one with attempts already can't.
+
+### D-018: Card model for manual cards and the Py-FSRS state
+
+- Date: 2026-10-14. Source: proposal P-05 in `docs/plan.md`, accepted by Diogo.
+- Context: `Flashcard` requires a subtopic and has a unique (subtopic, label) constraint, which
+  rejects a second manual card with an empty label. Spec 3.2 allows manual cards on a concept
+  (Q6) and stores the Py-FSRS state as the library gives it.
+- Decision:
+  - `origin` is `markdown` or `manual`.
+  - `subtopic` and `concept` are both nullable; a check constraint requires exactly one of them,
+    and a subtopic for markdown cards.
+  - The (subtopic, label) unique constraint applies only to markdown cards.
+  - `fsrs_card` stores `Card.to_dict()` as JSON. An indexed `due` column is written from it on
+    every rating, and the review queue filters on that column.
+  - `ReviewLog.fsrs_log` stores `ReviewLog.to_dict()` as JSON.
+- Why: the stored state is exactly what Py-FSRS produced (as D-011 requires) and stays usable by
+  the later optimizer, while due cards are still filtered in SQL.
+- Risk: `due` duplicates a value inside `fsrs_card`. Both are written by one service function
+  only, so they cannot drift apart.
+
+### D-019: Backup runs where the vault folder is reachable, chosen by a spike
+
+- Date: 2026-10-14. Source: proposal P-06 in `docs/plan.md`, accepted by Diogo.
+- Context: the vault is on `G:`, a Google Drive virtual drive. A container only sees the host
+  folders mounted in the compose file, so `Settings.backup_folder` cannot point a container at a
+  new place.
+- Decision: before the backup slice, a spike writes a file into the vault folder from a container
+  and checks that it reaches Drive. The export is one management command either way.
+  - If it works: a `backup` service in the use-mode compose checks every hour and exports when
+    the last export is older than 24 h, which also covers the startup catch-up (spec 4.10.3). The
+    host folder is set in `.env.use`, and `Settings.backup_folder` is dropped, with spec 3.2
+    updated in the same PR.
+  - If it does not: a Windows scheduled task on the host runs the same command through
+    `docker compose exec`.
+  The spike result is added to this entry.
+- Why: the folder stays configured, not hard-coded (spec 4.10.2), in the only place a container
+  can honor it, and an hourly check needs no scheduler of its own.
+- Risk: with the scheduled task, backup depends on a Windows setting outside the repo. The
+  restore drill before day 1 has to cover that path.
