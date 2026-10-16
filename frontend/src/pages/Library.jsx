@@ -235,6 +235,14 @@ function Concept({
               action={
                 <>
                   <Button
+                    variant="tertiary"
+                    iconEnd="arrow-right"
+                    href={`#/estudo/${s.id}`}
+                    aria-label={`Estudar ${s.name}`}
+                  >
+                    Estudar
+                  </Button>
+                  <Button
                     id={`conteudo-${s.id}`}
                     variant="tertiary"
                     icon="file-text"

@@ -14,6 +14,7 @@ INSTALLED_APPS = [
     "rest_framework",
     "organization",
     "content",
+    "activity",
 ]
 
 # No sessions, no CSRF cookie, no login: single user, listens on 127.0.0.1 only.

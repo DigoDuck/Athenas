@@ -1,0 +1,21 @@
+/* Reading screen: title, progress and one opaque white sheet, as wide as a line of study text. */
+.study__column {
+  /* `ch` in the max-width resolves at reading size, so the column matches the text measure. */
+  font-size: var(--text-reading);
+  max-width: calc(var(--measure-reading) + 2 * var(--space-6));
+}
+
+.study__block {
+  padding: var(--space-6);
+}
+
+/* Block bodies are the Markdown as written; line breaks and lists keep their shape. */
+.study__body {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.study__actions {
+  padding-top: var(--space-5);
+  border-top: var(--border-width) solid var(--color-border);
+}
