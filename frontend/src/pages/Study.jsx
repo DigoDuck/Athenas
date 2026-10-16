@@ -58,6 +58,8 @@ export default function Study({ subtopicId }) {
         setOrder(next);
       } catch (e) {
         setError(`Não foi possível abrir o bloco. ${e.message}`);
+        // A re-import may have removed that block; the fresh blocks show it.
+        fetchReading().then(setReading, () => {});
       }
       setBusy(null);
     },
@@ -106,13 +108,15 @@ export default function Study({ subtopicId }) {
       if (!event.completed_at) {
         setEvent(await api.post(`/api/events/${event.id}/complete/`));
       }
-      if (order < reading.blocks.length - 1) {
+      // The server decides whether the block was marked read (D-023) and how many blocks there
+      // are now; next or finished follows its answer.
+      const data = await fetchReading();
+      setReading(data);
+      if (order < data.blocks.length - 1) {
         setBusy(null);
         await open(order + 1);
         return;
       }
-      // The server decides whether the block was marked read (D-023); show its answer.
-      setReading(await fetchReading());
       setFinished(true);
     } catch (e) {
       setError(`Não foi possível marcar como lido. ${e.message}`);
@@ -261,12 +265,23 @@ export default function Study({ subtopicId }) {
           </Panel>
         ) : order !== null ? (
           // A re-import left fewer blocks than the one being read.
-          <StateMessage
-            title="O conteúdo deste subtema mudou."
-            action={<Button onClick={() => open(blocks.length - 1)}>Continuar a leitura</Button>}
-          >
-            O bloco que estava aberto não existe mais.
-          </StateMessage>
+          <Stack gap={3}>
+            <StateMessage
+              title="O conteúdo deste subtema mudou."
+              action={
+                <Button
+                  loading={busy === "open"}
+                  loadingLabel="Abrindo…"
+                  onClick={() => open(blocks.length - 1)}
+                >
+                  Continuar a leitura
+                </Button>
+              }
+            >
+              O bloco que estava aberto não existe mais.
+            </StateMessage>
+            <ActionError>{error}</ActionError>
+          </Stack>
         ) : (
           <Panel aria-label="Bloco">
             {error ? <ActionError>{error}</ActionError> : <p className="t-meta">Abrindo o bloco…</p>}
