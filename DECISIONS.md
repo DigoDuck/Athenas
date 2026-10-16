@@ -258,6 +258,9 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
   the card model change in `content` (D-018).
 - Risk: a block opened and left without marking it read stays as an event without
   `completed_at`, which the metric reads as abandoned, as spec Q1 intends.
+- Note: D-023 makes the read mark conditional on the content not being saved after the event
+  started, and corrects the claim that the spec leaves block order open. The rest of this entry
+  stands.
 
 ### D-021: A practice event spans one answer, and saving the attempt completes it
 
@@ -298,7 +301,9 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
 - Decision:
   - Completing a reading event marks a block read only when the subtopic's content was not saved
     after the event started (`Content.updated_at <= started_at`). The event is still completed
-    and still counts as a session.
+    and still counts as a session. The reading screen fetches the blocks after starting each
+    event and shows the read marks the server returns, so the text on screen is never older
+    than the event. This supersedes only D-020's read mark line.
   - Reading shows the "Prática" block with its questions and without their reference answers,
     which spec 4.8.3 shows only after an attempt.
   - D-020's document order stands, as Diogo accepted it with the S1 approach. Spec 4.8.1 now says

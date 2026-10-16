@@ -34,8 +34,12 @@ export default function App() {
   const [route, setRoute] = useState(currentRoute);
 
   useEffect(() => {
-    // Only "#/..." is a route; "#conteudo" (the skip link) must not leave the page.
-    const onHashChange = () => window.location.hash.startsWith("#/") && setRoute(currentRoute());
+    // "#/..." and no hash (Back to the start URL) are routes; an in-page anchor such as the skip
+    // link's "#conteudo" must not leave the page.
+    const onHashChange = () => {
+      const hash = window.location.hash;
+      if (hash === "" || hash.startsWith("#/")) setRoute(currentRoute());
+    };
     window.addEventListener("hashchange", onHashChange);
     return () => window.removeEventListener("hashchange", onHashChange);
   }, []);

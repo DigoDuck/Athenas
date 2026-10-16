@@ -6,6 +6,7 @@ import {
   Breadcrumb,
   Button,
   Callout,
+  calloutBody,
   Inline,
   Panel,
   ProgressBar,
@@ -33,6 +34,13 @@ export default function Study({ subtopicId }) {
   // Leaving the screen while it loads must not start a reading nobody sees.
   const mounted = useRef(false);
 
+  const fetchReading = useCallback(
+    () => api.get(`/api/subtopics/${subtopicId}/reading/`),
+    [subtopicId],
+  );
+
+  // The event starts first and the blocks are fetched after it, so the text on screen is never
+  // older than the event: a re-import the screen did not show leaves the block unread (D-023).
   const open = useCallback(
     async (next) => {
       setBusy("open");
@@ -44,27 +52,29 @@ export default function Study({ subtopicId }) {
           subtopic: subtopicId,
           block_order: next,
         });
+        const data = await fetchReading();
         setEvent(created);
+        setReading(data);
         setOrder(next);
       } catch (e) {
         setError(`Não foi possível abrir o bloco. ${e.message}`);
       }
       setBusy(null);
     },
-    [subtopicId],
+    [subtopicId, fetchReading],
   );
 
   const load = useCallback(async () => {
     setLoadError(null);
     try {
-      const data = await api.get(`/api/subtopics/${subtopicId}/reading/`);
+      const data = await fetchReading();
       if (!mounted.current) return;
       setReading(data);
       if (data.blocks.length > 0) await open(data.resume_block_order);
     } catch (e) {
       if (mounted.current) setLoadError(e);
     }
-  }, [subtopicId, open]);
+  }, [fetchReading, open]);
 
   useEffect(() => {
     mounted.current = true;
@@ -94,20 +104,15 @@ export default function Study({ subtopicId }) {
     try {
       // Already completed when only opening the next block failed: retrying just opens it.
       if (!event.completed_at) {
-        const done = await api.post(`/api/events/${event.id}/complete/`);
-        setEvent(done);
-        setReading((r) => ({
-          ...r,
-          blocks: r.blocks.map((b) =>
-            b.order === order && !b.read_at ? { ...b, read_at: done.completed_at } : b,
-          ),
-        }));
+        setEvent(await api.post(`/api/events/${event.id}/complete/`));
       }
       if (order < reading.blocks.length - 1) {
         setBusy(null);
         await open(order + 1);
         return;
       }
+      // The server decides whether the block was marked read (D-023); show its answer.
+      setReading(await fetchReading());
       setFinished(true);
     } catch (e) {
       setError(`Não foi possível marcar como lido. ${e.message}`);
@@ -254,6 +259,14 @@ export default function Study({ subtopicId }) {
               )}
             </Inline>
           </Panel>
+        ) : order !== null ? (
+          // A re-import left fewer blocks than the one being read.
+          <StateMessage
+            title="O conteúdo deste subtema mudou."
+            action={<Button onClick={() => open(blocks.length - 1)}>Continuar a leitura</Button>}
+          >
+            O bloco que estava aberto não existe mais.
+          </StateMessage>
         ) : (
           <Panel aria-label="Bloco">
             {error ? <ActionError>{error}</ActionError> : <p className="t-meta">Abrindo o bloco…</p>}
@@ -280,7 +293,7 @@ function Segments({ segments }) {
           </pre>
         ) : segment.kind === "ia" ? (
           <Callout key={index} variant="ai" source={segment.source}>
-            <div className="study__text">{segment.text.replace(/^\[!ia\]\s*/, "")}</div>
+            <div className="study__text">{calloutBody(segment.text)}</div>
           </Callout>
         ) : (
           <div key={index} className="study__text">

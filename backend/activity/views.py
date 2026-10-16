@@ -22,7 +22,7 @@ class SessionEventViewSet(viewsets.GenericViewSet):
     queryset = SessionEvent.objects.all()
     serializer_class = SessionEventSerializer
 
-    def create(self, request, *args, **kwargs):
+    def create(self, request):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         try:
@@ -32,7 +32,7 @@ class SessionEventViewSet(viewsets.GenericViewSet):
         return Response(self.get_serializer(event).data, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=["post"])
-    def complete(self, request, pk=None, **kwargs):
+    def complete(self, request, pk=None):
         event = self.get_object()
         try:
             complete_activity(event)
