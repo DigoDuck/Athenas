@@ -1,0 +1,93 @@
+/* Practice: one sheet with the items in a list, the open one expanded in place. */
+.practice {
+  padding: var(--space-6);
+}
+
+.practice__list,
+.practice__attempts {
+  list-style: none;
+  padding: 0;
+}
+
+.practice__item {
+  padding: var(--space-6) 0;
+}
+
+.practice__item:first-child {
+  padding-top: 0;
+}
+
+.practice__item:last-child {
+  padding-bottom: 0;
+}
+
+.practice__item + .practice__item {
+  border-top: var(--border-width) solid var(--color-border);
+}
+
+/* Prompts are read, not announced: reading size, not a section title (design system 3). */
+.practice__title {
+  font-family: var(--font-body);
+  font-size: var(--text-reading);
+  line-height: var(--leading-reading);
+  max-width: var(--measure-reading);
+}
+
+.practice__label {
+  margin-right: var(--space-2);
+  color: var(--color-bronze);
+}
+
+.practice__subtitle {
+  margin-bottom: var(--space-2);
+  font-size: var(--text-meta);
+  font-weight: var(--weight-semibold);
+  color: var(--color-text-muted);
+}
+
+.practice__reference {
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-muted);
+}
+
+.practice__history summary {
+  cursor: pointer;
+  font-size: var(--text-meta);
+  font-weight: var(--weight-semibold);
+  color: var(--color-bronze);
+}
+
+.practice__attempts {
+  margin-top: var(--space-3);
+}
+
+.practice__attempts > li {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3) 0;
+}
+
+.practice__attempts > li + li {
+  border-top: var(--border-width) solid var(--color-border);
+}
+
+.practice__assess {
+  display: grid;
+  gap: var(--space-3);
+  border: 0;
+  border-top: var(--border-width) solid var(--color-border);
+  margin: 0;
+  padding: var(--space-5) 0 0;
+}
+
+.practice__assess legend {
+  float: left;
+  width: 100%;
+  padding: 0;
+  font-weight: var(--weight-semibold);
+}
+
+.practice__saved {
+  color: var(--color-success);
+}
