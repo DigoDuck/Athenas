@@ -258,3 +258,30 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
   the card model change in `content` (D-018).
 - Risk: a block opened and left without marking it read stays as an event without
   `completed_at`, which the metric reads as abandoned, as spec Q1 intends.
+
+### D-021: A practice event spans one answer, and saving the attempt completes it
+
+- Date: 2026-10-16. Source: practice slice (S2).
+- Context: spec 4.8.3 says practice offers questions with a reference answer and "explicar com
+  minhas palavras", that the reference answer appears only after submitting, and that Diogo then
+  rates the attempt. It does not say when a practice activity starts or ends, nor how an attempt
+  relates to its event.
+- Decision:
+  - Opening one question or the explanation starts its event through `POST /api/events/`
+    (D-020), `question` with the question or `explanation` with the subtopic.
+  - `POST /api/attempts/` takes that event, the text and the self-assessment, creates the
+    `Attempt` from the event's subject and completes the event, in one transaction. There is no
+    other way to create an attempt and no update or delete.
+  - Practice lists only questions that are not archived and have a reference answer. Attempts of
+    archived questions stay in the database and out of the screen.
+  - The draft (text and whether it was submitted) lives in the browser's `localStorage`, per
+    question or per subtopic for the explanation, and is cleared when the attempt is saved.
+  - Previous attempts appear after submitting, next to the reference answer, so they do not
+    give the answer away before a new one is written.
+- Why: an attempt without a completed event would be practice the day 28 metric never sees, and
+  two separate calls could leave one without the other. The rating comes after the reveal, so the
+  attempt can only be saved once the rating exists.
+- Risk: the reference answer travels in the practice payload and only the screen hides it, which
+  is enough for a single local user. A draft lives in one browser profile; clearing site data
+  loses it, which the server never knew about. Reopening a draft starts a new event and leaves
+  the earlier one without `completed_at`, which the metric reads as abandoned, as with reading.

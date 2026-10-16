@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import Library from "./pages/Library.jsx";
+import Practice from "./pages/Practice.jsx";
 import Roadmap from "./pages/Roadmap.jsx";
 import Study from "./pages/Study.jsx";
 import { AppShell } from "./ui/index.js";
@@ -17,10 +18,15 @@ const NAV_ITEMS = Object.entries(PAGES).map(([id, { label, icon }]) => ({
   href: `#/${id}`,
 }));
 
-// "#/estudo/<subtopic id>" is the reading screen; the nav keeps Biblioteca marked.
+// "#/estudo/<subtopic id>" is reading and "#/pratica/<subtopic id>" practice; the nav keeps
+// Biblioteca marked.
+const SUBTOPIC_PAGES = { estudo: Study, pratica: Practice };
+
 function currentRoute() {
   const [key, id] = window.location.hash.replace("#/", "").split("/");
-  if (key === "estudo" && /^\d+$/.test(id ?? "")) return { page: "biblioteca", study: Number(id) };
+  if (key in SUBTOPIC_PAGES && /^\d+$/.test(id ?? "")) {
+    return { page: "biblioteca", Subpage: SUBTOPIC_PAGES[key], subtopic: Number(id), key };
+  }
   return { page: key in PAGES ? key : "roadmap" };
 }
 
@@ -37,7 +43,11 @@ export default function App() {
 
   return (
     <AppShell items={NAV_ITEMS} current={route.page}>
-      {route.study ? <Study key={route.study} subtopicId={route.study} /> : <Component />}
+      {route.Subpage ? (
+        <route.Subpage key={`${route.key}/${route.subtopic}`} subtopicId={route.subtopic} />
+      ) : (
+        <Component />
+      )}
     </AppShell>
   );
 }

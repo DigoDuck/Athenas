@@ -1,4 +1,4 @@
-from content.models import Block
+from content.models import Block, PracticeQuestion
 from content.serializers import BlockSerializer
 from django.shortcuts import get_object_or_404
 from organization.models import Subtopic
@@ -8,8 +8,8 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .models import SessionEvent
-from .serializers import SessionEventSerializer
-from .services import complete_activity, resume_block_order, start_activity
+from .serializers import AttemptSerializer, PracticeQuestionSerializer, SessionEventSerializer
+from .services import complete_activity, record_attempt, resume_block_order, start_activity
 
 
 class SessionEventViewSet(viewsets.GenericViewSet):
@@ -56,3 +56,35 @@ class ReadingView(APIView):
                 "resume_block_order": resume_block_order(subtopic),
             }
         )
+
+
+class PracticeView(APIView):
+    """Questions with a reference answer and every attempt, newest first (spec 4.8.3)."""
+
+    def get(self, request, pk):
+        subtopic = get_object_or_404(Subtopic.objects.select_related("concept"), pk=pk)
+        questions = PracticeQuestion.objects.filter(subtopic=subtopic, archived=False).exclude(
+            reference_answer=""
+        )
+        attempts = subtopic.attempts.order_by("-created_at", "-id")
+        return Response(
+            {
+                "subtopic": subtopic.name,
+                "concept": subtopic.concept.name,
+                "questions": PracticeQuestionSerializer(questions, many=True).data,
+                "attempts": AttemptSerializer(attempts, many=True).data,
+            }
+        )
+
+
+class AttemptView(APIView):
+    """Create-only: attempts are never edited or deleted (spec 3.2)."""
+
+    def post(self, request):
+        serializer = AttemptSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            attempt = record_attempt(**serializer.validated_data)
+        except ValueError as error:
+            return Response({"detail": str(error)}, status=status.HTTP_409_CONFLICT)
+        return Response(AttemptSerializer(attempt).data, status=status.HTTP_201_CREATED)
