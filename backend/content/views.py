@@ -9,8 +9,20 @@ from rest_framework.views import APIView
 
 from .models import Content, Flashcard
 from .parser import Target, parse_markdown
-from .serializers import ContentSerializer, FlashcardSerializer, MarkdownSerializer
-from .services import approve_card, import_content, reject_card
+from .serializers import (
+    ContentSerializer,
+    FlashcardSerializer,
+    MarkdownSerializer,
+    RatingSerializer,
+)
+from .services import (
+    approve_card,
+    import_content,
+    rate_card,
+    reject_card,
+    review_queue,
+    reviews_today,
+)
 
 
 def _parse_request(request, subtopic):
@@ -76,6 +88,12 @@ class FlashcardViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
     def reject(self, request, pk=None):
         return self._decide(reject_card)
 
+    @action(detail=True, methods=["post"])
+    def rate(self, request, pk=None):
+        serializer = RatingSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        return self._decide(lambda card: rate_card(card, serializer.validated_data["rating"]))
+
     def _decide(self, decide):
         card = self.get_object()
         try:
@@ -83,3 +101,11 @@ class FlashcardViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
         except ValueError as error:
             return Response({"detail": str(error)}, status=status.HTTP_409_CONFLICT)
         return Response(FlashcardSerializer(card).data)
+
+
+class ReviewTodayView(APIView):
+    """Today's queue within the caps, and the home screen's N; never overdue totals (4.6.4)."""
+
+    def get(self, request):
+        cards = FlashcardSerializer(review_queue(), many=True).data
+        return Response({"count": reviews_today(), "cards": cards})

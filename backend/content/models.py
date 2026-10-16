@@ -1,6 +1,6 @@
 from django.db import models
 from django.utils import timezone
-from organization.models import Subtopic
+from organization.models import Concept, Subtopic
 
 
 class Content(models.Model):
@@ -87,7 +87,11 @@ class Attempt(models.Model):
 
 
 class Flashcard(models.Model):
-    """Cards declared in the Markdown. Identity is the label (`C1`...) inside a subtopic."""
+    """A card from the Markdown (label `C1`... inside a subtopic) or a manual one (D-018)."""
+
+    class Origin(models.TextChoices):
+        MARKDOWN = "markdown", "markdown"
+        MANUAL = "manual", "manual"
 
     class State(models.TextChoices):
         PENDING = "pending", "pendente"
@@ -95,24 +99,40 @@ class Flashcard(models.Model):
         SUSPENDED = "suspended", "suspenso"
         REJECTED = "rejected", "rejeitado"
 
-    subtopic = models.ForeignKey(Subtopic, on_delete=models.PROTECT, related_name="flashcards")
-    label = models.CharField(max_length=10)
+    origin = models.CharField(max_length=8, choices=Origin, default=Origin.MARKDOWN)
+    subtopic = models.ForeignKey(
+        Subtopic, null=True, blank=True, on_delete=models.PROTECT, related_name="flashcards"
+    )
+    concept = models.ForeignKey(
+        Concept, null=True, blank=True, on_delete=models.PROTECT, related_name="flashcards"
+    )
+    label = models.CharField(max_length=10, blank=True)
     front = models.TextField()
     back = models.TextField()
     state = models.CharField(max_length=9, choices=State, default=State.PENDING)
     # Where the card goes back to when its label returns to the Markdown (spec 4.2.6, Q8).
     state_before_suspension = models.CharField(max_length=9, blank=True, default="")
+    # Py-FSRS state as `Card.to_dict()` gives it; `due` mirrors it for the queue (D-018).
+    fsrs_card = models.JSONField(null=True, blank=True)
+    due = models.DateTimeField(null=True, blank=True, db_index=True)
 
     class Meta:
         ordering = ["subtopic_id", "id"]
         constraints = [
             models.UniqueConstraint(
-                fields=["subtopic", "label"], name="card_label_unique_per_subtopic"
+                fields=["subtopic", "label"],
+                condition=models.Q(origin="markdown"),
+                name="card_label_unique_per_subtopic",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(subtopic__isnull=False, concept__isnull=True)
+                | models.Q(origin="manual", subtopic__isnull=True, concept__isnull=False),
+                name="card_on_subtopic_or_manual_on_concept",
             ),
         ]
 
     def __str__(self):
-        return self.label
+        return self.label or f"manual {self.pk}"
 
 
 class ReviewLog(models.Model):
@@ -126,6 +146,8 @@ class ReviewLog(models.Model):
     flashcard = models.ForeignKey(Flashcard, on_delete=models.PROTECT, related_name="reviews")
     rating = models.CharField(max_length=5, choices=Rating)
     reviewed_at = models.DateTimeField(default=timezone.now)
+    # `ReviewLog.to_dict()` from Py-FSRS; empty only on rows from before D-018.
+    fsrs_log = models.JSONField(null=True, blank=True)
 
     class Meta:
         ordering = ["reviewed_at", "id"]
