@@ -289,6 +289,36 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
   loses it, which the server never knew about. Reopening a draft starts a new event and leaves
   the earlier one without `completed_at`, which the metric reads as abandoned, as with reading.
 
+### D-024: Study status changes only through the rules, and a completed subtopic can be reopened
+
+- Date: 2026-10-16. Source: completion rules slice (S3); Diogo chose the options.
+- Context: spec 4.4 fixes when a subtopic is suggested complete and how a concept's status is
+  derived, and spec 3.2 says study status is set by those rules. The Library still had a manual
+  "Status de estudo" select, and the spec does not say whether a subtopic can be completed
+  without a suggestion, whether a completion can be undone, where the suggestion appears, or
+  what counts in the criteria.
+- Decision:
+  - Study status is read-only in the API and the Library shows it as a badge. It changes in
+    three ways only: opening a block (spec 4.4.5), confirming a suggested completion, and
+    reopening a completed subtopic.
+  - `POST /api/subtopics/<id>/complete/` completes a subtopic only while it is suggested, and
+    answers 409 otherwise. `POST /api/subtopics/<id>/reopen/` moves a completed subtopic back to
+    in progress, and answers 409 for any other status.
+  - A subtopic is suggested only when it has at least one block, every block has `read_at`
+    (D-015), and it has an attempt rated right or partial. Every attempt of the subtopic counts:
+    questions and explanations, including attempts of archived questions. The content state
+    (`draft` or `ready`) does not matter.
+  - A re-import that unmarks a block removes the suggestion until the block is read again, and
+    never changes a completed status.
+  - A concept's status and a track's next step are computed on every read and never stored.
+  - The suggestion appears in Study when the last block is marked read and in Practice when an
+    attempt is saved.
+  - Completing or reopening touches no card and records no session event.
+- Why: a status anyone can set by hand would let the first month's measurement record
+  completions the rules never saw. Reopening keeps a mistaken confirmation fixable without
+  bringing the select back.
+- Risk: a reopened subtopic that still meets the criteria is suggested again right away. Status
+  values set by hand before this entry stay as they are; use mode holds no data yet (D-016).
 ### D-022: How the review queue fills a Bahia day
 
 - Date: 2026-10-16. Source: review scheduling slice (S4); Diogo accepted the recommended options.

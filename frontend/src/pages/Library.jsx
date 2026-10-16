@@ -30,11 +30,6 @@ const DIFFICULTIES = [
   ["easy", "Fácil"],
   ["hard", "Difícil"],
 ];
-const STATUSES = [
-  ["not_started", "Não iniciado"],
-  ["in_progress", "Em andamento"],
-  ["completed", "Concluído"],
-];
 const labelOf = (options, value) => options.find(([v]) => v === value)?.[1];
 
 export default function Library() {
@@ -203,7 +198,11 @@ function Concept({
   return (
     <Stack as="section" gap={3} aria-labelledby={`concept-${concept.id}`}>
       <Inline justify="between">
-        <h3 id={`concept-${concept.id}`}>{concept.name}</h3>
+        <Inline gap={2}>
+          <h3 id={`concept-${concept.id}`}>{concept.name}</h3>
+          {/* Derived from the subtopics, never set by hand (spec 4.4.6). */}
+          <StudyStatusBadge status={concept.study_status} />
+        </Inline>
         {/* The API refuses to remove a concept that still has subtopics, so say why instead. */}
         {subtopics.length === 0 ? (
           <Button
@@ -299,6 +298,7 @@ function SubtopicEditor({ subtopic, run, onClose }) {
   const [error, setError] = useState(null);
   const url = `/api/subtopics/${subtopic.id}/`;
   const save = async (field, value) => setError(await run(() => api.patch(url, { [field]: value })));
+  const reopen = async () => setError(await run(() => api.post(`${url}reopen/`)));
 
   // The editor opens below every area, so focusing it also scrolls it into view.
   const panel = useRef(null);
@@ -324,12 +324,21 @@ function SubtopicEditor({ subtopic, run, onClose }) {
         options={toOptions(DIFFICULTIES)}
         onChange={(e) => save("perceived_difficulty", e.target.value)}
       />
-      <Select
-        label="Status de estudo"
-        value={subtopic.study_status}
-        options={toOptions(STATUSES)}
-        onChange={(e) => save("study_status", e.target.value)}
-      />
+      {/* Study status follows the rules of spec 4.4; only a completion can be undone (D-024). */}
+      <div className="ui-field">
+        <p className="ui-field__label">Status de estudo</p>
+        <Inline gap={3}>
+          <StudyStatusBadge status={subtopic.study_status} />
+          {subtopic.study_status === "completed" && (
+            <Button variant="secondary" onClick={reopen}>
+              Reabrir subtema
+            </Button>
+          )}
+        </Inline>
+        <p className="ui-field__help">
+          Muda sozinho ao abrir o primeiro bloco e quando você confirma a conclusão sugerida.
+        </p>
+      </div>
       <Switch
         label="Marcado para revisar"
         checked={subtopic.review_needed}

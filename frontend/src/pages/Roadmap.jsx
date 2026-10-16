@@ -1,7 +1,18 @@
 import { useState } from "react";
 
 import { api } from "../api.js";
-import { Button, Inline, List, ListRow, Select, Stack, StateMessage, Tabs } from "../ui/index.js";
+import {
+  Badge,
+  Button,
+  Inline,
+  List,
+  ListRow,
+  Select,
+  Stack,
+  StateMessage,
+  StudyStatusBadge,
+  Tabs,
+} from "../ui/index.js";
 import { useCollections } from "../useCollections.js";
 import { ActionError, NameForm } from "./forms.jsx";
 
@@ -124,6 +135,16 @@ function Track({ track, concepts, areaName, act, actionError, onRemove }) {
               key={step.id}
               title={`${index + 1}. ${step.concept_name}`}
               meta={step.area_name}
+              badges={
+                <>
+                  <StudyStatusBadge status={step.concept_status} />
+                  {step.id === track.next_step && (
+                    <Badge tone="accent" icon="arrow-right">
+                      Próximo passo
+                    </Badge>
+                  )}
+                </>
+              }
               action={
                 <>
                   <Button
