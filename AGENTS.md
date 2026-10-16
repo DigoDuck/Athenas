@@ -43,6 +43,7 @@ These differ from Diogo's default stack on purpose. Do not suggest migrating:
 backend/config/        settings, urls, health check
 backend/organization/  areas, concepts, subtopics, tracks, steps, settings
 backend/content/       Markdown parser, content, blocks, questions, attempts, cards, reviews
+backend/activity/      session events and the reading flow (start, complete, resume)
 frontend/src/ui/       house components (import from ui/index.js); /#design shows them in dev
 frontend/src/pages/    screens
 frontend/src/styles/   tokens.css, base.css, fonts.css

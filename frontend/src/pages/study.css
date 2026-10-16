@@ -9,8 +9,8 @@
   padding: var(--space-6);
 }
 
-/* Block bodies are the Markdown as written; line breaks and lists keep their shape. */
-.study__body {
+/* Text keeps the Markdown's own line breaks and lists. Code uses the global `pre` style. */
+.study__text {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
