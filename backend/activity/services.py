@@ -1,6 +1,7 @@
-"""Session events (spec 3.2, 4.11), reading (spec 4.4.5, 4.8.1, 4.8.4) and practice (4.8.3)."""
+"""Session events (spec 3.2, 4.11), reading (4.4.5, 4.8.1, 4.8.4), practice (4.8.3), review."""
 
-from content.models import Attempt, Block
+from content.models import Attempt, Block, ReviewLog
+from content.services import rate_card
 from django.db import transaction
 from django.db.models.functions import TruncDate
 from django.utils import timezone
@@ -79,6 +80,15 @@ def record_attempt(event, *, text, self_assessment) -> Attempt:
         text=text,
         self_assessment=self_assessment,
     )
+
+
+@transaction.atomic
+def record_review(event, *, flashcard, rating) -> ReviewLog:
+    """Rating the card finishes its review event, so no review exists without a session."""
+    if event.kind != Kind.REVIEW_SESSION:
+        raise ValueError("Só um evento de revisão recebe a avaliação de um cartão.")
+    complete_activity(event)
+    return rate_card(flashcard, rating)
 
 
 def resume_block_order(subtopic) -> int:

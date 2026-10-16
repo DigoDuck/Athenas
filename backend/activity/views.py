@@ -11,9 +11,16 @@ from .serializers import (
     AttemptSerializer,
     PracticeQuestionSerializer,
     ReadingBlockSerializer,
+    ReviewSerializer,
     SessionEventSerializer,
 )
-from .services import complete_activity, record_attempt, resume_block_order, start_activity
+from .services import (
+    complete_activity,
+    record_attempt,
+    record_review,
+    resume_block_order,
+    start_activity,
+)
 
 
 class SessionEventViewSet(viewsets.GenericViewSet):
@@ -88,3 +95,16 @@ class AttemptView(APIView):
         except ValueError as error:
             return Response({"detail": str(error)}, status=status.HTTP_409_CONFLICT)
         return Response(AttemptSerializer(attempt).data, status=status.HTTP_201_CREATED)
+
+
+class ReviewView(APIView):
+    """Create-only, like attempts: one rating of one card ends one review event (D-025)."""
+
+    def post(self, request):
+        serializer = ReviewSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            review = record_review(**serializer.validated_data)
+        except ValueError as error:
+            return Response({"detail": str(error)}, status=status.HTTP_409_CONFLICT)
+        return Response(ReviewSerializer(review).data, status=status.HTTP_201_CREATED)

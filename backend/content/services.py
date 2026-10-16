@@ -98,6 +98,23 @@ def reject_card(card) -> None:
     _decide(card, Flashcard.State.REJECTED)
 
 
+@transaction.atomic
+def create_manual_card(*, front, back, subtopic=None, concept=None) -> Flashcard:
+    """On a subtopic or on a concept, never both; Diogo's own, so active (spec 4.3.5, Q6)."""
+    if (subtopic is None) == (concept is None):
+        raise ValueError("Escolha um subtema ou um conceito, não os dois.")
+    card = Flashcard.objects.create(
+        origin=Flashcard.Origin.MANUAL,
+        subtopic=subtopic,
+        concept=concept,
+        front=front,
+        back=back,
+        state=Flashcard.State.ACTIVE,
+    )
+    start_fsrs_state(card)
+    return card
+
+
 def _decide(card, state):
     # One card at a time, and only a pending one: there is no "approve all" (spec 4.3.2).
     if card.state != Flashcard.State.PENDING:

@@ -1,6 +1,6 @@
 from dataclasses import asdict
 
-from content.models import Attempt, Block, PracticeQuestion
+from content.models import Attempt, Block, PracticeQuestion, ReviewLog
 from content.parser import split_segments, without_reference_answers
 from rest_framework import serializers
 
@@ -31,6 +31,15 @@ class AttemptSerializer(serializers.ModelSerializer):
         model = Attempt
         fields = ["id", "event", "kind", "question", "text", "self_assessment", "created_at"]
         read_only_fields = ["kind", "question", "created_at"]
+
+
+class ReviewSerializer(serializers.ModelSerializer):
+    event = serializers.PrimaryKeyRelatedField(queryset=SessionEvent.objects.all(), write_only=True)
+
+    class Meta:
+        model = ReviewLog
+        fields = ["id", "event", "flashcard", "rating", "reviewed_at"]
+        read_only_fields = ["reviewed_at"]
 
 
 class PracticeQuestionSerializer(serializers.ModelSerializer):

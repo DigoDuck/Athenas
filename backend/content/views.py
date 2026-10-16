@@ -12,13 +12,13 @@ from .parser import Target, parse_markdown
 from .serializers import (
     ContentSerializer,
     FlashcardSerializer,
+    ManualCardSerializer,
     MarkdownSerializer,
-    RatingSerializer,
 )
 from .services import (
     approve_card,
+    create_manual_card,
     import_content,
-    rate_card,
     reject_card,
     review_queue,
     reviews_today,
@@ -80,6 +80,16 @@ class FlashcardViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
             cards = cards.filter(state=state)
         return cards
 
+    def create(self, request):
+        """Manual cards only; Markdown cards come from importing the content."""
+        serializer = ManualCardSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            card = create_manual_card(**serializer.validated_data)
+        except ValueError as error:
+            return Response({"detail": str(error)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(FlashcardSerializer(card).data, status=status.HTTP_201_CREATED)
+
     @action(detail=True, methods=["post"])
     def approve(self, request, pk=None):
         return self._decide(approve_card)
@@ -87,12 +97,6 @@ class FlashcardViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
     @action(detail=True, methods=["post"])
     def reject(self, request, pk=None):
         return self._decide(reject_card)
-
-    @action(detail=True, methods=["post"])
-    def rate(self, request, pk=None):
-        serializer = RatingSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        return self._decide(lambda card: rate_card(card, serializer.validated_data["rating"]))
 
     def _decide(self, decide):
         card = self.get_object()
