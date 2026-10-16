@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { api } from "../api.js";
 import { Badge, Breadcrumb, Button, Inline, Panel, Stack, StateMessage, TextArea } from "../ui/index.js";
+import CompletionSuggestion from "./CompletionSuggestion.jsx";
 import { ActionError } from "./forms.jsx";
 import "./practice.css";
 import "./study.css";
@@ -169,6 +170,8 @@ export default function Practice({ subtopicId }) {
             </p>
           )}
         </Panel>
+        {/* A new key per saved attempt asks the server again (DECISIONS.md D-024). */}
+        {saved && <CompletionSuggestion key={practice.attempts.length} subtopicId={subtopicId} />}
       </Stack>
     </Stack>
   );

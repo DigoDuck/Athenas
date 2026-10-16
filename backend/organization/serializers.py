@@ -2,6 +2,7 @@ from django.db import transaction
 from django.db.models import Max
 from rest_framework import serializers
 
+from . import services
 from .models import Area, Concept, Settings, Step, Subtopic, Track
 
 
@@ -12,9 +13,14 @@ class AreaSerializer(serializers.ModelSerializer):
 
 
 class ConceptSerializer(serializers.ModelSerializer):
+    study_status = serializers.SerializerMethodField()
+
     class Meta:
         model = Concept
-        fields = ["id", "area", "name", "objective"]
+        fields = ["id", "area", "name", "objective", "study_status"]
+
+    def get_study_status(self, concept):
+        return services.concept_status(concept)
 
 
 class SubtopicSerializer(serializers.ModelSerializer):
@@ -30,7 +36,8 @@ class SubtopicSerializer(serializers.ModelSerializer):
             "study_status",
             "review_needed",
         ]
-        read_only_fields = ["order"]
+        # Only the rules of spec 4.4 change it (DECISIONS.md D-024).
+        read_only_fields = ["order", "study_status"]
 
     def create(self, validated_data):
         # Appended after the existing subtopics of the concept.
@@ -43,13 +50,26 @@ class SubtopicSerializer(serializers.ModelSerializer):
             return super().create(validated_data)
 
 
+class SubtopicDetailSerializer(SubtopicSerializer):
+    """Adds the suggestion, which costs a few queries, to one subtopic at a time."""
+
+    completion_suggested = serializers.SerializerMethodField()
+
+    class Meta(SubtopicSerializer.Meta):
+        fields = [*SubtopicSerializer.Meta.fields, "completion_suggested"]
+
+    def get_completion_suggested(self, subtopic):
+        return services.completion_suggested(subtopic)
+
+
 class StepSerializer(serializers.ModelSerializer):
     concept_name = serializers.CharField(source="concept.name", read_only=True)
     area_name = serializers.CharField(source="concept.area.name", read_only=True)
+    concept_status = serializers.SerializerMethodField()
 
     class Meta:
         model = Step
-        fields = ["id", "track", "concept", "concept_name", "area_name", "order"]
+        fields = ["id", "track", "concept", "concept_name", "area_name", "concept_status", "order"]
         read_only_fields = ["order"]
         # The unique (track, concept) constraint is reported as a field error by default.
         validators = []
@@ -67,13 +87,21 @@ class StepSerializer(serializers.ModelSerializer):
             validated_data["order"] = 0 if last["last"] is None else last["last"] + 1
             return super().create(validated_data)
 
+    def get_concept_status(self, step):
+        return services.concept_status(step.concept)
+
 
 class TrackSerializer(serializers.ModelSerializer):
     steps = StepSerializer(many=True, read_only=True)
+    next_step = serializers.SerializerMethodField()
 
     class Meta:
         model = Track
-        fields = ["id", "name", "steps"]
+        fields = ["id", "name", "steps", "next_step"]
+
+    def get_next_step(self, track):
+        step = services.next_step(track)
+        return step.pk if step else None
 
 
 class SettingsSerializer(serializers.ModelSerializer):

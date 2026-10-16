@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { api } from "../api.js";
 import { Badge, Breadcrumb, Button, Inline, Panel, ProgressBar, Stack, StateMessage } from "../ui/index.js";
+import CompletionSuggestion from "./CompletionSuggestion.jsx";
 import { ActionError } from "./forms.jsx";
 import "./study.css";
 
@@ -198,6 +199,7 @@ export default function Study({ subtopicId }) {
             {error && <Button onClick={() => open(reading.resume_block_order)}>Tentar novamente</Button>}
           </Panel>
         )}
+        {finished && <CompletionSuggestion subtopicId={subtopicId} />}
       </Stack>
     </Stack>
   );

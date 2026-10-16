@@ -5,15 +5,20 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from . import services
 from .models import Area, Concept, Settings, Step, Subtopic, Track
 from .serializers import (
     AreaSerializer,
     ConceptSerializer,
     SettingsSerializer,
     StepSerializer,
+    SubtopicDetailSerializer,
     SubtopicSerializer,
     TrackSerializer,
 )
+
+# Prefetching subtopics lets the derived concept status skip one query per concept.
+TRACKS = Track.objects.prefetch_related("steps__concept__area", "steps__concept__subtopics")
 
 
 class ProtectedDeleteMixin:
@@ -35,17 +40,35 @@ class AreaViewSet(ProtectedDeleteMixin, viewsets.ModelViewSet):
 
 
 class ConceptViewSet(ProtectedDeleteMixin, viewsets.ModelViewSet):
-    queryset = Concept.objects.select_related("area")
+    queryset = Concept.objects.select_related("area").prefetch_related("subtopics")
     serializer_class = ConceptSerializer
 
 
 class SubtopicViewSet(ProtectedDeleteMixin, viewsets.ModelViewSet):
     queryset = Subtopic.objects.all()
-    serializer_class = SubtopicSerializer
+
+    def get_serializer_class(self):
+        return SubtopicSerializer if self.action == "list" else SubtopicDetailSerializer
+
+    @action(detail=True, methods=["post"])
+    def complete(self, request, pk=None):
+        return self._change_status(services.complete_subtopic)
+
+    @action(detail=True, methods=["post"])
+    def reopen(self, request, pk=None):
+        return self._change_status(services.reopen_subtopic)
+
+    def _change_status(self, change):
+        subtopic = self.get_object()
+        try:
+            change(subtopic)
+        except ValueError as error:
+            return Response({"detail": str(error)}, status=status.HTTP_409_CONFLICT)
+        return Response(self.get_serializer(subtopic).data)
 
 
 class TrackViewSet(viewsets.ModelViewSet):
-    queryset = Track.objects.prefetch_related("steps__concept__area")
+    queryset = TRACKS
     serializer_class = TrackSerializer
 
 
@@ -76,7 +99,7 @@ class StepViewSet(
             for position, s in enumerate(steps):
                 s.order = position
             Step.objects.bulk_update(steps, ["order"])
-        track = Track.objects.prefetch_related("steps__concept__area").get(pk=step.track_id)
+        track = TRACKS.get(pk=step.track_id)
         return Response(TrackSerializer(track).data)
 
 
