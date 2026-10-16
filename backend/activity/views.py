@@ -13,7 +13,13 @@ from .serializers import (
     ReadingBlockSerializer,
     SessionEventSerializer,
 )
-from .services import complete_activity, record_attempt, resume_block_order, start_activity
+from .services import (
+    complete_activity,
+    open_home,
+    record_attempt,
+    resume_block_order,
+    start_activity,
+)
 
 
 class SessionEventViewSet(viewsets.GenericViewSet):
@@ -88,3 +94,10 @@ class AttemptView(APIView):
         except ValueError as error:
             return Response({"detail": str(error)}, status=status.HTTP_409_CONFLICT)
         return Response(AttemptSerializer(attempt).data, status=status.HTTP_201_CREATED)
+
+
+class HomeView(APIView):
+    """POST, because each load of the home screen records `app_opened` (DECISIONS.md D-026)."""
+
+    def post(self, request):
+        return Response(open_home())

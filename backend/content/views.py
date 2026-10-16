@@ -1,5 +1,6 @@
 from dataclasses import asdict
 
+from activity.services import review_cap_today
 from django.shortcuts import get_object_or_404
 from organization.models import Subtopic
 from rest_framework import mixins, status, viewsets
@@ -107,5 +108,7 @@ class ReviewTodayView(APIView):
     """Today's queue within the caps, and the home screen's N; never overdue totals (4.6.4)."""
 
     def get(self, request):
-        cards = FlashcardSerializer(review_queue(), many=True).data
-        return Response({"count": reviews_today(), "cards": cards})
+        # A return session offers at most 5 reviews; they count toward the day's cap (4.7).
+        cap = review_cap_today()
+        cards = FlashcardSerializer(review_queue(cap=cap), many=True).data
+        return Response({"count": reviews_today(cap=cap), "cards": cards})
