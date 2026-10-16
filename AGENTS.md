@@ -74,20 +74,23 @@ writing a command. A command with `$` in it (regex, SQL) goes into a `.py` file,
 ## How work flows
 
 1. Work follows `docs/plan.md`: one slice is one branch and one PR. Before non-trivial code
-   (several files, a behavior change or unclear scope), write a short plan. Once Diogo approves
-   it, carry it to the end; stop only for a red test, missing access or a decision the plan does
-   not cover.
+   (several files, a behavior change or unclear scope), write a short plan and carry it to the end
+   without waiting for approval; stop only for a red test, missing access or a step that needs
+   Diogo's ok (merge, force push, a CI change, a migration that drops or renames a column, a new
+   production dependency, a change to v1 scope).
 2. Classify every task. In doubt, it is CORE.
    - **CORE**: the spec 7 core (review scheduling and caps, study status and completion, Markdown
      import) and any migration that changes how history is stored (`Attempt`, `ReviewLog`,
-     `Flashcard` state, `SessionEvent`). Diogo writes the acceptance tests first. The agent
-     describes the approach and lets Diogo predict the implementation before showing code.
+     `Flashcard` state, `SessionEvent`). Implementation first (Diogo, 2026-10-16): the agent
+     writes the code and the tests for the spec 8 scenarios the slice covers, as ordinary backend
+     tests in `backend/tests/` named after the scenario (`test_20_...`), and says in the PR that
+     the agent wrote them. `tests/acceptance/` stays Diogo's: never create or edit files there.
    - **PLUMBING**: screens, CRUD, config, boilerplate. Reviewed by the diff. No new automated
      tests until the first month of use ends (spec 2.3), unless Diogo asks.
-3. A rule the spec leaves open gets a `DECISIONS.md` entry in the same PR, in the existing format
-   (D-014 to D-019 are examples). An accepted entry is never rewritten; at most it gets a note
-   pointing at the entry that supersedes it.
-4. CORE slices end with a study note in `estudos/PR-<n>-<slug>.md`.
+3. Where the spec does not decide, take the recommended option, record it as a `DECISIONS.md`
+   entry in the same PR, in the existing format (D-014 to D-019 are examples), and say in one line
+   which option was picked. An accepted entry is never rewritten; at most it gets a note pointing
+   at the entry that supersedes it.
 
 ## Done means evidence
 
