@@ -1,5 +1,4 @@
 from content.models import Block, PracticeQuestion
-from content.serializers import BlockSerializer
 from django.shortcuts import get_object_or_404
 from organization.models import Subtopic
 from rest_framework import status, viewsets
@@ -8,7 +7,12 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .models import SessionEvent
-from .serializers import AttemptSerializer, PracticeQuestionSerializer, SessionEventSerializer
+from .serializers import (
+    AttemptSerializer,
+    PracticeQuestionSerializer,
+    ReadingBlockSerializer,
+    SessionEventSerializer,
+)
 from .services import complete_activity, record_attempt, resume_block_order, start_activity
 
 
@@ -18,7 +22,7 @@ class SessionEventViewSet(viewsets.GenericViewSet):
     queryset = SessionEvent.objects.all()
     serializer_class = SessionEventSerializer
 
-    def create(self, request):
+    def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         try:
@@ -28,7 +32,7 @@ class SessionEventViewSet(viewsets.GenericViewSet):
         return Response(self.get_serializer(event).data, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=["post"])
-    def complete(self, request, pk=None):
+    def complete(self, request, pk=None, **kwargs):
         event = self.get_object()
         try:
             complete_activity(event)
@@ -42,17 +46,13 @@ class ReadingView(APIView):
 
     def get(self, request, pk):
         subtopic = get_object_or_404(Subtopic.objects.select_related("concept"), pk=pk)
+        # No content yet is an empty list, so 404 means only that the subtopic does not exist.
         blocks = Block.objects.filter(content__subtopic=subtopic)
-        if not blocks.exists():
-            return Response(
-                {"detail": "Este subtema ainda não tem conteúdo."},
-                status=status.HTTP_404_NOT_FOUND,
-            )
         return Response(
             {
                 "subtopic": subtopic.name,
                 "concept": subtopic.concept.name,
-                "blocks": BlockSerializer(blocks, many=True).data,
+                "blocks": ReadingBlockSerializer(blocks, many=True).data,
                 "resume_block_order": resume_block_order(subtopic),
             }
         )

@@ -65,6 +65,13 @@ class Callout:
         return self.source is None
 
 
+@dataclass(frozen=True)
+class Segment:
+    kind: str  # "text", "code" or "ia"
+    text: str
+    source: str | None = None
+
+
 @dataclass
 class ParsedContent:
     raw: str = field(default="", compare=False)  # as pasted; "parses the same" ignores it
@@ -207,27 +214,74 @@ def _parse_cards(body: str) -> tuple[list[Card], list[str]]:
 
 
 def _parse_callouts(body: str) -> list[Callout]:
-    callouts: list[Callout] = []
-    current: list[str] | None = None
+    return [Callout(s.text, s.source) for s in split_segments(body) if s.kind == "ia"]
+
+
+def split_segments(body: str) -> list[Segment]:
+    """A body cut, in order, into plain text, fenced code and `> [!ia]` callouts."""
+    segments: list[Segment] = []
+    kind, lines, fence = "text", [], None
 
     def close():
-        if current is not None:
-            text = "\n".join(current)
+        text = "\n".join(lines)
+        if kind == "ia":
             source = SOURCE_RE.search(text)
-            callouts.append(Callout(text, source.group(1) if source else None))
+            segments.append(Segment("ia", text, source.group(1) if source else None))
+        elif kind == "code" or text.strip():
+            segments.append(Segment(kind, text.strip("\n")))
 
-    for line, in_fence in _outside_fences(body.split("\n")):
-        stripped = line.strip()
-        if not in_fence and stripped.startswith("> [!ia]"):
+    for line in body.split("\n"):
+        marker, stripped = line.lstrip()[:3], line.strip()
+        # Same fence rule as `_outside_fences`: a `##` or `> [!ia]` inside code is code.
+        if fence:
+            if marker == fence:
+                close()
+                kind, lines, fence = "text", [], None
+            else:
+                lines.append(line)
+        elif marker in ("```", "~~~"):
             close()
-            current = [stripped[1:].strip()]
-        elif current is not None and not in_fence and stripped.startswith(">"):
-            current.append(stripped[1:].strip())
+            kind, lines, fence = "code", [], marker
+        elif stripped.startswith("> [!ia]"):
+            close()
+            kind, lines = "ia", [stripped[1:].strip()]
+        elif kind == "ia" and stripped.startswith(">"):
+            lines.append(stripped[1:].strip())
         else:
-            close()
-            current = None
+            if kind == "ia":
+                close()
+                kind, lines = "text", []
+            lines.append(line)
     close()
-    return callouts
+    return segments
+
+
+def without_reference_answers(body: str) -> str:
+    """The "Prática" body minus each reference answer, which shows only after an attempt (4.8.3).
+
+    Cuts what `_reference_answer` reads: from the marker to the next question.
+    """
+    kept: list[str] = []
+    in_question = hiding = False
+    fence = None  # the fence open in `kept`, closed again if an answer starts inside it
+    for line, in_fence in _outside_fences(body.split("\n")):
+        if not in_fence and QUESTION_RE.match(line):
+            in_question, hiding = True, False
+        elif hiding:
+            continue
+        elif in_question and REFERENCE_PREFIX in line:
+            hiding = True
+            if before := line.partition(REFERENCE_PREFIX)[0].rstrip():
+                kept.append(before)
+            if fence:
+                kept.append(fence)
+                fence = None
+            continue
+        kept.append(line)
+        marker = line.lstrip()[:3]
+        if marker in ("```", "~~~") and fence in (None, marker):
+            fence = None if fence else marker
+    return "\n".join(kept).strip()
 
 
 def _duplicates(labels: list[str]) -> list[str]:

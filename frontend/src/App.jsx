@@ -34,7 +34,8 @@ export default function App() {
   const [route, setRoute] = useState(currentRoute);
 
   useEffect(() => {
-    const onHashChange = () => setRoute(currentRoute());
+    // Only "#/..." is a route; "#conteudo" (the skip link) must not leave the page.
+    const onHashChange = () => window.location.hash.startsWith("#/") && setRoute(currentRoute());
     window.addEventListener("hashchange", onHashChange);
     return () => window.removeEventListener("hashchange", onHashChange);
   }, []);

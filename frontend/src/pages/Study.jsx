@@ -1,7 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { api } from "../api.js";
-import { Badge, Breadcrumb, Button, Inline, Panel, ProgressBar, Stack, StateMessage } from "../ui/index.js";
+import {
+  Badge,
+  Breadcrumb,
+  Button,
+  Callout,
+  Inline,
+  Panel,
+  ProgressBar,
+  Stack,
+  StateMessage,
+} from "../ui/index.js";
 import { ActionError } from "./forms.jsx";
 import "./study.css";
 
@@ -16,9 +26,12 @@ export default function Study({ subtopicId }) {
   const [busy, setBusy] = useState(null);
   const [error, setError] = useState(null);
   const [finished, setFinished] = useState(false);
-  const heading = useRef(null);
+  const sheet = useRef(null);
+  const end = useRef(null);
   // StrictMode runs effects twice in dev; the first block must start one event, not two.
   const started = useRef(false);
+  // Leaving the screen while it loads must not start a reading nobody sees.
+  const mounted = useRef(false);
 
   const open = useCallback(
     async (next) => {
@@ -45,36 +58,51 @@ export default function Study({ subtopicId }) {
     setLoadError(null);
     try {
       const data = await api.get(`/api/subtopics/${subtopicId}/reading/`);
+      if (!mounted.current) return;
       setReading(data);
-      await open(data.resume_block_order);
+      if (data.blocks.length > 0) await open(data.resume_block_order);
     } catch (e) {
-      setLoadError(e);
+      if (mounted.current) setLoadError(e);
     }
   }, [subtopicId, open]);
 
   useEffect(() => {
-    if (started.current) return;
-    started.current = true;
-    load();
+    mounted.current = true;
+    if (!started.current) {
+      started.current = true;
+      load();
+    }
+    return () => {
+      mounted.current = false;
+    };
   }, [load]);
 
-  // A new block takes the reader to its heading, so keyboard and screen reader users follow along.
+  // A new block takes the reader to its sheet, so keyboard and screen reader users follow along.
   useEffect(() => {
     if (order === null) return;
-    heading.current?.focus();
+    sheet.current?.focus();
   }, [order]);
+
+  // The last "Li este bloco" button disappears; focus moves to what replaced it.
+  useEffect(() => {
+    if (finished) end.current?.focus();
+  }, [finished]);
 
   async function markRead() {
     setBusy("read");
     setError(null);
     try {
-      const done = await api.post(`/api/events/${event.id}/complete/`);
-      setReading((r) => ({
-        ...r,
-        blocks: r.blocks.map((b) =>
-          b.order === order && !b.read_at ? { ...b, read_at: done.completed_at } : b,
-        ),
-      }));
+      // Already completed when only opening the next block failed: retrying just opens it.
+      if (!event.completed_at) {
+        const done = await api.post(`/api/events/${event.id}/complete/`);
+        setEvent(done);
+        setReading((r) => ({
+          ...r,
+          blocks: r.blocks.map((b) =>
+            b.order === order && !b.read_at ? { ...b, read_at: done.completed_at } : b,
+          ),
+        }));
+      }
       if (order < reading.blocks.length - 1) {
         setBusy(null);
         await open(order + 1);
@@ -88,17 +116,18 @@ export default function Study({ subtopicId }) {
   }
 
   if (loadError || !reading) {
-    const empty = loadError?.status === 404;
+    const missing = loadError?.status === 404;
     return (
       <Stack gap={6}>
         <Breadcrumb items={[{ label: "Biblioteca", href: "#/biblioteca" }, { label: "Estudo" }]} />
         <h1>Estudo</h1>
-        {empty ? (
+        {missing ? (
           <StateMessage
-            title="Este subtema ainda não tem conteúdo."
+            kind="error"
+            title="Este subtema não existe mais."
             action={<Button href="#/biblioteca">Voltar à Biblioteca</Button>}
           >
-            Cole o Markdown dele em Conteúdo, na Biblioteca, e volte aqui para estudar.
+            Escolha outro subtema na Biblioteca.
           </StateMessage>
         ) : loadError ? (
           <StateMessage
@@ -117,7 +146,7 @@ export default function Study({ subtopicId }) {
 
   const { blocks } = reading;
   const block = order === null ? null : blocks[order];
-  const readCount = blocks.filter((b) => b.read_at).length;
+  const unread = blocks.filter((b) => !b.read_at);
   const last = order === blocks.length - 1;
 
   return (
@@ -132,10 +161,30 @@ export default function Study({ subtopicId }) {
       <Stack gap={6} className="study__column">
         <Stack gap={3}>
           <h1>{reading.subtopic}</h1>
-          <ProgressBar value={readCount} max={blocks.length} unit="blocos lidos" label="Blocos lidos" />
+          {blocks.length > 0 && (
+            <ProgressBar
+              value={blocks.length - unread.length}
+              max={blocks.length}
+              unit="blocos lidos"
+              label="Blocos lidos"
+            />
+          )}
         </Stack>
-        {block ? (
-          <Panel raised aria-labelledby="bloco-titulo" className="study__block">
+        {blocks.length === 0 ? (
+          <StateMessage
+            title="Este subtema ainda não tem conteúdo."
+            action={<Button href="#/biblioteca">Voltar à Biblioteca</Button>}
+          >
+            Cole o Markdown dele em Conteúdo, na Biblioteca, e volte aqui para estudar.
+          </StateMessage>
+        ) : block ? (
+          <Panel
+            raised
+            ref={sheet}
+            tabIndex={-1}
+            aria-labelledby="bloco-titulo"
+            className="study__block"
+          >
             <Inline justify="between">
               <p className="t-meta">
                 Bloco {order + 1} de {blocks.length}
@@ -147,38 +196,51 @@ export default function Study({ subtopicId }) {
               )}
             </Inline>
             {/* Text before the first heading is an extra block with no heading (D-014). */}
-            <h2
-              id="bloco-titulo"
-              ref={heading}
-              tabIndex={-1}
-              className={block.heading ? undefined : "visually-hidden"}
-            >
+            <h2 id="bloco-titulo" className={block.heading ? undefined : "visually-hidden"}>
               {block.heading || "Introdução"}
             </h2>
-            <div className="t-reading study__body">{block.body}</div>
+            <Segments segments={block.segments} />
             <ActionError>{error}</ActionError>
-            {finished ? (
-              <StateMessage
-                kind="success"
-                title="Você chegou ao fim deste subtema."
-                action={
-                  <Button href={`#/pratica/${subtopicId}`} iconEnd="arrow-right">
-                    Praticar
-                  </Button>
-                }
+            {finished && (
+              <div ref={end} tabIndex={-1}>
+                {unread.length > 0 ? (
+                  <StateMessage
+                    title="Você chegou ao último bloco."
+                    action={
+                      <Button onClick={() => open(unread[0].order)}>
+                        Ir para o primeiro bloco sem leitura
+                      </Button>
+                    }
+                  >
+                    {unread.length === 1
+                      ? "Ainda há 1 bloco sem leitura."
+                      : `Ainda há ${unread.length} blocos sem leitura.`}
+                  </StateMessage>
+                ) : (
+                  <StateMessage
+                    kind="success"
+                    title="Você leu todos os blocos deste subtema."
+                    action={
+                      <Button href={`#/pratica/${subtopicId}`} iconEnd="arrow-right">
+                        Praticar
+                      </Button>
+                    }
+                  >
+                    Uma etapa de cada vez. Agora, veja o que ficou respondendo sem consultar.
+                  </StateMessage>
+                )}
+              </div>
+            )}
+            <Inline justify="between" className="study__actions">
+              <Button
+                variant="secondary"
+                icon="arrow-left"
+                disabled={order === 0 || busy !== null}
+                onClick={() => open(order - 1)}
               >
-                Uma etapa de cada vez. Agora, veja o que ficou respondendo sem consultar.
-              </StateMessage>
-            ) : (
-              <Inline justify="between" className="study__actions">
-                <Button
-                  variant="secondary"
-                  icon="arrow-left"
-                  disabled={order === 0 || busy !== null}
-                  onClick={() => open(order - 1)}
-                >
-                  Anterior
-                </Button>
+                Anterior
+              </Button>
+              {!finished && (
                 <Button
                   icon={last ? "check" : undefined}
                   iconEnd={last ? undefined : "arrow-right"}
@@ -189,16 +251,43 @@ export default function Study({ subtopicId }) {
                 >
                   {last ? "Li este bloco" : "Li este bloco, próximo"}
                 </Button>
-              </Inline>
-            )}
+              )}
+            </Inline>
           </Panel>
         ) : (
           <Panel aria-label="Bloco">
             {error ? <ActionError>{error}</ActionError> : <p className="t-meta">Abrindo o bloco…</p>}
-            {error && <Button onClick={() => open(reading.resume_block_order)}>Tentar novamente</Button>}
+            {error && (
+              <Button onClick={() => open(reading.resume_block_order)}>Tentar novamente</Button>
+            )}
           </Panel>
         )}
       </Stack>
     </Stack>
+  );
+}
+
+// The body as the API cut it: text as written, fenced code, and `[!ia]` callouts, which carry
+// "complemento sem fonte" when they have no source (spec 4.2.8).
+function Segments({ segments }) {
+  if (segments.length === 0) return <p className="t-meta">Este bloco não tem texto.</p>;
+  return (
+    <div className="t-reading">
+      {segments.map((segment, index) =>
+        segment.kind === "code" ? (
+          <pre key={index}>
+            <code>{segment.text}</code>
+          </pre>
+        ) : segment.kind === "ia" ? (
+          <Callout key={index} variant="ai" source={segment.source}>
+            <div className="study__text">{segment.text.replace(/^\[!ia\]\s*/, "")}</div>
+          </Callout>
+        ) : (
+          <div key={index} className="study__text">
+            {segment.text}
+          </div>
+        ),
+      )}
+    </div>
   );
 }
