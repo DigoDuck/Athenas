@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import Library from "./pages/Library.jsx";
 import Roadmap from "./pages/Roadmap.jsx";
+import Study from "./pages/Study.jsx";
 import { AppShell } from "./ui/index.js";
 
 const PAGES = {
@@ -16,25 +17,27 @@ const NAV_ITEMS = Object.entries(PAGES).map(([id, { label, icon }]) => ({
   href: `#/${id}`,
 }));
 
-function currentPage() {
-  const key = window.location.hash.replace("#/", "");
-  return key in PAGES ? key : "roadmap";
+// "#/estudo/<subtopic id>" is the reading screen; the nav keeps Biblioteca marked.
+function currentRoute() {
+  const [key, id] = window.location.hash.replace("#/", "").split("/");
+  if (key === "estudo" && /^\d+$/.test(id ?? "")) return { page: "biblioteca", study: Number(id) };
+  return { page: key in PAGES ? key : "roadmap" };
 }
 
 export default function App() {
-  const [page, setPage] = useState(currentPage);
+  const [route, setRoute] = useState(currentRoute);
 
   useEffect(() => {
-    const onHashChange = () => setPage(currentPage());
+    const onHashChange = () => setRoute(currentRoute());
     window.addEventListener("hashchange", onHashChange);
     return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
 
-  const { Component } = PAGES[page];
+  const { Component } = PAGES[route.page];
 
   return (
-    <AppShell items={NAV_ITEMS} current={page}>
-      <Component />
+    <AppShell items={NAV_ITEMS} current={route.page}>
+      {route.study ? <Study key={route.study} subtopicId={route.study} /> : <Component />}
     </AppShell>
   );
 }

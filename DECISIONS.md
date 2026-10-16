@@ -254,3 +254,26 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
   compose mounts `G:`, and the task treats a `robocopy` exit code of 8 or more as a failure.
   Retention must reach the vault without a bare `robocopy /MIR`, which would wipe the vault if the
   path were wrong; S7 picks how.
+
+### D-020: A reading event covers one block, and completing an event is its only change
+
+- Date: 2026-10-15. Source: study reading slice (S1); Diogo accepted the recommended options.
+- Context: spec 3.2 gives a session event both `started_at` and `completed_at` in one row, while
+  history is create-only. The spec does not say what one reading activity is, where the events
+  live, or in which order study shows blocks whose headings are out of contract order.
+- Decision:
+  - `SessionEvent` lives in its own app, `activity`, with generic endpoints that later slices
+    reuse: `POST /api/events/` starts an activity and `POST /api/events/<id>/complete/` finishes
+    it. There is no list, update or delete endpoint.
+  - Completing sets `ended_at` and `completed_at` once. A second completion answers 409, and an
+    `app_opened` event cannot be completed, so it never counts as a session.
+  - One reading event per block. Opening a block starts it with `block_order`; marking the block
+    read completes it and sets the block's `read_at` (D-015) if it was unset.
+  - Study shows blocks in document order, which the template already keeps in contract order.
+    Known sections written out of order are not rearranged.
+- Why: one event per block makes a day with any finished block a session and gives "continue
+  where I stopped" the latest block opened (D-017). Generic endpoints keep practice, review and
+  the home screen from adding their own. A separate app keeps this slice's migration apart from
+  the card model change in `content` (D-018).
+- Risk: a block opened and left without marking it read stays as an event without
+  `completed_at`, which the metric reads as abandoned, as spec Q1 intends.

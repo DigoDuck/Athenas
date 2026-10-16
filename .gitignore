@@ -18,3 +18,14 @@ frontend/dist/
 .vscode/
 .idea/
 .DS_Store
+
+# AI tooling (never versioned)
+.claude/settings.local.json
+.claude/worktrees/
+CLAUDE.local.md
+.impeccable/
+docs/superpowers/
+docs/reviews/
+estudos/
+.playwright-mcp/
+.screenshots/
