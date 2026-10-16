@@ -62,7 +62,15 @@ export default function AppShell({
       data-scene={scene || undefined}
     >
       {scene && <div className={`ui-shell__scene ui-shell__scene--${scene} decor`} aria-hidden="true" />}
-      <a className="ui-skip-link" href="#conteudo">
+      {/* The hash is the app's router, so the skip link moves focus without changing the URL. */}
+      <a
+        className="ui-skip-link"
+        href="#conteudo"
+        onClick={(e) => {
+          e.preventDefault();
+          document.getElementById("conteudo")?.focus();
+        }}
+      >
         Ir para o conteúdo
       </a>
       <header className="ui-shell__bar" data-print="hide">

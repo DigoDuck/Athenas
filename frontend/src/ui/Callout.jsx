@@ -8,6 +8,14 @@ const variants = {
   info: { icon: "info", title: null },
 };
 
+// A `> [!ia]` callout's text without its marker and its source, which Callout shows on its own line.
+export function calloutBody(text) {
+  return text
+    .replace(/^\[!ia\]\s*/, "")
+    .replace(/Fonte:\s*https?:\/\/\S+/, "")
+    .trim();
+}
+
 export default function Callout({ variant = "notebook", title, source, children }) {
   const preset = variants[variant];
   const heading = title ?? preset.title;

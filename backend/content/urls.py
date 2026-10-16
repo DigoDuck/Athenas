@@ -4,6 +4,8 @@ from rest_framework.routers import DefaultRouter
 from . import views
 
 router = DefaultRouter(trailing_slash=True)
+# No ".json" suffix routes: nothing uses them, and actions such as `complete` would 500.
+router.include_format_suffixes = False
 router.register("flashcards", views.FlashcardViewSet, basename="flashcard")
 
 urlpatterns = [

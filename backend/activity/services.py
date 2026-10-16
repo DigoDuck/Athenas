@@ -54,9 +54,13 @@ def complete_activity(event) -> None:
         if not pending.update(ended_at=now, completed_at=now):
             raise ValueError("Esta atividade já foi concluída.")
         if event.kind == Kind.READING:
-            # The first read is the one kept (DECISIONS.md D-015).
+            # The first read is the one kept (D-015). After a re-import since the block was
+            # opened, `block_order` may name other text, so nothing is marked (D-023).
             Block.objects.filter(
-                content__subtopic_id=event.subtopic_id, order=event.block_order, read_at=None
+                content__subtopic_id=event.subtopic_id,
+                content__updated_at__lte=event.started_at,
+                order=event.block_order,
+                read_at=None,
             ).update(read_at=now)
     event.ended_at = event.completed_at = now
 
