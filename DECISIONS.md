@@ -258,3 +258,29 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
   the card model change in `content` (D-018).
 - Risk: a block opened and left without marking it read stays as an event without
   `completed_at`, which the metric reads as abandoned, as spec Q1 intends.
+
+### D-022: How the review queue fills a Bahia day
+
+- Date: 2026-10-16. Source: review scheduling slice (S4); Diogo accepted the recommended options.
+- Context: spec 4.6 sets two daily caps, retrievability order for overflow (D-011) and distinct
+  cards per day (Q14), but not the initial Py-FSRS state, how the two caps combine, or when a card
+  counts as due today.
+- Decision:
+  - Every card gets a fresh `Card()` when it is created, whatever its approval state, and the
+    migration gives one to the cards that already exist. Its `card_id` is the `Flashcard` pk, so
+    review logs line up with cards for the later optimizer.
+  - New cards count inside the review cap and take their slots first, up to the new card cap,
+    in creation order (Markdown order). Due cards fill the remaining slots by retrievability,
+    ascending.
+  - A card already reviewed is due today when its `due` falls before the next Bahia midnight. A
+    card already reviewed today comes back only when its `due` has passed (learning and
+    relearning steps) and uses no new slot.
+  - "Revisões de hoje: N" counts the new and due cards still to be seen today, not those
+    same-day repeats, so it never exceeds the remaining cap.
+  - The queue ignores study status: completing a subtopic or a concept keeps its cards in review
+    (scenario 25).
+- Why: one ceiling of 20 cards keeps the daily load bounded, which is what the habit hypothesis
+  needs, and reserving the new card slots keeps a backlog from freezing new material. A day-based
+  due date keeps N stable through the day.
+- Risk: under a long backlog, the new cards take up to 5 of the 20 slots, so the backlog drains
+  more slowly. The UI never shows it (spec 4.6.4).
