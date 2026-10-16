@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { api } from "../api.js";
-import { Badge, Breadcrumb, Button, Inline, Panel, ProgressBar, Stack, StateMessage } from "../ui/index.js";
 import CompletionSuggestion from "./CompletionSuggestion.jsx";
 import {
   Badge,
