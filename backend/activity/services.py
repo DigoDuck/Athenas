@@ -1,6 +1,6 @@
-"""Session events (spec 3.2, 4.11) and the reading activity (spec 4.4.5, 4.8.1, 4.8.4)."""
+"""Session events (spec 3.2, 4.11), reading (spec 4.4.5, 4.8.1, 4.8.4) and practice (4.8.3)."""
 
-from content.models import Block
+from content.models import Attempt, Block
 from django.db import transaction
 from django.db.models.functions import TruncDate
 from django.utils import timezone
@@ -59,6 +59,22 @@ def complete_activity(event) -> None:
                 content__subtopic_id=event.subtopic_id, order=event.block_order, read_at=None
             ).update(read_at=now)
     event.ended_at = event.completed_at = now
+
+
+@transaction.atomic
+def record_attempt(event, *, text, self_assessment) -> Attempt:
+    """Saving the answer finishes its activity, so no attempt exists without a session."""
+    if event.kind not in (Kind.QUESTION, Kind.EXPLANATION):
+        raise ValueError("Só uma pergunta ou uma explicação recebe tentativa.")
+    complete_activity(event)
+    question = event.question
+    return Attempt.objects.create(
+        subtopic_id=question.subtopic_id if question else event.subtopic_id,
+        kind=event.kind,
+        question=question,
+        text=text,
+        self_assessment=self_assessment,
+    )
 
 
 def resume_block_order(subtopic) -> int:

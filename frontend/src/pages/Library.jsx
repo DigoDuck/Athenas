@@ -243,6 +243,14 @@ function Concept({
                     Estudar
                   </Button>
                   <Button
+                    variant="tertiary"
+                    iconEnd="arrow-right"
+                    href={`#/pratica/${s.id}`}
+                    aria-label={`Praticar ${s.name}`}
+                  >
+                    Praticar
+                  </Button>
+                  <Button
                     id={`conteudo-${s.id}`}
                     variant="tertiary"
                     icon="file-text"

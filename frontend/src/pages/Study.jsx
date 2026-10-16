@@ -161,9 +161,13 @@ export default function Study({ subtopicId }) {
               <StateMessage
                 kind="success"
                 title="Você chegou ao fim deste subtema."
-                action={<Button href="#/biblioteca">Voltar à Biblioteca</Button>}
+                action={
+                  <Button href={`#/pratica/${subtopicId}`} iconEnd="arrow-right">
+                    Praticar
+                  </Button>
+                }
               >
-                Uma etapa de cada vez.
+                Uma etapa de cada vez. Agora, veja o que ficou respondendo sem consultar.
               </StateMessage>
             ) : (
               <Inline justify="between" className="study__actions">
