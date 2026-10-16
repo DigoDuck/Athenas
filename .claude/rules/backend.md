@@ -12,7 +12,8 @@ paths:
   `content/views.py`).
 - A write that touches several rows runs inside `transaction.atomic()`, as `import_content` does.
 - History (`Attempt`, `ReviewLog`, `SessionEvent`) is create-only: no update or delete endpoint,
-  and nothing reaches it through `CASCADE`.
+  and nothing reaches it through `CASCADE`. The one exception: a `SessionEvent` is completed once
+  through its `complete` action (D-020).
 - A product day comes from `django.utils.timezone.localdate()` (`TIME_ZONE` is `America/Bahia`),
   never from the UTC date.
 - Py-FSRS state is stored as `Card.to_dict()` and `ReviewLog.to_dict()` give it, plus the indexed
