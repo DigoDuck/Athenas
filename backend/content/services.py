@@ -1,10 +1,15 @@
 """Re-import of a parsed document into a subtopic. Identity follows the labels (spec 4.2.6)."""
 
 from collections import defaultdict
+from datetime import UTC, datetime, time, timedelta
 
+import fsrs
 from django.db import transaction
+from django.db.models import Min
+from django.utils import timezone
+from organization.models import Settings
 
-from .models import Block, Content, Flashcard, PracticeQuestion
+from .models import Block, Content, Flashcard, PracticeQuestion, ReviewLog
 from .parser import ParsedContent
 
 
@@ -64,9 +69,10 @@ def _sync_cards(subtopic, parsed):
     for item in parsed.cards:
         card = existing.get(item.label)
         if card is None:
-            Flashcard.objects.create(
+            card = Flashcard.objects.create(
                 subtopic=subtopic, label=item.label, front=item.front, back=item.back
             )
+            start_fsrs_state(card)
             continue
         card.front, card.back = item.front, item.back
         if card.state == Flashcard.State.SUSPENDED:
@@ -98,3 +104,96 @@ def _decide(card, state):
         raise ValueError(f"O cartão {card.label} não está pendente")
     card.state = state
     card.save(update_fields=["state"])
+
+
+# Review scheduling (spec 4.6, DECISIONS.md D-011, D-018 and D-022).
+
+FSRS_RATINGS = {
+    ReviewLog.Rating.AGAIN: fsrs.Rating.Again,
+    ReviewLog.Rating.HARD: fsrs.Rating.Hard,
+    ReviewLog.Rating.GOOD: fsrs.Rating.Good,
+}
+
+
+def start_fsrs_state(card) -> None:
+    """Every card starts as a new Py-FSRS card keyed by its pk, whatever its approval state."""
+    _store_fsrs_state(card, fsrs.Card(card_id=card.pk, due=_utc(None)))
+
+
+@transaction.atomic
+def rate_card(card, rating, *, now=None, enable_fuzzing=True) -> ReviewLog:
+    """Again, Hard or Good through Py-FSRS; there is no Easy (spec 4.6.2)."""
+    if card.state != Flashcard.State.ACTIVE:
+        raise ValueError(f"O cartão {card} não está ativo")
+    if rating not in ReviewLog.Rating.values:
+        raise ValueError(f"Avaliação inválida: {rating}")
+    rating = ReviewLog.Rating(rating)
+    reviewed_at = _utc(now)
+    fsrs_card, fsrs_log = _scheduler(enable_fuzzing).review_card(
+        fsrs.Card.from_dict(card.fsrs_card), FSRS_RATINGS[rating], review_datetime=reviewed_at
+    )
+    _store_fsrs_state(card, fsrs_card)
+    return ReviewLog.objects.create(
+        flashcard=card, rating=rating, reviewed_at=reviewed_at, fsrs_log=fsrs_log.to_dict()
+    )
+
+
+def review_queue(*, now=None) -> list[Flashcard]:
+    """Today's cards: same-day repeats first, then new cards, then due cards."""
+    repeats, picks = _today(now)
+    return repeats + picks
+
+
+def reviews_today(*, now=None) -> int:
+    """The home screen's N: cards still to see today, never same-day repeats (D-022)."""
+    return len(_today(now)[1])
+
+
+def _today(now):
+    now = _utc(now)
+    start = timezone.make_aware(datetime.combine(timezone.localdate(now), time.min))
+    end = start + timedelta(days=1)
+    settings = Settings.load()
+    active = Flashcard.objects.filter(state=Flashcard.State.ACTIVE)
+
+    logs_today = ReviewLog.objects.filter(reviewed_at__gte=start, reviewed_at__lt=end)
+    seen_today = set(logs_today.values_list("flashcard_id", flat=True))
+    introduced_today = (
+        ReviewLog.objects.values("flashcard_id")
+        .annotate(first=Min("reviewed_at"))
+        .filter(first__gte=start, first__lt=end)
+        .count()
+    )
+    # The review cap counts distinct cards per Bahia day (Q14); new cards take slots first.
+    free = max(settings.review_cap - len(seen_today), 0)
+    new_slots = min(max(settings.new_card_cap - introduced_today, 0), free)
+    new = list(active.filter(reviews__isnull=True).order_by("id")[:new_slots])
+
+    due = active.filter(reviews__isnull=False, due__lt=end).exclude(id__in=seen_today).distinct()
+    scheduler = _scheduler()
+
+    def retrievability(card):
+        return scheduler.get_card_retrievability(fsrs.Card.from_dict(card.fsrs_card), now)
+
+    # Overflow stays due with its stored date untouched and competes again tomorrow (D-011).
+    due = sorted(due, key=lambda card: (retrievability(card), card.id))[: free - len(new)]
+    repeats = list(active.filter(id__in=seen_today, due__lte=now).order_by("due", "id"))
+    return repeats, new + due
+
+
+def _scheduler(enable_fuzzing=True):
+    return fsrs.Scheduler(
+        desired_retention=Settings.load().desired_retention, enable_fuzzing=enable_fuzzing
+    )
+
+
+def _store_fsrs_state(card, fsrs_card):
+    # The only writer of `fsrs_card` and `due`, so the two never drift apart (D-018).
+    card.fsrs_card = fsrs_card.to_dict()
+    card.due = fsrs_card.due
+    card.save(update_fields=["fsrs_card", "due"])
+
+
+def _utc(now):
+    # Py-FSRS refuses datetimes that are not in UTC.
+    return (now or timezone.now()).astimezone(UTC)

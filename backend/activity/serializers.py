@@ -1,4 +1,7 @@
-from content.models import Attempt, PracticeQuestion
+from dataclasses import asdict
+
+from content.models import Attempt, Block, PracticeQuestion
+from content.parser import split_segments, without_reference_answers
 from rest_framework import serializers
 
 from .models import SessionEvent
@@ -34,3 +37,19 @@ class PracticeQuestionSerializer(serializers.ModelSerializer):
     class Meta:
         model = PracticeQuestion
         fields = ["id", "label", "prompt", "reference_answer"]
+
+
+class ReadingBlockSerializer(serializers.ModelSerializer):
+    """A block for reading: its body cut into text, code and `[!ia]` callouts, never raw."""
+
+    segments = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Block
+        fields = ["order", "kind", "heading", "read_at", "segments"]
+
+    def get_segments(self, block):
+        body = block.body
+        if block.kind == "Prática":
+            body = without_reference_answers(body)
+        return [asdict(segment) for segment in split_segments(body)]

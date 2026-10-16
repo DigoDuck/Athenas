@@ -5,6 +5,7 @@ import {
   Badge,
   Button,
   Callout,
+  calloutBody,
   Inline,
   List,
   ListRow,
@@ -213,7 +214,7 @@ function Preview({ preview }) {
       </PreviewList>
       {callouts.map((c, i) => (
         <Callout key={i} variant="ai" source={c.source}>
-          <p>{c.text.replace(/^\[!ia\]\s*/, "")}</p>
+          <p>{calloutBody(c.text)}</p>
         </Callout>
       ))}
     </Stack>

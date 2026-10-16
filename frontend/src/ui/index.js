@@ -2,7 +2,7 @@ export { default as AppShell, Brand } from "./AppShell.jsx";
 export { default as Badge, CardsDueBadge, ReviewFlagBadge, StudyStatusBadge, Tag } from "./Badge.jsx";
 export { default as Breadcrumb } from "./Breadcrumb.jsx";
 export { default as Button } from "./Button.jsx";
-export { default as Callout } from "./Callout.jsx";
+export { default as Callout, calloutBody } from "./Callout.jsx";
 export { Select, TextArea, TextField } from "./Field.jsx";
 export { default as Icon, iconNames } from "./Icon.jsx";
 export { Inline, Stack } from "./Layout.jsx";

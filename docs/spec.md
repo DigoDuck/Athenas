@@ -301,8 +301,9 @@ session's reviews count toward them `[Q15]`.
 
 ### 4.8 Study, notebook mode and practice
 
-1. Study shows the content one block at a time, in contract order, with extra blocks in their
-   original position.
+1. Study shows the content one block at a time, in the document's order, which the template
+   keeps in contract order, with extra blocks in their original position (`DECISIONS.md` D-020,
+   D-023).
 2. Notebook mode is a separate presentation for copying into a paper notebook: clear titles,
    short definitions, essential points, selected examples. It can end with one
    "explain in my words" prompt or one question to answer without looking `[briefing]`.
