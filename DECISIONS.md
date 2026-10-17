@@ -593,6 +593,27 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
   Markdown keeps the key, so the origin can be recovered from it). Restore commands with
   `/backup/...` paths fail in Git Bash, which rewrites them; run them from PowerShell.
 
+### D-031: The reading screen renders Markdown in-house and uses the sheet's full width
+
+- Date: 2026-10-17. Source: Diogo, on day 1, reading a generated subtopic: the text showed
+  `**` around bold words, and the sheet left half of a wide screen to the background.
+- Decision:
+  - Text segments render the Markdown subset study content uses: paragraphs with their line
+    breaks, `###` headings, lists (nested), quotes as a highlighted card, tables, rules, images
+    on their own line with the title or alt text as caption, and inline bold, italic, code,
+    links and bare URLs. `frontend/src/ui/Markdown.jsx` builds React elements, so no HTML from
+    the text reaches the page; links and images accept only `http(s)` or same-site paths.
+  - No Markdown library: the subset is small, and a new production dependency needs Diogo's ok.
+    Anything outside the subset shows as plain text, as it did before.
+  - On the reading screen the sheet takes the whole width. The text column stays near 70
+    characters per line; the extra space holds an outline of the blocks (each one opens that
+    block, like Anterior) and, beside the text, the subtopic's sources and a Praticar link.
+    Below 1600 px the sources go under the text.
+- Why: lines much longer than about 75 characters read worse, so the width goes to navigation
+  and support instead of to the text.
+- Cost: images in the content are only as good as their source; storing them is the job of the
+  content format, not of this screen. Practice and review still show their text as plain text.
+
 ### D-032: The app keeps and shows who wrote a subtopic's text
 
 - Date: 2026-10-17. Source: the project goal Diogo updated on 2026-10-17 says agent-generated
