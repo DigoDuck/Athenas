@@ -543,7 +543,8 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
     nor the script approves, rejects, edits or deletes anything.
   - The generated Markdown carries `origem: claude` in its frontmatter. The parser ignores the
     key and the raw Markdown keeps it, so the backup and the day 28 verdict can tell generated
-    content apart.
+    content apart. (Superseded in part by D-032: the parser now reads the key and the app stores
+    and shows it.)
   - Day 1 starts with this path, and spec 2.2 stays as it is in this change. A "Novo tema"
     screen follows during the month (S10 in `docs/plan.md`): it builds the request for any AI,
     Gemini Notebook (formerly NotebookLM) included, since that one has no API for personal
@@ -560,3 +561,33 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
   callouts are how he checks one. A large theme uses a visible part of the plan's usage window,
   and `push` resumes where a run stopped. The month measures studying with generated content,
   which the day 28 verdict states with the features of the month (D-010).
+
+### D-032: The app keeps and shows who wrote a subtopic's text
+
+- Date: 2026-10-17. Source: the project goal Diogo updated on 2026-10-17 says agent-generated
+  content carries `origem: claude`, Markdown cards stay pending until he approves them, and AI
+  text never passes as correct because it reads well. D-030 left the key only in the raw
+  Markdown, so the app showed a generated card exactly like one he pasted himself.
+- Decision:
+  - The frontmatter key `origem` (spec 4.1) is optional. The parser reads it lowercased and
+    `Content.generated_by` stores it; no key means Diogo's own text and stores empty. A value
+    over 30 characters is cut, with a warning, never dropped, so generated text never turns
+    into Diogo's by accident.
+  - The origin belongs to the document, not to each question or card, and follows the last
+    save: re-importing without the key claims the text as Diogo's. Questions and cards read it
+    from their subtopic's content.
+  - `Flashcard.origin` keeps meaning how a card entered (`markdown` or `manual`); it is not
+    reused for who wrote it.
+  - The app shows a "Gerado por <origem>" badge in the import preview, above the pending card
+    being approved, at the top of the reading, and next to the reference answer in practice.
+  - `scripts/theme.py check` fails a file without `origem`, so the skill cannot push unmarked
+    content.
+  - The migration fills `generated_by` from the raw Markdown already saved, which keeps its
+    frontmatter verbatim, so content pushed before this change is recovered. It writes only
+    that column.
+- Why: the mark sits where Diogo judges the text (approving a card, comparing an attempt with
+  the reference answer), and one field on `Content` covers questions and cards without a
+  migration on history tables. The same field serves S10's other AIs (`origem: gemini`).
+- Cost: a suspended card or an archived question keeps showing its subtopic's current origin,
+  not the one of the text it held when it left the Markdown. History of past origins is not
+  kept, the same way past Markdown versions are not.

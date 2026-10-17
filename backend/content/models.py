@@ -13,6 +13,8 @@ class Content(models.Model):
     subtopic = models.OneToOneField(Subtopic, on_delete=models.PROTECT, related_name="content")
     raw_markdown = models.TextField()
     state = models.CharField(max_length=5, choices=State, default=State.DRAFT)
+    # Frontmatter `origem` of the saved text ("claude"); empty is Diogo's own text (D-032).
+    generated_by = models.CharField(max_length=30, blank=True, default="")
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):

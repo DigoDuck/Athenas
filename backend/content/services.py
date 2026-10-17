@@ -27,7 +27,12 @@ def import_content(subtopic, parsed: ParsedContent) -> None:
 
 def _save_content(subtopic, parsed):
     content, _ = Content.objects.update_or_create(
-        subtopic=subtopic, defaults={"raw_markdown": parsed.raw, "state": parsed.state}
+        subtopic=subtopic,
+        defaults={
+            "raw_markdown": parsed.raw,
+            "state": parsed.state,
+            "generated_by": parsed.generated_by,
+        },
     )
     # A block with identical kind, heading and body keeps its read mark (DECISIONS.md D-015).
     read = defaultdict(list)

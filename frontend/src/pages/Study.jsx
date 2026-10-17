@@ -8,6 +8,7 @@ import {
   Button,
   Callout,
   calloutBody,
+  GeneratedByBadge,
   Inline,
   Panel,
   ProgressBar,
@@ -171,6 +172,12 @@ export default function Study({ subtopicId }) {
       <Stack gap={6} className="study__column">
         <Stack gap={3}>
           <h1>{reading.subtopic}</h1>
+          {reading.generated_by && (
+            <Inline gap={2}>
+              <GeneratedByBadge by={reading.generated_by} />
+              <p className="t-meta">Bem escrito não quer dizer correto: confira nas Fontes.</p>
+            </Inline>
+          )}
           {blocks.length > 0 && (
             <ProgressBar
               value={blocks.length - unread.length}

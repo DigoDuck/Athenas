@@ -14,7 +14,7 @@ class ContentSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Content
-        fields = ["raw_markdown", "state", "updated_at", "blocks"]
+        fields = ["raw_markdown", "state", "generated_by", "updated_at", "blocks"]
 
 
 class FlashcardSerializer(serializers.ModelSerializer):

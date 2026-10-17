@@ -24,6 +24,8 @@ SOURCE_RE = re.compile(r"Fonte:\s*(https?://\S+)")
 REFERENCE_PREFIX = "Resposta de referência:"
 # Stored without accents, like `Subtopic.Level` ("intermediário" -> "intermediario").
 LEVELS = {"iniciante", "intermediario", "avancado", "especialista"}
+# Fits `Content.generated_by`.
+GENERATED_BY_MAX = 30
 
 
 @dataclass(frozen=True)
@@ -76,6 +78,8 @@ class Segment:
 class ParsedContent:
     raw: str = field(default="", compare=False)  # as pasted; "parses the same" ignores it
     level: str | None = None
+    # Who wrote the text, from the frontmatter `origem` ("claude"); empty is Diogo (D-032).
+    generated_by: str = ""
     frontmatter: dict[str, str] = field(default_factory=dict)
     blocks: list[Block] = field(default_factory=list)
     questions: list[Question] = field(default_factory=list)
@@ -122,6 +126,12 @@ def parse_markdown(text: str, target: Target | None = None) -> ParsedContent:
             parsed.level = level
         else:
             parsed.warnings.append(f"Nível desconhecido no frontmatter: {nivel}; o nível não muda")
+
+    if origem := frontmatter.get("origem", "").lower():
+        # Cut, never dropped: an empty origin would pass generated text as Diogo's.
+        parsed.generated_by = origem[:GENERATED_BY_MAX]
+        if len(origem) > GENERATED_BY_MAX:
+            parsed.warnings.append(f"Origem longa demais; fica {parsed.generated_by}")
 
     has_idea = any(b.kind == "Ideia central" and b.body for b in parsed.blocks)
     has_answered_question = any(q.reference_answer for q in parsed.questions)

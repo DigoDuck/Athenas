@@ -46,6 +46,16 @@ export function CardsDueBadge() {
   );
 }
 
+// Text an AI wrote (frontmatter `origem`, DECISIONS.md D-032): reading well does not make it
+// correct, so it stays marked wherever Diogo reads, approves or compares against it.
+export function GeneratedByBadge({ by }) {
+  return (
+    <Badge tone="info" icon="info">
+      Gerado por {by}
+    </Badge>
+  );
+}
+
 // Neutral metadata, such as level or perceived difficulty.
 export function Tag({ children }) {
   return <Badge tone="neutral">{children}</Badge>;
