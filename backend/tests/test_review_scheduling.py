@@ -12,6 +12,7 @@ import pytest
 from content.models import Flashcard, ReviewLog
 from content.parser import parse_markdown
 from content.services import approve_card, import_content, rate_card, review_queue, reviews_today
+from django.utils import timezone
 from organization.models import Area, Concept, Settings, Subtopic
 
 pytestmark = pytest.mark.django_db
@@ -142,6 +143,21 @@ def test_8_reviews_today_never_exceeds_the_remaining_cap(subtopic):
     # One slot left; the three same-day repeats are in the queue but not in the count.
     assert reviews_today(now=later) == 1
     assert len(review_queue(now=later)) == 4
+
+
+def test_8_the_api_shows_only_the_capped_count_never_overdue_totals(subtopic, client):
+    # The API reads the real clock, so these cards are due relative to it, not to NOW.
+    for days, card in enumerate(make_cards(subtopic, 30)):
+        graduate(card, timezone.now() - timedelta(days=60 + days))
+
+    today = client.get("/api/reviews/today/").json()
+    home = client.post("/api/home/").json()
+
+    assert today["count"] == home["reviews_today"] == 20
+    # Only N and the cards: no overdue total, and no due date to count days overdue from.
+    assert set(today) == {"count", "cards"}
+    assert not {"due", "fsrs_card"} & set(today["cards"][0])
+    assert set(home) == {"return_session", "last_stop", "next_steps", "reviews_today"}
 
 
 def test_9_changing_the_review_cap_changes_todays_remaining_count(subtopic):
