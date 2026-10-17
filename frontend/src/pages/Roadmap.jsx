@@ -7,6 +7,7 @@ import {
   Inline,
   List,
   ListRow,
+  ProgressBar,
   Select,
   Stack,
   StateMessage,
@@ -17,7 +18,12 @@ import { useCollections } from "../useCollections.js";
 import { ActionError, AddForm } from "./forms.jsx";
 
 export default function Roadmap() {
-  const { data, error, reload } = useCollections(["/api/tracks/", "/api/concepts/", "/api/areas/"]);
+  const { data, error, reload } = useCollections([
+    "/api/tracks/",
+    "/api/concepts/",
+    "/api/areas/",
+    "/api/subtopics/",
+  ]);
   const [selected, setSelected] = useState(null);
   const [actionError, setActionError] = useState(null);
 
@@ -57,7 +63,7 @@ export default function Roadmap() {
       </Stack>
     );
   }
-  const [tracks, concepts, areas] = data;
+  const [tracks, concepts, areas, subtopics] = data;
   const areaName = Object.fromEntries(areas.map((a) => [a.id, a.name]));
 
   async function createTrack(name) {
@@ -102,6 +108,7 @@ export default function Roadmap() {
               <Track
                 track={track}
                 concepts={concepts}
+                subtopics={subtopics}
                 areaName={areaName}
                 act={act}
                 actionError={actionError}
@@ -115,8 +122,14 @@ export default function Roadmap() {
   );
 }
 
-function Track({ track, concepts, areaName, act, actionError, onRemove }) {
+function Track({ track, concepts, subtopics, areaName, act, actionError, onRemove }) {
   const [conceptId, setConceptId] = useState("");
+  const done = track.steps.filter((s) => s.concept_status === "completed").length;
+  // Same rule as the home screen: the first subtopic of the next concept still to finish.
+  const nextStep = track.steps.find((s) => s.id === track.next_step);
+  const nextSubtopic =
+    nextStep &&
+    subtopics.find((s) => s.concept === nextStep.concept && s.study_status !== "completed");
   const inTrack = new Set(track.steps.map((s) => s.concept));
   const available = concepts.filter((c) => !inTrack.has(c.id));
   const last = track.steps.length - 1;
@@ -160,12 +173,24 @@ function Track({ track, concepts, areaName, act, actionError, onRemove }) {
           Adicione um conceito abaixo. Ele pode entrar antes de ter conteúdo.
         </StateMessage>
       ) : (
+        <ProgressBar
+          value={done}
+          max={track.steps.length}
+          unit={track.steps.length === 1 ? "conceito concluído" : "conceitos concluídos"}
+          label={`Progresso de ${track.name}`}
+        />
+      )}
+      {track.steps.length > 0 && (
         <List label={`Etapas de ${track.name}`}>
           {track.steps.map((step, index) => (
             <ListRow
               key={step.id}
               title={`${index + 1}. ${step.concept_name}`}
-              meta={step.area_name}
+              meta={
+                step === nextStep && nextSubtopic
+                  ? `${step.area_name} · ${nextSubtopic.name}`
+                  : step.area_name
+              }
               badges={
                 <>
                   <StudyStatusBadge status={step.concept_status} />
@@ -178,6 +203,24 @@ function Track({ track, concepts, areaName, act, actionError, onRemove }) {
               }
               action={
                 <>
+                  {step === nextStep &&
+                    (nextSubtopic ? (
+                      <Button
+                        href={`#/estudo/${nextSubtopic.id}`}
+                        iconEnd="arrow-right"
+                        aria-label={`Continuar ${nextSubtopic.name}`}
+                      >
+                        Continuar
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="secondary"
+                        href="#/biblioteca"
+                        aria-label={`Preparar ${step.concept_name} na Biblioteca`}
+                      >
+                        Preparar na Biblioteca
+                      </Button>
+                    ))}
                   <Button
                     id={`subir-${step.id}`}
                     variant="tertiary"
