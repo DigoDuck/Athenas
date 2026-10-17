@@ -444,6 +444,108 @@ a.ui-list__title:hover {
   gap: var(--space-3); /* keeps a remove action apart from its neighbor, against misclicks */
 }
 
+/* Markdown: study content rendered for reading. Spacing follows the reading rhythm. */
+.ui-markdown > * + * {
+  margin-top: var(--space-4);
+}
+
+.ui-markdown h3,
+.ui-markdown h4 {
+  font-family: var(--font-display);
+  font-size: var(--text-subsection-title);
+  line-height: var(--leading-section-title);
+}
+
+.ui-markdown h4 {
+  font-size: var(--text-reading);
+}
+
+.ui-markdown > :is(h3, h4, h5, h6):not(:first-child) {
+  margin-top: var(--space-6);
+}
+
+.ui-markdown strong {
+  font-weight: var(--weight-semibold);
+}
+
+.ui-markdown ul,
+.ui-markdown ol {
+  padding-left: var(--space-5);
+}
+
+.ui-markdown li + li,
+.ui-markdown li > * + * {
+  margin-top: var(--space-2);
+}
+
+.ui-markdown li::marker {
+  color: var(--color-bronze);
+}
+
+.ui-markdown ol > li::marker {
+  font-weight: var(--weight-semibold);
+}
+
+/* A quote reads as a highlighted card, not a side stripe. */
+.ui-markdown blockquote {
+  padding: var(--space-4) var(--space-5);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-panel);
+  background: var(--color-background);
+}
+
+.ui-markdown blockquote > * + * {
+  margin-top: var(--space-3);
+}
+
+.ui-markdown figure img {
+  display: block;
+  max-width: 100%;
+  max-height: 28rem;
+  border-radius: var(--radius-panel);
+  border: var(--border-width) solid var(--color-border);
+}
+
+.ui-markdown figcaption {
+  margin-top: var(--space-2);
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  color: var(--color-text-muted);
+}
+
+.ui-markdown hr {
+  border: 0;
+  border-top: var(--border-width) solid var(--color-border);
+}
+
+.ui-markdown__table {
+  overflow-x: auto;
+}
+
+.ui-markdown table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-ui);
+  line-height: var(--leading-ui);
+}
+
+.ui-markdown th,
+.ui-markdown td {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: var(--border-width) solid var(--color-border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.ui-markdown th {
+  font-weight: var(--weight-semibold);
+  border-bottom-color: var(--color-control-border);
+}
+
+.ui-markdown a {
+  overflow-wrap: anywhere;
+}
+
 /* Callout */
 
 .ui-callout {

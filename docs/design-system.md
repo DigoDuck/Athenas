@@ -24,6 +24,7 @@ The guide below is Diogo's design system v1, copied verbatim from `athenas-desig
   - A disabled tertiary button stays text only (no `#ECEDE8` fill): a gray block next to text buttons, such as Subir at the top of a track, outweighed the whole row. Filled buttons keep the guide's disabled fill.
   - On internal screens the sheet sits against the navigation instead of in the middle of the work area, so on screens wider than 1440 px the garden opens to the right instead of around a floating sheet.
   - Creation forms open on demand from a "+" button (`AddForm` in `frontend/src/pages/forms.jsx`): the page action sits at the right of the page title, and a list's action sits under the list. Editors for a row open as an inset well right under that row.
+- Also not in the guide (reading screen, 2026-10-17, `DECISIONS.md` D-031): the reading screen's sheet takes the whole width, with the block outline at the left of the text and the sources and Praticar at the right (under the text below 1600 px). Study text renders through `Markdown` (`frontend/src/ui/Markdown.jsx`): Cormorant subheadings, bronze list markers, quotes as a bordered card (never a side stripe), tables with hairline rows, and images with a meta-size caption.
 
 ---
 
