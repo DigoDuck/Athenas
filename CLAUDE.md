@@ -14,9 +14,8 @@ on the same thing.
 | --- | --- |
 | Any code task | `ponytail`, with the scope below |
 | Any change that alters pixels in `frontend/` | `impeccable` |
-| CORE slice | `estudo-guiado`: Diogo predicts before seeing the code |
 | Bug, exception, red test, regression | `mattpocock-skills:diagnosing-bugs` |
-| Unit-level logic that needs tests, outside `tests/acceptance/` | `mattpocock-skills:tdd`, agreeing the seams with Diogo first |
+| Unit-level logic that needs tests, outside `tests/acceptance/` | `mattpocock-skills:tdd`; pick the seams and name them in the PR |
 | Django model, ORM, DRF or migration design | `django-patterns`; add `django-security` near user input or files |
 | Diogo presents a plan, or a plan looks like it has a hole | `mattpocock-skills:grilling` |
 | Review for bugs and security | `/code-review` |
@@ -31,8 +30,8 @@ Ponytail stays on in every session. What it decides depends on the task class:
 - PLUMBING: `full`. The shortest working diff wins: reuse `frontend/src/ui/`, the existing
   services and the standard library before anything new.
 - CORE: it still rules out new dependencies, new abstractions and "for later" code, but it never
-  cuts acceptance tests, validation, history preservation or the step of describing the approach
-  before code. When a shorter diff and the spec rule disagree, the spec rule wins.
+  cuts the scenario tests, validation or history preservation. When a shorter diff and the spec
+  rule disagree, the spec rule wins.
 - UI work: ponytail owns the logic and the dependencies; `impeccable` owns the visual layer and
   the interaction. Ponytail never removes accessibility, contrast or component states.
 
@@ -50,6 +49,8 @@ Ponytail stays on in every session. What it decides depends on the task class:
 - `graphify`, except when resuming after a long pause.
 - `mattpocock-skills:domain-modeling` must not create `docs/adr/` or a glossary file: decisions go
   to `DECISIONS.md` and the glossary lives in spec 3.1.
+- `estudo-guiado`: CORE slices are implementation first, with no prediction step and no study
+  note (`AGENTS.md`, How work flows).
 - `dataviz`: v1 has no charts and no metrics screen (spec 2.2).
 
 ## Guardrails in `.claude/settings.json`

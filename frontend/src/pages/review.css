@@ -1,0 +1,43 @@
+/* Review: one white sheet per card (design system: a question, "Mostrar resposta", then the
+   self-assessment), and the manual card form below it on a quieter sheet. */
+.review {
+  padding: var(--space-6);
+}
+
+.review__label {
+  margin-bottom: var(--space-2);
+  font-size: var(--text-meta);
+  font-weight: var(--weight-semibold);
+  color: var(--color-text-muted);
+}
+
+.review__back {
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-muted);
+}
+
+.review__assess {
+  display: grid;
+  gap: var(--space-3);
+  border: 0;
+  border-top: var(--border-width) solid var(--color-border);
+  margin: 0;
+  padding: var(--space-5) 0 0;
+  justify-items: start;
+}
+
+.review__assess legend {
+  float: left;
+  width: 100%;
+  padding: 0;
+  font-weight: var(--weight-semibold);
+}
+
+.review__where > * {
+  flex: 1 1 0;
+}
+
+.review__created {
+  color: var(--color-success);
+}

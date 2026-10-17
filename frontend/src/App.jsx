@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import Home from "./pages/Home.jsx";
 import Library from "./pages/Library.jsx";
 import Practice from "./pages/Practice.jsx";
+import Review from "./pages/Review.jsx";
 import Roadmap from "./pages/Roadmap.jsx";
 import Study from "./pages/Study.jsx";
 import { AppShell } from "./ui/index.js";
@@ -11,6 +12,7 @@ const PAGES = {
   inicio: { label: "Início", icon: "home", Component: Home },
   roadmap: { label: "Roadmap", icon: "roadmap", Component: Roadmap },
   biblioteca: { label: "Biblioteca", icon: "library", Component: Library },
+  revisoes: { label: "Revisões", icon: "reviews", Component: Review },
 };
 
 const NAV_ITEMS = Object.entries(PAGES).map(([id, { label, icon }]) => ({

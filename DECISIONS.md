@@ -370,6 +370,38 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
 - Risk: saving identical content also moves `updated_at`, so a block completed across such a save
   stays unread until it is read again.
 
+### D-025: Review screen: keyboard shortcuts, one event per card shown, manual cards
+
+- Date: 2026-10-16. Source: review session slice (S5); the recommended options, under Diogo's
+  implementation-first rule. D-026 is reserved for the home screen slice.
+- Context: `docs/plan.md` leaves the review shortcuts open. Spec 3.2 lists the review session as
+  an activity with no subject (D-017), but does not say what one review activity is or when it
+  starts and ends. Spec Q6 allows a manual card on a subtopic or a concept, but not where it is
+  created.
+- Decision:
+  - Shortcuts: Space or Enter shows the answer, then 1 is errei, 2 parcial and 3 acertei, in the
+    order of the buttons, and each button shows its key. They work anywhere on the review screen
+    except while typing in a field or with Alt, Ctrl or Meta held.
+  - One `review_session` event per card shown. Showing a card starts it through
+    `POST /api/events/` (D-020). `POST /api/reviews/` takes that event, the card and the rating,
+    rates the card through `rate_card` and completes the event in one transaction. The S4
+    endpoint `POST /api/flashcards/<id>/rate/` is removed, so no review exists without a
+    completed event, as D-021 does for attempts.
+  - After each rating the screen asks for the queue again, so a failed card comes back once its
+    `due` passes, as a new showing with a new event.
+  - Manual cards are created on the review screen through `POST /api/flashcards/`. A concept is
+    required and a subtopic optional: with a subtopic the card belongs to it, otherwise to the
+    concept (D-018). They are created active, with an empty label and a fresh Py-FSRS card
+    (D-022). This slice has no edit or delete for them.
+- Why: an event per card has the same grain as reading (one block, D-020) and practice (one
+  answer, D-021): rating one card makes the day a session, and a session left halfway keeps what
+  was done. The number keys follow Anki, which Diogo used before (spec 1), and sit under one
+  hand. Creating cards where they are reviewed keeps the cycle in one place.
+- Risk: a card shown and left without a rating stays as an event without `completed_at`, which
+  the metric reads as abandoned, as with reading. A full day makes about 20 review events, which
+  the metric counts once per day (spec 4.11.2). A card created while another is on screen shows
+  up only after the next rating, so the card on screen and its event are never swapped.
+
 ### D-026: The home screen records each load, and a return session is a day's first 5 reviews
 
 - Date: 2026-10-16. Source: home slice (S6); recommended options, taken under the implementation
