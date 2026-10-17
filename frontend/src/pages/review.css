@@ -41,3 +41,88 @@
 .review__created {
   color: var(--color-success);
 }
+
+/* Review screen: the title row, the card (or the empty state) on a white sheet with a stack
+   of paper under it, and a note on where cards come from. */
+.reviews {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.reviews__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding-bottom: var(--space-5);
+  border-bottom: var(--border-width) solid var(--color-border);
+}
+
+.reviews > .review,
+.reviews__empty {
+  width: 100%;
+  max-width: 76rem;
+  margin: 0 auto;
+}
+
+.reviews__empty {
+  position: relative;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-7) var(--space-6);
+  text-align: center;
+}
+
+/* Two sheets peeking out under the card: a deck, not a single page. */
+.reviews__empty::before,
+.reviews__empty::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: auto var(--space-2) calc(-1 * var(--space-2));
+  height: var(--space-6);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: 0 0 var(--radius-panel) var(--radius-panel);
+  background: var(--color-surface);
+}
+
+.reviews__empty::after {
+  inset: auto var(--space-4) calc(-1 * var(--space-4));
+  z-index: -2;
+}
+
+.reviews__empty > .ui-icon {
+  color: var(--color-bronze);
+}
+
+.reviews__empty-actions {
+  margin-top: var(--space-4);
+}
+
+.reviews__note {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  padding-top: var(--space-5);
+  border-top: var(--border-width) solid var(--color-border);
+}
+
+.reviews__note > .ui-icon {
+  align-self: flex-start;
+  color: var(--color-bronze);
+}
+
+.reviews__note > div {
+  flex: 1;
+}
+
+.reviews__note-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding-left: var(--space-6);
+  border-left: var(--border-width) solid var(--color-border);
+  font-size: var(--text-reading);
+  line-height: 2.5;
+}
