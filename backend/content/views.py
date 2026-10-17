@@ -1,6 +1,7 @@
 from dataclasses import asdict
 
 from activity.services import review_cap_today
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from organization.models import Subtopic
 from rest_framework import mixins, status, viewsets
@@ -8,11 +9,12 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import Content, Flashcard
+from .models import Content, Flashcard, Image
 from .parser import Target, parse_markdown
 from .serializers import (
     ContentSerializer,
     FlashcardSerializer,
+    ImageUploadSerializer,
     ManualCardSerializer,
     MarkdownSerializer,
 )
@@ -23,6 +25,7 @@ from .services import (
     reject_card,
     review_queue,
     reviews_today,
+    save_image,
 )
 
 
@@ -31,7 +34,10 @@ def _parse_request(request, subtopic):
     serializer.is_valid(raise_exception=True)
     concept = subtopic.concept
     target = Target(area=concept.area.name, conceito=concept.name, subtema=subtopic.name)
-    return parse_markdown(serializer.validated_data["markdown"], target)
+    parsed = parse_markdown(serializer.validated_data["markdown"], target)
+    stored = set(Image.objects.filter(name__in=parsed.images).values_list("name", flat=True))
+    parsed.warnings += [f"Imagem não encontrada: {n}" for n in parsed.images if n not in stored]
+    return parsed
 
 
 def _preview(parsed):
@@ -68,6 +74,30 @@ class ContentPreviewView(APIView):
 
     def post(self, request, pk):
         return Response(_preview(_parse_request(request, _subtopic(pk))))
+
+
+class ImageView(APIView):
+    """One stored image: its bytes, or an upload that creates or replaces it (D-033)."""
+
+    def get(self, request, name):
+        image = get_object_or_404(Image, name=name)
+        response = HttpResponse(bytes(image.data), content_type=image.media_type)
+        # An SVG opened on its own must not run scripts or fetch anything: it is shown offline.
+        response["Content-Security-Policy"] = "default-src 'none'; style-src 'unsafe-inline'"
+        response["X-Content-Type-Options"] = "nosniff"
+        response["Cache-Control"] = "no-cache"
+        return response
+
+    def put(self, request, name):
+        serializer = ImageUploadSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            created = save_image(name, **serializer.validated_data)
+        except ValueError as error:
+            return Response({"detail": str(error)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(
+            {"name": name}, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK
+        )
 
 
 class FlashcardViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):

@@ -643,3 +643,40 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
 - Cost: a suspended card or an archived question keeps showing its subtopic's current origin,
   not the one of the text it held when it left the Markdown. History of past origins is not
   kept, the same way past Markdown versions are not.
+
+### D-033: Images in a subtopic live in the database, cited by name and credited
+
+- Date: 2026-10-17. Source: Diogo, on day 1, asked that concepts come with images that help
+  explain them, as a chat assistant shows them, instead of plain text only. The project goal
+  says AI-made content never passes as correct because it looks good.
+- Decision:
+  - Two kinds of image. A diagram an AI drew (an SVG by hand, for a process or an
+    architecture) carries `generated_by: claude` and the D-032 badge under it. A real picture
+    comes from Wikimedia Commons with its page, author and license (public domain, CC0, CC BY
+    or CC BY-SA); `scripts/theme.py download` fetches only from Wikimedia.
+  - The bytes live in the database (`Image`, one row per unique name), not in files beside it:
+    the app works offline, nothing is hotlinked, and the daily export (`dumpdata`, D-028)
+    carries and restores them with no change to the backup or the restore. An image over
+    512 KB is refused, and the type comes from the bytes (PNG, JPEG, GIF, WebP, SVG), never
+    from the client.
+  - The Markdown cites an image with a line of its own,
+    `![legenda](/api/images/<nome>/ "título opcional")`, the syntax D-031's renderer already
+    shows. The reading API cuts that line into an `image` segment with the caption and the
+    credit, kept with the image so the text can never leave it out. A name with no stored
+    image warns in the preview and shows only its caption.
+  - The image is served with `Content-Security-Policy: default-src 'none'` and `nosniff`, so an
+    SVG opened on its own runs no script and fetches nothing.
+  - D-015's read mark compares a block's body without its image lines and blank lines.
+    Adding images to a theme Diogo is already reading keeps his read marks and his position,
+    since block order does not change. Any other text change still unmarks the block.
+  - Images reach the app through `PUT /api/images/<nome>/` (JSON, base64), which
+    `scripts/theme.py push` calls only for images the app lacks, or all of them with
+    `--replace`. There is no upload screen in v1.
+- Why: the database keeps backup and restore as they are, which the restore drill already
+  covers. Files beside it would need a volume, a copy step in `scripts/backup.py` and a new
+  restore drill. Credit stored with the image follows it to every text that cites it.
+- Cost: every daily export repeats every image as base64. Measured on a dev export: three 960px
+  Commons photos and one diagram added 540 KB (6 KB without them). A theme with ten photos adds
+  about 2 MB per export, about 60 MB across the 30 exports the vault keeps. If that grows too
+  much, the fix is writing images once into a shared folder of the export, not changing the
+  Markdown. Images are not versioned: replacing one changes it in every text that cites it.

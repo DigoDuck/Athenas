@@ -1,7 +1,7 @@
 from dataclasses import asdict
 
-from content.models import Attempt, Block, PracticeQuestion, ReviewLog
-from content.parser import split_segments, without_reference_answers
+from content.models import Attempt, Block, Image, PracticeQuestion, ReviewLog
+from content.parser import IMAGE_RE, split_segments, without_reference_answers
 from rest_framework import serializers
 
 from .models import SessionEvent
@@ -49,7 +49,7 @@ class PracticeQuestionSerializer(serializers.ModelSerializer):
 
 
 class ReadingBlockSerializer(serializers.ModelSerializer):
-    """A block for reading: its body cut into text, code and `[!ia]` callouts, never raw."""
+    """A block for reading: its body cut into text, code, `[!ia]` callouts and images, never raw."""
 
     segments = serializers.SerializerMethodField()
 
@@ -61,4 +61,22 @@ class ReadingBlockSerializer(serializers.ModelSerializer):
         body = block.body
         if block.kind == "Prática":
             body = without_reference_answers(body)
-        return [asdict(segment) for segment in split_segments(body)]
+        segments = [asdict(segment) for segment in split_segments(body)]
+        names = [s["image"] for s in segments if s["kind"] == "image"]
+        found = {i.name: i for i in Image.objects.filter(name__in=names).defer("data")}
+        for segment in segments:
+            if segment["kind"] == "image":
+                segment["image"] = _figure(segment, found.get(segment["image"]))
+        return segments
+
+
+def _figure(segment, image):
+    """What the screen shows under a picture; `url` is None when it was never uploaded (D-033)."""
+    alt, _, title = IMAGE_RE.match(segment["text"]).groups(default="")
+    credit = ("generated_by", "source_url", "author", "license")
+    return {
+        "name": segment["image"],
+        "caption": title or alt,
+        "url": image and f"/api/images/{image.name}/",
+        **{key: getattr(image, key, "") for key in credit},
+    }

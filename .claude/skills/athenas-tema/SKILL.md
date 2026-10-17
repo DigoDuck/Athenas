@@ -9,7 +9,7 @@ allowed-tools: Read, Write, Edit, Glob, Grep, WebSearch, WebFetch, Bash(python s
 
 Turn `$ARGUMENTS` into a track in Athenas (DECISIONS.md D-030). Diogo gives only the theme,
 optionally followed by `: objetivo`. Do not ask him anything except the day 1 confirmation in
-step 7. When the goal or the level is missing, assume a practical foundation at `iniciante` and
+step 8. When the goal or the level is missing, assume a practical foundation at `iniciante` and
 say so in the summary.
 
 ## Never
@@ -70,14 +70,44 @@ say so in the summary.
      you have one; the app marks the callouts without a source.
    - pt-BR for everything Diogo reads; code, commands and identifiers stay as they are. One
      subtopic fits a session of 20 to 40 minutes.
-6. Run `python scripts/theme.py check temas/<slug>` and fix every line it reports until it
+   - Images (step 6): each on its own line, `![<what it shows>](/api/images/<name>/ "<what to
+     notice>")`, right after the paragraph it explains, in Ideia central, Explicação or Exemplo.
+6. Add images where a picture explains better than a sentence (DECISIONS.md D-033): a process,
+   a cycle, an architecture or a comparison; a timeline; a real object, place or person the
+   text names. One or two per subtopic, none for decoration. A text that reads fine without one
+   gets none.
+   - Diagram: write an SVG by hand in `temas/<slug>/img/<name>.svg`. `viewBox`, a `<title>`,
+     labels in pt-BR, `font-family="sans-serif"`, dark lines on a light fill (the app has a
+     light theme only), no script, no external reference, under 20 KB. It is yours, so it
+     carries `"generated_by": "claude"` and is held to what your sources say.
+   - Real picture: only from Wikimedia Commons. WebFetch its file page
+     (`commons.wikimedia.org/wiki/File:...`) and read the author and the license there; accept
+     only public domain, CC0, CC BY or CC BY-SA. Save it with
+     `python scripts/theme.py download temas/<slug>/img/<name>.jpg --url <thumbnail URL>`, using
+     the 960px thumbnail the file page offers (or the file itself for an SVG). Over 512 KB is
+     refused: use a smaller thumbnail.
+   - Name each file with lowercase letters, digits and `-`; the name is unique in the whole app,
+     so prefix it with the theme's slug. List every image in `tema.json`:
+
+     ```json
+     "images": [
+       {"file": "img/agentes-ciclo.svg", "generated_by": "claude"},
+       {"file": "img/agentes-turing.jpg",
+        "source_url": "https://commons.wikimedia.org/wiki/File:...",
+        "author": "as the file page says", "license": "CC BY-SA 4.0"}
+     ]
+     ```
+
+     Each export of the daily backup carries every image, so the size limits are not a
+     suggestion.
+7. Run `python scripts/theme.py check temas/<slug>` and fix every line it reports until it
    passes.
-7. Run `python scripts/theme.py push temas/<slug>`. It writes to use mode (`127.0.0.1:8470`)
+8. Run `python scripts/theme.py push temas/<slug>`. It writes to use mode (`127.0.0.1:8470`)
    unless `--base` says otherwise; to try this skill, use a disposable copy
    (`--base http://127.0.0.1:8472`), never use mode. If push answers that the instance has no
    concept yet, stop and tell Diogo that in use mode this push starts day 1 of the experiment
    (D-016). Run it again with `--first` only after he says yes in this conversation.
-8. Tell Diogo, in Portuguese: the track and its concepts, how many subtopics got content, how many
+9. Tell Diogo, in Portuguese: the track and its concepts, how many subtopics got content, how many
    cards wait for his approval, and every assumption you made.
 
 ## Resuming and fixing
@@ -85,4 +115,6 @@ say so in the summary.
 `push` only creates what is missing and skips content that is already identical, so running this
 skill again on the same theme resumes after a stop (a usage limit, a closed terminal). To fix a
 document, edit its file, keep the existing `P` and `C` labels (they carry Diogo's attempts and
-review history, spec 4.2.6) and push with `--replace`.
+review history, spec 4.2.6) and push with `--replace`. Images go up only when the app lacks
+them; `--replace` sends them again, credit included. Adding an image line to a block Diogo has
+read keeps it read (D-033).
