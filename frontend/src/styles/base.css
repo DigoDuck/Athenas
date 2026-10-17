@@ -81,10 +81,27 @@ h2,
   line-height: var(--leading-section-title);
 }
 
-h3 {
+h3,
+h4,
+h5,
+h6 {
   font-family: var(--font-body);
   font-size: var(--text-ui);
   line-height: var(--leading-ui);
+}
+
+/* h4 to h6 are not in the display group above, so they get the UI weight here. */
+h4,
+h5,
+h6 {
+  margin: 0;
+  font-weight: var(--weight-semibold);
+}
+
+.t-subsection-title {
+  font-family: var(--font-display);
+  font-size: var(--text-subsection-title);
+  line-height: var(--leading-section-title);
 }
 
 .t-reading {

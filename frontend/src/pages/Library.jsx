@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 
 import { api } from "../api.js";
 import {
@@ -16,7 +16,8 @@ import {
 } from "../ui/index.js";
 import { useCollections } from "../useCollections.js";
 import ContentEditor from "./ContentEditor.jsx";
-import { ActionError, NameForm, toOptions } from "./forms.jsx";
+import { ActionError, AddForm, toOptions } from "./forms.jsx";
+import "./library.css";
 
 const LEVELS = [
   ["", "Não definido"],
@@ -82,8 +83,6 @@ export default function Library() {
     );
   }
   const [areas, concepts, subtopics, tracks] = data;
-  const editingSubtopic = subtopics.find((s) => s.id === editing);
-  const contentSubtopic = subtopics.find((s) => s.id === contentOf);
 
   // Closing hands focus back to the row's "Classificar" button, so keyboard users keep their place.
   function closeEditor() {
@@ -102,7 +101,15 @@ export default function Library() {
 
   return (
     <Stack gap={6}>
-      <h1>Biblioteca</h1>
+      <Inline justify="between">
+        <h1>Biblioteca</h1>
+        <AddForm
+          variant="secondary"
+          label="Nome da área"
+          button="Adicionar área"
+          onSubmit={(name) => run(() => api.post("/api/areas/", { name }))}
+        />
+      </Inline>
       {areas.length === 0 && (
         <StateMessage title="Seu primeiro conceito começa aqui.">
           Crie uma área, como Programação ou Inglês, e depois os conceitos dela.
@@ -139,14 +146,16 @@ export default function Library() {
                 trackCount={tracks.filter((t) => t.steps.some((s) => s.concept === concept.id)).length}
                 editing={editing}
                 onEdit={setEditing}
+                onCloseEditor={closeEditor}
                 contentOf={contentOf}
                 onContent={setContentOf}
+                onCloseContent={closeContent}
                 run={run}
                 remove={remove}
                 actionError={actionError}
               />
             ))}
-            <NameForm
+            <AddForm
               label="Nome do conceito"
               button="Adicionar conceito"
               onSubmit={(name) => run(() => api.post("/api/concepts/", { area: area.id, name }))}
@@ -154,24 +163,18 @@ export default function Library() {
           </Panel>
         );
       })}
-      {editingSubtopic && (
-        <SubtopicEditor
-          key={editingSubtopic.id}
-          subtopic={editingSubtopic}
-          run={run}
-          onClose={closeEditor}
-        />
-      )}
-      {contentSubtopic && (
-        <ContentEditor key={contentSubtopic.id} subtopic={contentSubtopic} onClose={closeContent} />
-      )}
-      <NameForm
-        label="Nome da área"
-        button="Adicionar área"
-        onSubmit={(name) => run(() => api.post("/api/areas/", { name }))}
-      />
     </Stack>
   );
+}
+
+// Level and difficulty as row metadata, only the ones already set ("Não definido" is noise).
+function classification(subtopic) {
+  const parts = [];
+  if (subtopic.level) parts.push(`Nível: ${labelOf(LEVELS, subtopic.level)}`);
+  if (subtopic.perceived_difficulty !== "unset") {
+    parts.push(`Dificuldade: ${labelOf(DIFFICULTIES, subtopic.perceived_difficulty)}`);
+  }
+  return parts.join(" · ") || undefined;
 }
 
 // The removal error message for one section, or false when it failed somewhere else.
@@ -183,8 +186,10 @@ function Concept({
   trackCount,
   editing,
   onEdit,
+  onCloseEditor,
   contentOf,
   onContent,
+  onCloseContent,
   run,
   remove,
   actionError,
@@ -196,10 +201,12 @@ function Concept({
     (trackCount ? ` Ele também sai de ${trackCount === 1 ? "1 trilha" : `${trackCount} trilhas`}.` : "");
 
   return (
-    <Stack as="section" gap={3} aria-labelledby={`concept-${concept.id}`}>
+    <Stack as="section" gap={3} className="library-concept" aria-labelledby={`concept-${concept.id}`}>
       <Inline justify="between">
-        <Inline gap={2}>
-          <h3 id={`concept-${concept.id}`}>{concept.name}</h3>
+        <Inline gap={3}>
+          <h3 id={`concept-${concept.id}`} className="t-subsection-title">
+            {concept.name}
+          </h3>
           {/* Derived from the subtopics, never set by hand (spec 4.4.6). */}
           <StudyStatusBadge status={concept.study_status} />
         </Inline>
@@ -221,70 +228,74 @@ function Concept({
       {subtopics.length > 0 && (
         <List label={`Subtemas de ${concept.name}`}>
           {subtopics.map((s) => (
-            <ListRow
-              key={s.id}
-              title={s.name}
-              meta={`Nível: ${labelOf(LEVELS, s.level)} · Dificuldade: ${labelOf(DIFFICULTIES, s.perceived_difficulty)}`}
-              badges={
-                <>
-                  <StudyStatusBadge status={s.study_status} />
-                  {s.review_needed && <ReviewFlagBadge />}
-                </>
-              }
-              action={
-                <>
-                  <Button
-                    variant="tertiary"
-                    iconEnd="arrow-right"
-                    href={`#/estudo/${s.id}`}
-                    aria-label={`Estudar ${s.name}`}
-                  >
-                    Estudar
-                  </Button>
-                  <Button
-                    variant="tertiary"
-                    iconEnd="arrow-right"
-                    href={`#/pratica/${s.id}`}
-                    aria-label={`Praticar ${s.name}`}
-                  >
-                    Praticar
-                  </Button>
-                  <Button
-                    id={`conteudo-${s.id}`}
-                    variant="tertiary"
-                    icon="file-text"
-                    aria-label={`Conteúdo de ${s.name}`}
-                    aria-pressed={contentOf === s.id}
-                    onClick={() => onContent(contentOf === s.id ? null : s.id)}
-                  >
-                    Conteúdo
-                  </Button>
-                  <Button
-                    id={`classificar-${s.id}`}
-                    variant="tertiary"
-                    icon="pencil"
-                    aria-label={`Classificar ${s.name}`}
-                    aria-pressed={editing === s.id}
-                    onClick={() => onEdit(editing === s.id ? null : s.id)}
-                  >
-                    Classificar
-                  </Button>
-                  <Button
-                    variant="tertiary"
-                    icon="close"
-                    aria-label={`Remover ${s.name}`}
-                    onClick={() => remove(`/api/subtopics/${s.id}/`, `Remover o subtema "${s.name}"?`, at)}
-                  >
-                    Remover
-                  </Button>
-                </>
-              }
-            />
+            <Fragment key={s.id}>
+              <ListRow
+                title={s.name}
+                meta={classification(s)}
+                badges={
+                  <>
+                    <StudyStatusBadge status={s.study_status} />
+                    {s.review_needed && <ReviewFlagBadge />}
+                  </>
+                }
+                action={
+                  <>
+                    <Button
+                      variant="tertiary"
+                      iconEnd="arrow-right"
+                      href={`#/estudo/${s.id}`}
+                      aria-label={`Estudar ${s.name}`}
+                    >
+                      Estudar
+                    </Button>
+                    <Button
+                      variant="tertiary"
+                      iconEnd="arrow-right"
+                      href={`#/pratica/${s.id}`}
+                      aria-label={`Praticar ${s.name}`}
+                    >
+                      Praticar
+                    </Button>
+                    <Button
+                      id={`conteudo-${s.id}`}
+                      variant="tertiary"
+                      icon="file-text"
+                      aria-label={`Conteúdo de ${s.name}`}
+                      aria-pressed={contentOf === s.id}
+                      onClick={() => onContent(contentOf === s.id ? null : s.id)}
+                    >
+                      Conteúdo
+                    </Button>
+                    <Button
+                      id={`classificar-${s.id}`}
+                      variant="tertiary"
+                      icon="pencil"
+                      aria-label={`Classificar ${s.name}`}
+                      aria-pressed={editing === s.id}
+                      onClick={() => onEdit(editing === s.id ? null : s.id)}
+                    >
+                      Classificar
+                    </Button>
+                    <Button
+                      variant="tertiary"
+                      icon="close"
+                      aria-label={`Remover ${s.name}`}
+                      onClick={() => remove(`/api/subtopics/${s.id}/`, `Remover o subtema "${s.name}"?`, at)}
+                    >
+                      Remover
+                    </Button>
+                  </>
+                }
+              />
+              {/* Editors open right under their row, not at the end of the page. */}
+              {editing === s.id && <SubtopicEditor subtopic={s} run={run} onClose={onCloseEditor} />}
+              {contentOf === s.id && <ContentEditor subtopic={s} onClose={onCloseContent} />}
+            </Fragment>
           ))}
         </List>
       )}
       <ActionError>{removeFailure(actionError, at)}</ActionError>
-      <NameForm
+      <AddForm
         label="Nome do subtema"
         button="Adicionar subtema"
         onSubmit={(name) => run(() => api.post("/api/subtopics/", { concept: concept.id, name }))}
@@ -300,30 +311,32 @@ function SubtopicEditor({ subtopic, run, onClose }) {
   const save = async (field, value) => setError(await run(() => api.patch(url, { [field]: value })));
   const reopen = async () => setError(await run(() => api.post(`${url}reopen/`)));
 
-  // The editor opens below every area, so focusing it also scrolls it into view.
+  // Focus moves into the editor, so keyboard and screen reader users land on it.
   const panel = useRef(null);
   useEffect(() => panel.current?.focus(), []);
 
   return (
-    <Panel raised ref={panel} tabIndex={-1} aria-labelledby="classificar-subtema">
-      <h2 id="classificar-subtema">Classificar {subtopic.name}</h2>
+    <li className="library-drawer" ref={panel} tabIndex={-1} aria-labelledby="classificar-subtema">
+      <h4 id="classificar-subtema">Classificar {subtopic.name}</h4>
       {error && (
         <StateMessage kind="error" title="Não foi possível salvar.">
           {error}
         </StateMessage>
       )}
-      <Select
-        label="Nível"
-        value={subtopic.level}
-        options={toOptions(LEVELS)}
-        onChange={(e) => save("level", e.target.value)}
-      />
-      <Select
-        label="Dificuldade percebida"
-        value={subtopic.perceived_difficulty}
-        options={toOptions(DIFFICULTIES)}
-        onChange={(e) => save("perceived_difficulty", e.target.value)}
-      />
+      <Inline gap={4} align="start" className="field-row">
+        <Select
+          label="Nível"
+          value={subtopic.level}
+          options={toOptions(LEVELS)}
+          onChange={(e) => save("level", e.target.value)}
+        />
+        <Select
+          label="Dificuldade percebida"
+          value={subtopic.perceived_difficulty}
+          options={toOptions(DIFFICULTIES)}
+          onChange={(e) => save("perceived_difficulty", e.target.value)}
+        />
+      </Inline>
       {/* Study status follows the rules of spec 4.4; only a completion can be undone (D-024). */}
       <div className="ui-field">
         <p className="ui-field__label">Status de estudo</p>
@@ -350,6 +363,6 @@ function SubtopicEditor({ subtopic, run, onClose }) {
           Fechar
         </Button>
       </Inline>
-    </Panel>
+    </li>
   );
 }
