@@ -515,7 +515,9 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
 - Date: 2026-10-17. Source: Diogo asked for Claude to fill a theme's roadmap, contents and
   questions, his only role being to name the theme, and picked "Na v1" on the card "Quando
   colocar a geração de conteúdo pela IA no Athenas?". This is the path the thread "Integração
-  com o Claude" recommended. D-029 stays reserved for the day 1 date.
+  com o Claude" recommended. After asking for a screen in the app and for other AIs, he picked
+  "Começar já" on the card "Escolher se o dia 1 começa já com o Claude Code ou espera a tela do
+  Athenas?". D-029 stays reserved for the day 1 date.
 - Context: spec 2.2 keeps integrated AI, automatic generation of activities and structured
   import out of v1, while spec 1 and D-001 already let Claude prepare content outside the app,
   and spec 4.1 makes the Markdown template its prompt. The REST API already creates areas,
@@ -542,15 +544,19 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
   - The generated Markdown carries `origem: claude` in its frontmatter. The parser ignores the
     key and the raw Markdown keeps it, so the backup and the day 28 verdict can tell generated
     content apart.
-  - The app itself still has no AI, so spec 2.2 is unchanged. A field in the app that calls
-    Claude is left for after day 28, and would reuse the skill's rules as its prompt.
+  - Day 1 starts with this path, and spec 2.2 stays as it is in this change. A "Novo tema"
+    screen follows during the month (S10 in `docs/plan.md`): it builds the request for any AI,
+    Gemini Notebook (formerly NotebookLM) included, since that one has no API for personal
+    accounts, and imports the pasted answer. S10 brings structured import into v1 and records it
+    in its own entry. Calling an AI from the app stays out of v1; a button for it on that screen
+    is left for after day 28.
 - Why: it needs no API key, no new dependency and no app code, so day 1 waits only for this
   change. Claude Code runs on Diogo's subscription, opens the sources itself and repeats the
   check until every file passes, a loop that a single API call from the backend would have to
   rebuild. The app's parser stays the only gate, so generated content meets the same contract as
   pasted content.
-- Risk: the theme is typed in Claude Code, not in the app. Diogo is learning the theme, so he
-  cannot always judge a card when he approves it; the Fontes list and the `[!ia]` callouts are
-  how he checks one. A large theme uses a visible part of the plan's usage window, and `push`
-  resumes where a run stopped. The month measures studying with generated content, which the
-  day 28 verdict states with the features of the month (D-010).
+- Risk: until S10, the theme is typed in Claude Code, not in the app. Diogo is learning the
+  theme, so he cannot always judge a card when he approves it; the Fontes list and the `[!ia]`
+  callouts are how he checks one. A large theme uses a visible part of the plan's usage window,
+  and `push` resumes where a run stopped. The month measures studying with generated content,
+  which the day 28 verdict states with the features of the month (D-010).
