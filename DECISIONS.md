@@ -509,3 +509,45 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
   map lowers that risk, since each test was read against the spec rule and not only its name,
   but it is the same reader. Diogo can still move or rewrite any scenario into
   `tests/acceptance/`; a rule found misread in use gets a fix and a new entry here.
+
+### D-030: Claude Code builds a theme outside the app and saves it through the local API
+
+- Date: 2026-10-17. Source: Diogo asked for Claude to fill a theme's roadmap, contents and
+  questions, his only role being to name the theme, and picked "Na v1" on the card "Quando
+  colocar a geração de conteúdo pela IA no Athenas?". This is the path the thread "Integração
+  com o Claude" recommended. D-029 stays reserved for the day 1 date.
+- Context: spec 2.2 keeps integrated AI, automatic generation of activities and structured
+  import out of v1, while spec 1 and D-001 already let Claude prepare content outside the app,
+  and spec 4.1 makes the Markdown template its prompt. The REST API already creates areas,
+  tracks, concepts, steps and subtopics, and saves a subtopic's Markdown through the import the
+  screen uses (4.2). The app itself cannot use a claude.ai subscription: calling Claude from the
+  backend needs a paid API key, the `anthropic` package and requests that run for minutes.
+- Decision:
+  - The `athenas-tema` skill for Claude Code turns one line (a theme, optionally `: goal`) into
+    `temas/<slug>/` (git-ignored): `tema.json` with the area, the track, and its concepts and
+    subtopics in study order, plus one contract Markdown per subtopic, written from pages Claude
+    opened in that run and listed under Fontes.
+  - `scripts/theme.py check` validates the folder with the app's own parser: no errors or
+    warnings, the ten headings and no other, state ready, `nivel` set, a URL under Fontes.
+    `push` runs the same check, then creates through the existing endpoints only what is
+    missing and saves each Markdown. On an instance with no concept it writes nothing without
+    `--first`, because the first concept in use mode starts day 1 (D-016). Content that differs
+    from what the app holds is re-imported only with `--replace`, which keeps history by label
+    (spec 4.2.6).
+  - Generated cards enter pending like any Markdown card (D-007, spec 4.3). Neither the skill
+    nor the script approves, rejects, edits or deletes anything.
+  - The generated Markdown carries `origem: claude` in its frontmatter. The parser ignores the
+    key and the raw Markdown keeps it, so the backup and the day 28 verdict can tell generated
+    content apart.
+  - The app itself still has no AI, so spec 2.2 is unchanged. A field in the app that calls the
+    API is left for after day 28, and would reuse the skill's rules as its prompt.
+- Why: it needs no API key, no new dependency and no app code, so day 1 waits only for this
+  change. Claude Code runs on Diogo's subscription, opens the sources itself and repeats the
+  check until every file passes, a loop that a single API call from the backend would have to
+  rebuild. The app's parser stays the only gate, so generated content meets the same contract as
+  pasted content.
+- Risk: the theme is typed in Claude Code, not in the app. Diogo is learning the theme, so he
+  cannot always judge a card when he approves it; the Fontes list and the `[!ia]` callouts are
+  how he checks one. A large theme uses a visible part of the plan's usage window, and `push`
+  resumes where a run stopped. The month measures studying with generated content, which the
+  day 28 verdict states with the features of the month (D-010).
