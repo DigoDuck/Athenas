@@ -10,9 +10,11 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
-from content.models import Content
+from activity.models import SessionEvent
+from activity.services import record_attempt, start_activity
+from content.models import Content, Flashcard, ReviewLog
 from content.parser import parse_markdown
-from content.services import import_content
+from content.services import approve_card, import_content, rate_card
 from django.core.management import call_command
 from organization.models import Area, Concept, Subtopic
 
@@ -102,7 +104,12 @@ def test_restore_loads_the_json_back_into_an_empty_database(staging):
     area = Area.objects.create(name="Inglês")
     concept = Concept.objects.create(area=area, name="Phrasal verbs")
     subtopic = Subtopic.objects.create(concept=concept, name="Get")
-    import_content(subtopic, parse_markdown(DOC))
+    import_content(subtopic, parse_markdown(DOC + "\n## Flashcards\n- C1: get up :: levantar\n"))
+    card = Flashcard.objects.get(subtopic=subtopic)
+    approve_card(card)
+    rate_card(card, "good")
+    event = start_activity(SessionEvent.Kind.EXPLANATION, subtopic=subtopic)
+    record_attempt(event, text="Phrasal verb.", self_assessment="right")
     call_command("backup")
     [export] = staging.iterdir()
 
@@ -111,8 +118,14 @@ def test_restore_loads_the_json_back_into_an_empty_database(staging):
     assert not Content.objects.exists()
     call_command("loaddata", str(export / "data.json"))
 
-    assert Content.objects.get(subtopic__name="Get").raw_markdown == DOC
-    assert Subtopic.objects.get(name="Get").content.blocks.exists()
+    restored = Subtopic.objects.get(name="Get")
+    assert restored.content.raw_markdown.startswith(DOC)
+    assert restored.content.blocks.exists()
+    assert restored.attempts.count() == 1
+    assert ReviewLog.objects.filter(flashcard__pk=card.pk).count() == 1
+    assert SessionEvent.objects.filter(completed_at__isnull=False).exists()
+    # loaddata resets the sequences, so new rows do not collide with restored ids.
+    assert Area.objects.create(name="Novo").pk > area.pk
 
 
 def load_script():
@@ -121,6 +134,14 @@ def load_script():
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+def test_a_stamp_ahead_of_the_clock_does_not_block_the_export(staging, db):
+    old_export(staging, -timedelta(hours=5))
+
+    call_command("backup")
+
+    assert len(names(staging)) == 2
 
 
 def test_vault_retention_removes_only_old_exports_and_keeps_the_newest():
@@ -133,6 +154,7 @@ def test_vault_retention_removes_only_old_exports_and_keeps_the_newest():
             "athenas-20261025-120000",  # 26 days
             "Notas de estudo",
             "athenas-20261001-120000.partial",
+            "athenas-20261399-000000",
         ],
         now,
     )

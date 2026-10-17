@@ -38,12 +38,15 @@ def read_env():
 
 def expired(names, now):
     """Export folder names older than 30 days; other names and the newest export never appear."""
-    stamps = sorted(
-        (datetime.strptime(match[1], "%Y%m%d-%H%M%S").replace(tzinfo=UTC), name)
-        for name in names
-        if (match := EXPORT.match(name))
-    )
-    return [name for when, name in stamps[:-1] if now - when > KEEP]
+    stamps = []
+    for name in names:
+        if match := EXPORT.match(name):
+            try:
+                when = datetime.strptime(match[1], "%Y%m%d-%H%M%S").replace(tzinfo=UTC)
+            except ValueError:  # a hand-made name with an impossible date
+                continue
+            stamps.append((when, name))
+    return [name for when, name in sorted(stamps)[:-1] if now - when > KEEP]
 
 
 def run():
@@ -85,9 +88,12 @@ def run():
         else:
             old = expired((p.name for p in vault.iterdir() if p.is_dir()), datetime.now(UTC))
             for name in old:
-                shutil.rmtree(vault / name)
-            if old:
-                lines.append(f"removed from the vault: {', '.join(old)}")
+                try:
+                    shutil.rmtree(vault / name)
+                    lines.append(f"removed from the vault: {name}")
+                except OSError as error:  # Drive may hold a lock; the next run retries
+                    lines.append(f"could not remove {name}: {error}")
+                    failed = True
 
     if staging.is_dir():
         with open(staging / LOG, "a", encoding="utf-8") as log:

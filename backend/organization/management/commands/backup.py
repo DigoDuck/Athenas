@@ -14,6 +14,7 @@ from content.models import Content
 from django.conf import settings
 from django.core.management import call_command
 from django.core.management.base import BaseCommand, CommandError
+from django.db import connection, transaction
 from django.utils.text import slugify
 
 STAMP = "%Y%m%d-%H%M%S"
@@ -28,7 +29,10 @@ def exports(folder):
     for path in folder.iterdir():
         match = EXPORT.match(path.name)
         if match and path.is_dir():
-            found.append((datetime.strptime(match[1], STAMP).replace(tzinfo=UTC), path))
+            try:
+                found.append((datetime.strptime(match[1], STAMP).replace(tzinfo=UTC), path))
+            except ValueError:  # a hand-made name with an impossible date
+                continue
     return sorted(found)
 
 
@@ -43,13 +47,20 @@ def export(folder, now):
     partial = final.with_name(final.name + ".partial")
     (partial / "markdown").mkdir(parents=True)
     data = partial / "data.json"
-    call_command("dumpdata", "organization", "content", "activity", indent=2, output=str(data))
-    for content in Content.objects.select_related("subtopic__concept__area"):
-        subtopic = content.subtopic
-        concept = subtopic.concept
-        path = partial / "markdown" / part(concept.area) / part(concept) / f"{part(subtopic)}.md"
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(content.raw_markdown, encoding="utf-8")
+    # One snapshot for every table: a review saved mid-export must not leave a log without its
+    # card, which would make loaddata fail at restore time.
+    outermost = not connection.in_atomic_block
+    with transaction.atomic():
+        if outermost:  # only the first statement of a transaction can set its isolation
+            with connection.cursor() as cursor:
+                cursor.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ")
+        call_command("dumpdata", "organization", "content", "activity", indent=2, output=str(data))
+        for content in Content.objects.select_related("subtopic__concept__area"):
+            subtopic = content.subtopic
+            concept = subtopic.concept
+            path = partial / "markdown" / part(concept.area) / part(concept)
+            path.mkdir(parents=True, exist_ok=True)
+            (path / f"{part(subtopic)}.md").write_text(content.raw_markdown, encoding="utf-8")
     partial.rename(final)
     return final
 
@@ -71,7 +82,8 @@ class Command(BaseCommand):
 
         now = datetime.now(UTC)
         done = exports(folder)
-        if done and now - done[-1][0] < CATCH_UP and not force:
+        # A stamp ahead of the clock counts as stale, so a clock fix never blocks exports.
+        if done and timedelta(0) <= now - done[-1][0] < CATCH_UP and not force:
             self.stdout.write(f"Skipped: {done[-1][1].name} is less than 24 h old.")
         else:
             done.append((now, export(folder, now)))
