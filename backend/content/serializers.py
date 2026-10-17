@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import Block, Content, Flashcard, ReviewLog
+from .models import Block, Content, Flashcard
 
 
 class BlockSerializer(serializers.ModelSerializer):
@@ -23,9 +23,11 @@ class FlashcardSerializer(serializers.ModelSerializer):
         fields = ["id", "origin", "subtopic", "concept", "label", "front", "back", "state"]
 
 
+class ManualCardSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Flashcard
+        fields = ["subtopic", "concept", "front", "back"]
+
+
 class MarkdownSerializer(serializers.Serializer):
     markdown = serializers.CharField(trim_whitespace=False)
-
-
-class RatingSerializer(serializers.Serializer):
-    rating = serializers.ChoiceField(choices=ReviewLog.Rating.choices)
