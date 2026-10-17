@@ -2,20 +2,19 @@ import { useEffect, useRef, useState } from "react";
 
 import { api } from "../api.js";
 import {
-  Badge,
   Button,
-  Inline,
-  List,
-  ListRow,
-  ProgressBar,
+  Icon,
+  Panel,
+  Popover,
   Select,
   Stack,
   StateMessage,
   StudyStatusBadge,
-  Tabs,
 } from "../ui/index.js";
 import { useCollections } from "../useCollections.js";
 import { ActionError, AddForm } from "./forms.jsx";
+import "./home.css";
+import "./roadmap.css";
 
 export default function Roadmap() {
   const { data, error, reload } = useCollections([
@@ -47,20 +46,22 @@ export default function Roadmap() {
   // The title stays in place while loading or failing, so the page does not jump.
   if (error || !data) {
     return (
-      <Stack gap={6}>
+      <div className="scenic">
         <h1>Roadmap</h1>
-        {error ? (
-          <StateMessage
-            kind="error"
-            title="Não foi possível carregar o roadmap."
-            action={<Button onClick={reload}>Tentar novamente</Button>}
-          >
-            {error}
-          </StateMessage>
-        ) : (
-          <p className="t-meta">Carregando…</p>
-        )}
-      </Stack>
+        <Panel raised className="scenic__board">
+          {error ? (
+            <StateMessage
+              kind="error"
+              title="Não foi possível carregar o roadmap."
+              action={<Button onClick={reload}>Tentar novamente</Button>}
+            >
+              {error}
+            </StateMessage>
+          ) : (
+            <p className="t-meta">Carregando…</p>
+          )}
+        </Panel>
+      </div>
     );
   }
   const [tracks, concepts, areas, subtopics] = data;
@@ -80,213 +81,292 @@ export default function Roadmap() {
     setSelected(null);
   }
 
+  const track = tracks.find((t) => t.id === selected) ?? tracks[0];
+
   return (
-    <Stack gap={6}>
-      <Inline justify="between">
-        <h1>Roadmap</h1>
-        <AddForm
-          variant="secondary"
-          label="Nome da trilha"
-          button="Criar trilha"
-          loadingLabel="Criando…"
-          onSubmit={createTrack}
-        />
-      </Inline>
-      {tracks.length === 0 ? (
-        <StateMessage title="Nenhuma trilha ainda.">
-          Uma trilha é a ordem em que você quer estudar os conceitos.
-        </StateMessage>
-      ) : (
-        <Tabs
-          label="Trilhas"
-          value={selected ?? tracks[0].id}
-          onChange={setSelected}
-          items={tracks.map((track) => ({
-            id: track.id,
-            label: track.name,
-            content: (
-              <Track
+    <div className="scenic">
+      <div className="roadmap__top">
+        <div className="scenic__hero">
+          <h1>Roadmap</h1>
+          {track && (
+            <div className="roadmap__picker">
+              <label className="visually-hidden" htmlFor="roadmap-trilha">
+                Trilha
+              </label>
+              <span className="roadmap__select">
+                <select
+                  id="roadmap-trilha"
+                  value={track.id}
+                  onChange={(e) => setSelected(Number(e.target.value))}
+                >
+                  {tracks.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+                <Icon name="chevron-down" />
+              </span>
+              <TrackMenu
                 track={track}
                 concepts={concepts}
-                subtopics={subtopics}
                 areaName={areaName}
                 act={act}
-                actionError={actionError}
                 onRemove={() => removeTrack(track)}
               />
-            ),
-          }))}
+            </div>
+          )}
+        </div>
+        <div className="roadmap__create">
+          <AddForm
+            variant="secondary"
+            label="Nome da trilha"
+            button="Criar trilha"
+            loadingLabel="Criando…"
+            onSubmit={createTrack}
+          />
+        </div>
+      </div>
+      {track ? (
+        <Track
+          key={track.id}
+          track={track}
+          concepts={concepts}
+          subtopics={subtopics}
+          act={act}
+          actionError={actionError}
         />
+      ) : (
+        <Panel raised className="scenic__board">
+          <StateMessage title="Nenhuma trilha ainda.">
+            Uma trilha é a ordem em que você quer estudar os conceitos. Crie a primeira no alto da
+            página.
+          </StateMessage>
+        </Panel>
       )}
-    </Stack>
+    </div>
   );
 }
 
-function Track({ track, concepts, subtopics, areaName, act, actionError, onRemove }) {
+// The track's own actions: add a concept to its end, or remove it.
+function TrackMenu({ track, concepts, areaName, act, onRemove }) {
   const [conceptId, setConceptId] = useState("");
-  const done = track.steps.filter((s) => s.concept_status === "completed").length;
-  // Same rule as the home screen: the first subtopic of the next concept still to finish.
-  const nextStep = track.steps.find((s) => s.id === track.next_step);
-  const nextSubtopic =
-    nextStep &&
-    subtopics.find((s) => s.concept === nextStep.concept && s.study_status !== "completed");
   const inTrack = new Set(track.steps.map((s) => s.concept));
   const available = concepts.filter((c) => !inTrack.has(c.id));
-  const last = track.steps.length - 1;
 
-  const conceptSelect = useRef(null);
-  // Element ids to focus once the reloaded track is on screen, the first one enabled; empty
-  // means the concept select. Set before the write, read when the new track renders.
-  const refocus = useRef(null);
-
-  // Moving a step re-renders the list and drops focus, so it goes back to the same button,
-  // or to its sibling when the step reached the top or the bottom and the button went disabled.
-  useEffect(() => {
-    if (!refocus.current) return;
-    const target = refocus.current.map((id) => document.getElementById(id)).find((el) => el && !el.disabled);
-    refocus.current = null;
-    (target ?? conceptSelect.current)?.focus();
-  }, [track]);
-
-  function move(step, direction) {
-    const [same, other] = direction === "up" ? ["subir", "descer"] : ["descer", "subir"];
-    refocus.current = [`${same}-${step.id}`, `${other}-${step.id}`];
-    act(() => api.post(`/api/steps/${step.id}/move/`, { direction }));
-  }
-
-  function removeStep(step) {
-    refocus.current = [];
-    act(() => api.delete(`/api/steps/${step.id}/`));
-  }
-
-  async function addStep(event) {
+  async function addStep(event, close) {
     event.preventDefault();
     if (!conceptId) return;
     await act(() => api.post("/api/steps/", { track: track.id, concept: Number(conceptId) }));
     setConceptId("");
+    close();
   }
 
   return (
-    <Stack gap={5}>
-      {track.steps.length === 0 ? (
-        <StateMessage title="Nenhum conceito nesta trilha.">
-          Adicione um conceito abaixo. Ele pode entrar antes de ter conteúdo.
-        </StateMessage>
-      ) : (
-        <ProgressBar
-          value={done}
-          max={track.steps.length}
-          unit={track.steps.length === 1 ? "conceito concluído" : "conceitos concluídos"}
-          label={`Progresso de ${track.name}`}
-        />
+    <Popover label={`Ações da trilha ${track.name}`} trigger={<Icon name="more-vertical" size={24} />}>
+      {(close) => (
+        <div className="roadmap__menu">
+          {available.length > 0 ? (
+            <Stack as="form" gap={3} onSubmit={(e) => addStep(e, close)}>
+              <Select
+                label="Adicionar conceito"
+                value={conceptId}
+                placeholder="Escolha um conceito"
+                options={available.map((c) => ({
+                  value: String(c.id),
+                  label: `${c.name} (${areaName[c.area]})`,
+                }))}
+                onChange={(e) => setConceptId(e.target.value)}
+              />
+              <div>
+                <Button type="submit" variant="secondary" disabled={!conceptId}>
+                  Adicionar à trilha
+                </Button>
+              </div>
+            </Stack>
+          ) : (
+            <p className="t-meta">
+              {concepts.length === 0 ? (
+                <>
+                  Crie conceitos na <a href="#/biblioteca">Biblioteca</a> para montar a trilha.
+                </>
+              ) : (
+                "Todos os conceitos já estão nesta trilha."
+              )}
+            </p>
+          )}
+          <button
+            type="button"
+            className="ui-popover__item ui-popover__item--danger"
+            onClick={() => {
+              close();
+              onRemove();
+            }}
+          >
+            <Icon name="close" />
+            Remover trilha
+          </button>
+        </div>
       )}
+    </Popover>
+  );
+}
+
+function Track({ track, subtopics, act, actionError }) {
+  const done = track.steps.filter((s) => s.concept_status === "completed").length;
+  // Same rule as the home screen: the first subtopic of the next concept still to finish.
+  const nextIndex = track.steps.findIndex((s) => s.id === track.next_step);
+  const nextStep = track.steps[nextIndex];
+  const nextSubtopic =
+    nextStep &&
+    subtopics.find((s) => s.concept === nextStep.concept && s.study_status !== "completed");
+  const last = track.steps.length - 1;
+
+  // The step whose menu button gets focus back once the reloaded track is on screen; 0 means
+  // the track picker (the step left the track). Set before the write, read on the new track.
+  const refocus = useRef(null);
+
+  // Moving a step re-renders the list and drops focus, so it goes back to the same step's menu.
+  useEffect(() => {
+    if (refocus.current === null) return;
+    const target = document.querySelector(`#etapa-${refocus.current} .ui-popover__trigger`);
+    refocus.current = null;
+    (target ?? document.getElementById("roadmap-trilha"))?.focus();
+  }, [track]);
+
+  function move(step, direction) {
+    refocus.current = step.id;
+    act(() => api.post(`/api/steps/${step.id}/move/`, { direction }));
+  }
+
+  function removeStep(step) {
+    refocus.current = 0;
+    act(() => api.delete(`/api/steps/${step.id}/`));
+  }
+
+  return (
+    <>
+      <section className="roadmap__current" aria-label="Etapa atual">
+        {nextStep ? (
+          <>
+            <p className="scenic__eyebrow">Etapa atual · {String(nextIndex + 1).padStart(2, "0")}</p>
+            <h2 className="scenic__title">{nextStep.concept_name}</h2>
+            <p className="scenic__subtitle">
+              {nextStep.area_name}
+              {nextSubtopic && ` · ${nextSubtopic.name}`}
+            </p>
+            <div className="roadmap__status">
+              <StudyStatusBadge status={nextStep.concept_status} />
+            </div>
+            <div className="scenic__action">
+              {nextSubtopic ? (
+                <Button
+                  href={`#/estudo/${nextSubtopic.id}`}
+                  iconEnd="arrow-right"
+                  aria-label={`Continuar ${nextSubtopic.name}`}
+                >
+                  Continuar
+                </Button>
+              ) : (
+                <Button
+                  variant="secondary"
+                  href="#/biblioteca"
+                  aria-label={`Preparar ${nextStep.concept_name} na Biblioteca`}
+                >
+                  Preparar na Biblioteca
+                </Button>
+              )}
+            </div>
+          </>
+        ) : (
+          <>
+            <h2 className="scenic__title">
+              {track.steps.length === 0 ? "Trilha sem conceitos" : "Trilha concluída"}
+            </h2>
+            <p className="scenic__note">
+              {track.steps.length === 0
+                ? "Adicione o primeiro conceito pelo menu ao lado do nome da trilha. Ele pode entrar antes de ter conteúdo."
+                : "Uma etapa de cada vez: todos os conceitos desta trilha foram concluídos."}
+            </p>
+          </>
+        )}
+      </section>
       {track.steps.length > 0 && (
-        <List label={`Etapas de ${track.name}`}>
-          {track.steps.map((step, index) => (
-            <ListRow
-              key={step.id}
-              title={`${index + 1}. ${step.concept_name}`}
-              meta={
-                step === nextStep && nextSubtopic
-                  ? `${step.area_name} · ${nextSubtopic.name}`
-                  : step.area_name
-              }
-              badges={
-                <>
-                  <StudyStatusBadge status={step.concept_status} />
-                  {step.id === track.next_step && (
-                    <Badge tone="accent" icon="arrow-right">
-                      Próximo passo
-                    </Badge>
+        <Panel raised as="section" className="scenic__board" aria-labelledby="roadmap-percurso">
+          <div className="roadmap__board-head">
+            <h2 id="roadmap-percurso">Seu percurso</h2>
+            <p className="t-meta">
+              {done} de {track.steps.length}{" "}
+              {track.steps.length === 1 ? "conceito concluído" : "conceitos concluídos"}
+            </p>
+          </div>
+          <ol className="roadmap__steps">
+            {track.steps.map((step, index) => (
+              <li
+                key={step.id}
+                id={`etapa-${step.id}`}
+                className="roadmap__step"
+                aria-current={step === nextStep ? "step" : undefined}
+              >
+                <span className="roadmap__number" aria-hidden="true">
+                  {String(index + 1).padStart(2, "0")}
+                </span>
+                <p className="roadmap__name">{step.concept_name}</p>
+                <StudyStatusBadge status={step.concept_status} />
+                <Popover
+                  className="roadmap__step-menu"
+                  label={`Ações de ${step.concept_name}`}
+                  trigger={<Icon name="more" size={24} />}
+                >
+                  {(close) => (
+                    <>
+                      <button
+                        type="button"
+                        className="ui-popover__item"
+                        disabled={index === 0}
+                        onClick={() => {
+                          close();
+                          move(step, "up");
+                        }}
+                      >
+                        <Icon name="arrow-left" />
+                        Mover para antes
+                      </button>
+                      <button
+                        type="button"
+                        className="ui-popover__item"
+                        disabled={index === last}
+                        onClick={() => {
+                          close();
+                          move(step, "down");
+                        }}
+                      >
+                        <Icon name="arrow-right" />
+                        Mover para depois
+                      </button>
+                      <button
+                        type="button"
+                        className="ui-popover__item ui-popover__item--danger"
+                        onClick={() => {
+                          close();
+                          removeStep(step);
+                        }}
+                      >
+                        <Icon name="close" />
+                        Tirar da trilha
+                      </button>
+                    </>
                   )}
-                </>
-              }
-              action={
-                <>
-                  {step === nextStep &&
-                    (nextSubtopic ? (
-                      <Button
-                        href={`#/estudo/${nextSubtopic.id}`}
-                        iconEnd="arrow-right"
-                        aria-label={`Continuar ${nextSubtopic.name}`}
-                      >
-                        Continuar
-                      </Button>
-                    ) : (
-                      <Button
-                        variant="secondary"
-                        href="#/biblioteca"
-                        aria-label={`Preparar ${step.concept_name} na Biblioteca`}
-                      >
-                        Preparar na Biblioteca
-                      </Button>
-                    ))}
-                  <Button
-                    id={`subir-${step.id}`}
-                    variant="tertiary"
-                    disabled={index === 0}
-                    aria-label={`Subir ${step.concept_name}`}
-                    onClick={() => move(step, "up")}
-                  >
-                    Subir
-                  </Button>
-                  <Button
-                    id={`descer-${step.id}`}
-                    variant="tertiary"
-                    disabled={index === last}
-                    aria-label={`Descer ${step.concept_name}`}
-                    onClick={() => move(step, "down")}
-                  >
-                    Descer
-                  </Button>
-                  <Button
-                    variant="tertiary"
-                    icon="close"
-                    aria-label={`Tirar da trilha ${step.concept_name}`}
-                    onClick={() => removeStep(step)}
-                  >
-                    Tirar da trilha
-                  </Button>
-                </>
-              }
-            />
-          ))}
-        </List>
+                </Popover>
+              </li>
+            ))}
+          </ol>
+          <ActionError>{actionError && `Não foi possível concluir. ${actionError}`}</ActionError>
+        </Panel>
       )}
-      <ActionError>{actionError && `Não foi possível concluir. ${actionError}`}</ActionError>
-      {available.length > 0 && (
-        <Inline as="form" align="end" className="field-row" onSubmit={addStep}>
-          <Select
-            ref={conceptSelect}
-            label="Conceito"
-            value={conceptId}
-            placeholder="Escolha um conceito"
-            options={available.map((c) => ({
-              value: String(c.id),
-              label: `${c.name} (${areaName[c.area]})`,
-            }))}
-            onChange={(e) => setConceptId(e.target.value)}
-          />
-          <Button type="submit" variant="secondary" disabled={!conceptId}>
-            Adicionar à trilha
-          </Button>
-        </Inline>
+      {track.steps.length === 0 && (
+        <ActionError>{actionError && `Não foi possível concluir. ${actionError}`}</ActionError>
       )}
-      {concepts.length === 0 && (
-        <p className="t-meta">
-          Crie conceitos na <a href="#/biblioteca">Biblioteca</a> para montar a trilha.
-        </p>
-      )}
-      <Inline justify="end">
-        <Button
-          variant="tertiary"
-          icon="close"
-          aria-label={`Remover trilha ${track.name}`}
-          onClick={onRemove}
-        >
-          Remover trilha
-        </Button>
-      </Inline>
-    </Stack>
+    </>
   );
 }

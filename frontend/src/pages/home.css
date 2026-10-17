@@ -1,39 +1,145 @@
-/* Home: one column of opaque panels on the left, so the statue stays in view on the right. */
-.home {
+/* Screens over the panorama (Início, Roadmap): the opening lines on its light left side, then
+   one opaque board along the bottom of the window, so the scenery stays in view between them. */
+.scenic {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  min-height: calc(100vh - 2 * var(--layout-margin));
+}
+
+.scenic__hero {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  max-width: 40rem;
+}
+
+.scenic__hero > h1 {
+  margin-bottom: var(--space-6);
+}
+
+.scenic__eyebrow {
+  margin-bottom: var(--space-3);
+  font-size: var(--text-meta);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--color-bronze);
+}
+
+.scenic__title {
+  font-size: var(--text-hero);
+  line-height: var(--leading-hero);
+  letter-spacing: -0.01em;
+}
+
+.scenic__subtitle {
+  margin-top: var(--space-4);
+  font-size: var(--text-section-title);
+  line-height: var(--leading-section-title);
+}
+
+.scenic__note {
+  margin-top: var(--space-2);
+  font-size: var(--text-reading);
+  color: var(--color-text-muted);
+}
+
+.scenic__note strong {
+  font-weight: var(--weight-semibold);
+  color: var(--color-text);
+}
+
+/* The opening action is the largest control on the screen. */
+.scenic__action {
+  --control-height: 56px;
+  margin-top: var(--space-5);
+  font-size: var(--text-reading);
+}
+
+.scenic__board {
+  margin-top: auto;
+  padding: var(--space-6) var(--space-7) var(--space-5);
+  border-radius: var(--radius-board);
+  box-shadow: var(--shadow-overlay);
+}
+
+/* Início's board: the track and practice side by side, today's reviews along the bottom. */
+.home__columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+  gap: var(--space-6) var(--space-7);
+}
+
+.home__column {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
-  max-width: var(--measure-reading);
 }
 
-.home__subtopic {
-  font-family: var(--font-display);
-  font-size: var(--text-section-title);
-  line-height: var(--leading-section-title);
-  font-weight: var(--weight-semibold);
+.home__column + .home__column {
+  padding-left: var(--space-7);
+  border-left: var(--border-width) solid var(--color-border);
+}
+
+.home__steps {
+  display: grid;
+  gap: var(--space-4);
+  padding: 0;
+  list-style: none;
+}
+
+.home__item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-5);
+}
+
+.home__item > .ui-icon {
+  color: var(--color-bronze);
+}
+
+.home__lead {
+  font-size: var(--text-reading);
+  line-height: var(--leading-ui);
+}
+
+.home__steps .home__lead {
+  font-size: var(--text-subsection-title);
+}
+
+.home__meta {
+  color: var(--color-text-muted);
+}
+
+/* Actions line up under the text, past the icon. */
+.home__indent {
+  padding-left: calc(32px + var(--space-5));
+}
+
+.home__link {
+  padding-left: 0;
+  font-size: var(--text-reading);
 }
 
 .home__reviews {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3) var(--space-4);
+  padding-top: var(--space-4);
+  border-top: var(--border-width) solid var(--color-border);
+}
+
+.home__reviews > h2 {
+  padding-right: var(--space-4);
+  border-right: var(--border-width) solid var(--color-border);
   font-family: var(--font-body);
   font-size: var(--text-ui);
   line-height: var(--leading-ui);
   font-weight: var(--weight-semibold);
 }
 
-.home__steps {
-  padding: 0;
-  list-style: none;
-}
-
-.home__step {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-4);
-  padding: var(--space-3) 0;
-  border-top: var(--border-width) solid var(--color-border);
-}
-
-.home__concept {
-  font-weight: var(--weight-semibold);
+.home__reviews > p {
+  color: var(--color-text-muted);
 }
