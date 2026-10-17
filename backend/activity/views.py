@@ -1,4 +1,4 @@
-from content.models import Block, PracticeQuestion
+from content.models import Block, Content, PracticeQuestion
 from django.shortcuts import get_object_or_404
 from organization.models import Subtopic
 from rest_framework import status, viewsets
@@ -49,6 +49,12 @@ class SessionEventViewSet(viewsets.GenericViewSet):
         return Response(self.get_serializer(event).data)
 
 
+def _generated_by(subtopic):
+    # Shown next to the text so generated content never reads as checked (D-032).
+    content = Content.objects.filter(subtopic=subtopic).values_list("generated_by", flat=True)
+    return content.first() or ""
+
+
 class ReadingView(APIView):
     """The blocks in document order and where reading resumes (spec 4.8.1, 4.8.4)."""
 
@@ -60,6 +66,7 @@ class ReadingView(APIView):
             {
                 "subtopic": subtopic.name,
                 "concept": subtopic.concept.name,
+                "generated_by": _generated_by(subtopic),
                 "blocks": ReadingBlockSerializer(blocks, many=True).data,
                 "resume_block_order": resume_block_order(subtopic),
             }
@@ -79,6 +86,7 @@ class PracticeView(APIView):
             {
                 "subtopic": subtopic.name,
                 "concept": subtopic.concept.name,
+                "generated_by": _generated_by(subtopic),
                 "questions": PracticeQuestionSerializer(questions, many=True).data,
                 "attempts": AttemptSerializer(attempts, many=True).data,
             }

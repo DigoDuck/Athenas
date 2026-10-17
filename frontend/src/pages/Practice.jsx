@@ -1,7 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { api } from "../api.js";
-import { Badge, Breadcrumb, Button, Inline, Panel, Stack, StateMessage, TextArea } from "../ui/index.js";
+import {
+  Badge,
+  Breadcrumb,
+  Button,
+  GeneratedByBadge,
+  Inline,
+  Panel,
+  Stack,
+  StateMessage,
+  TextArea,
+} from "../ui/index.js";
 import CompletionSuggestion from "./CompletionSuggestion.jsx";
 import { ActionError } from "./forms.jsx";
 import "./practice.css";
@@ -108,6 +118,7 @@ export default function Practice({ subtopicId }) {
       key: `p${q.id}`,
       kind: "question",
       question: q,
+      generatedBy: practice.generated_by,
       title: q.label,
       prompt: q.prompt,
       field: "Sua resposta",
@@ -342,9 +353,12 @@ function AnswerForm({ item, subtopicId, draftStorage, attempts, onDraft, onClose
       </section>
       {item.kind === "question" && (
         <section className="practice__reference" aria-labelledby={`${item.key}-ref`}>
-          <p id={`${item.key}-ref`} ref={revealed} tabIndex={-1} className="practice__subtitle">
-            Resposta de referência
-          </p>
+          <Inline gap={2}>
+            <p id={`${item.key}-ref`} ref={revealed} tabIndex={-1} className="practice__subtitle">
+              Resposta de referência
+            </p>
+            {item.generatedBy && <GeneratedByBadge by={item.generatedBy} />}
+          </Inline>
           <div className="t-reading study__body">{item.question.reference_answer}</div>
         </section>
       )}

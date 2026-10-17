@@ -62,6 +62,9 @@ def check(folder):
                 found.append("draft: needs Ideia central and a question with its reference answer")
             if parsed.level is None:
                 found.append("frontmatter needs nivel")
+            if not parsed.generated_by:
+                # Without it the app shows generated text as Diogo's own (DECISIONS.md D-032).
+                found.append("frontmatter needs origem: claude")
             if not any(b.kind == "Fontes" and "http" in b.body for b in parsed.blocks):
                 found.append("Fontes has no URL")
             problems += [f"{subtopic['file']}: {item}" for item in found]

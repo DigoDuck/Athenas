@@ -6,6 +6,7 @@ import {
   Button,
   Callout,
   calloutBody,
+  GeneratedByBadge,
   Inline,
   List,
   ListRow,
@@ -28,6 +29,8 @@ export default function ContentEditor({ subtopic, draft, onDraft, onClose }) {
   const [busy, setBusy] = useState(null);
   const [error, setError] = useState(null);
   const [saved, setSaved] = useState(null);
+  // Origin of the saved text, which the pending cards come from.
+  const [generatedBy, setGeneratedBy] = useState("");
   // Bumped after a save so the pending cards are fetched again.
   const [version, setVersion] = useState(0);
 
@@ -38,7 +41,11 @@ export default function ContentEditor({ subtopic, draft, onDraft, onClose }) {
     let active = true;
     api.get(url).then(
       // A draft, or text typed before the saved version arrives, wins over the saved version.
-      (content) => active && setMarkdown((current) => current || content.raw_markdown),
+      (content) => {
+        if (!active) return;
+        setMarkdown((current) => current || content.raw_markdown);
+        setGeneratedBy(content.generated_by);
+      },
       (e) => active && e.status !== 404 && setLoadError(e.message),
     );
     return () => {
@@ -73,6 +80,7 @@ export default function ContentEditor({ subtopic, draft, onDraft, onClose }) {
     act("save", async () => {
       const content = await api.put(url, { markdown });
       setSaved(content.state);
+      setGeneratedBy(content.generated_by);
       onDraft(undefined);
       setVersion((v) => v + 1);
     });
@@ -143,26 +151,41 @@ export default function ContentEditor({ subtopic, draft, onDraft, onClose }) {
           </p>
         )}
         {preview && <Preview preview={preview} />}
-        <CardApproval subtopicId={subtopic.id} version={version} />
+        <CardApproval
+          subtopicId={subtopic.id}
+          version={version}
+          generatedBy={generatedBy}
+        />
       </Stack>
     </li>
   );
 }
 
 function Preview({ preview }) {
-  const { state, errors, warnings, blocks, questions, cards, callouts } =
-    preview;
+  const {
+    state,
+    generated_by,
+    errors,
+    warnings,
+    blocks,
+    questions,
+    cards,
+    callouts,
+  } = preview;
   return (
     <Stack as="section" gap={5} aria-labelledby="previa">
       <Inline justify="between">
         <h5 id="previa">Prévia</h5>
-        {state === "ready" ? (
-          <Badge tone="success" icon="check-circle">
-            Pronto
-          </Badge>
-        ) : (
-          <Badge icon="file-text">Rascunho</Badge>
-        )}
+        <Inline gap={2}>
+          {generated_by && <GeneratedByBadge by={generated_by} />}
+          {state === "ready" ? (
+            <Badge tone="success" icon="check-circle">
+              Pronto
+            </Badge>
+          ) : (
+            <Badge icon="file-text">Rascunho</Badge>
+          )}
+        </Inline>
       </Inline>
       {state === "draft" && (
         <p className="t-meta">
@@ -249,7 +272,7 @@ function PreviewList({ title, empty, note, children }) {
 }
 
 // One pending card at a time, approved or rejected with A or R; no "approve all" (spec 4.3).
-function CardApproval({ subtopicId, version }) {
+function CardApproval({ subtopicId, version, generatedBy }) {
   const [cards, setCards] = useState(null);
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -319,6 +342,14 @@ function CardApproval({ subtopicId, version }) {
           {cards.length === 1 ? "1 pendente" : `${cards.length} pendentes`}
         </span>
       </Inline>
+      {generatedBy && (
+        <Inline gap={2}>
+          <GeneratedByBadge by={generatedBy} />
+          <p className="t-meta">
+            Confira o cartão na Explicação e nas Fontes antes de aprovar.
+          </p>
+        </Inline>
+      )}
       <dl className="card-approval__card">
         <dt className="t-meta">{card.label} · Frente</dt>
         <dd>{card.front}</dd>

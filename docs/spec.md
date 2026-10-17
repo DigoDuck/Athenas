@@ -122,8 +122,9 @@ Concepts do not store these fields. A concept's study status is derived from its
 **Track**: name, ordered list of steps. Each step points to one concept. Order is changed
 without drag and drop (for example, move up and move down).
 
-**Content**: the raw Markdown as pasted (always kept), the parsed blocks, and a state:
-`draft` or `ready` (rules in 4.2).
+**Content**: the raw Markdown as pasted (always kept), the parsed blocks, a state:
+`draft` or `ready` (rules in 4.2), and who generated the text (frontmatter `origem`, empty for
+Diogo's own text, `DECISIONS.md` D-032).
 
 **Block**: kind (one of the known headings in 4.1, or `extra`), heading text, body, order.
 
@@ -186,6 +187,7 @@ area: Programação
 conceito: Orientação a objetos
 subtema: Encapsulamento
 nivel: iniciante
+origem: claude
 ---
 
 ## Objetivo
@@ -207,7 +209,8 @@ Resposta de referência: ...
 ```
 
 Headings are matched by their Portuguese text exactly as above. They are part of the contract,
-not UI copy.
+not UI copy. `origem` is optional: it names the AI that wrote the text, and Diogo's own text has
+none (`DECISIONS.md` D-032).
 
 ### 4.2 Import rules
 
@@ -235,6 +238,9 @@ not UI copy.
 9. If the frontmatter `area`, `conceito` or `subtema` does not match the subtopic the
    Markdown is being saved into, the preview shows a warning and the save goes into the
    subtopic being edited `[Q13]`.
+10. Content with an `origem` shows "Gerado por <origem>" in the preview, while its pending
+    cards are approved, in the reading and next to each reference answer (`DECISIONS.md`
+    D-032).
 
 ### 4.3 Pending card approval
 

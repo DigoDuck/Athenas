@@ -6,6 +6,7 @@ import {
   Button,
   Callout,
   CardsDueBadge,
+  GeneratedByBadge,
   Inline,
   List,
   ListRow,
@@ -270,6 +271,7 @@ export default function Showcase() {
             <StudyStatusBadge status="completed" />
             <ReviewFlagBadge />
             <CardsDueBadge />
+            <GeneratedByBadge by="claude" />
             <Tag>Iniciante</Tag>
           </div>
           <Panel raised>
