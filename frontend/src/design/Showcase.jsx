@@ -9,6 +9,7 @@ import {
   Inline,
   List,
   ListRow,
+  Markdown,
   Panel,
   ProgressBar,
   ReviewFlagBadge,
@@ -57,6 +58,20 @@ const colors = [
   ["warning", "Alerta"],
   ["info", "Informação"],
 ];
+
+const markdownSample = `### Quando usar
+**Polimorfismo** deixa o código chamar \`falar()\` sem saber a classe. Veja a [documentação](https://docs.python.org/3/tutorial/classes.html).
+
+1. Uma interface, *vários* comportamentos.
+2. Menos condicionais espalhados.
+   - Cada classe cuida do seu caso.
+
+> **Na prática:** prefira composição quando a relação for "tem um".
+
+| Abordagem | Risco |
+| --- | --- |
+| Herança | acoplamento forte |
+| Composição | mais código de ligação |`;
 
 function Section({ title, children }) {
   return (
@@ -298,6 +313,12 @@ export default function Showcase() {
           <Callout variant="ai" source="Documentação oficial do Java">
             A anotação @Override confirma a sobrescrita.
           </Callout>
+        </Section>
+
+        <Section title="Texto de estudo (Markdown)">
+          <div className="t-reading">
+            <Markdown text={markdownSample} />
+          </div>
         </Section>
 
         <Section title="Estados">

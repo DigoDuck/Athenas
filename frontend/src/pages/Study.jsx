@@ -8,7 +8,10 @@ import {
   Button,
   Callout,
   calloutBody,
+  Icon,
   Inline,
+  Markdown,
+  markdownLinks,
   Panel,
   ProgressBar,
   Stack,
@@ -160,15 +163,38 @@ export default function Study({ subtopicId }) {
   const last = order === blocks.length - 1;
 
   return (
-    <Stack gap={6}>
-      <Breadcrumb
-        items={[
-          { label: "Biblioteca", href: "#/biblioteca" },
-          { label: reading.concept, href: "#/biblioteca" },
-          { label: reading.subtopic },
-        ]}
-      />
-      <Stack gap={6} className="study__column">
+    <div className="study">
+      {blocks.length > 0 && (
+        <nav className="study__outline" aria-label="Blocos do subtema">
+          <p className="study__label">Neste subtema</p>
+          <ol>
+            {blocks.map((b, index) => (
+              <li key={b.order}>
+                <button
+                  type="button"
+                  className="study__outline-item"
+                  aria-current={index === order ? "step" : undefined}
+                  data-read={b.read_at ? "" : undefined}
+                  disabled={busy !== null}
+                  onClick={() => index !== order && open(index)}
+                >
+                  <Icon name={b.read_at ? "check-circle" : "circle"} />
+                  <span>{b.heading || "Introdução"}</span>
+                  {b.read_at && <span className="visually-hidden"> (lido)</span>}
+                </button>
+              </li>
+            ))}
+          </ol>
+        </nav>
+      )}
+      <Stack gap={6} className="study__head">
+        <Breadcrumb
+          items={[
+            { label: "Biblioteca", href: "#/biblioteca" },
+            { label: reading.concept, href: "#/biblioteca" },
+            { label: reading.subtopic },
+          ]}
+        />
         <Stack gap={3}>
           <h1>{reading.subtopic}</h1>
           {blocks.length > 0 && (
@@ -180,6 +206,8 @@ export default function Study({ subtopicId }) {
             />
           )}
         </Stack>
+      </Stack>
+      <Stack gap={6} className="study__column">
         {blocks.length === 0 ? (
           <StateMessage
             title="Este subtema ainda não tem conteúdo."
@@ -293,11 +321,63 @@ export default function Study({ subtopicId }) {
         )}
         {finished && <CompletionSuggestion subtopicId={subtopicId} />}
       </Stack>
-    </Stack>
+      {blocks.length > 0 && <Aside blocks={blocks} subtopicId={subtopicId} />}
+    </div>
   );
 }
 
-// The body as the API cut it: text as written, fenced code, and `[!ia]` callouts, which carry
+// What sits beside the text: the subtopic's sources and the way to practice after reading.
+function Aside({ blocks, subtopicId }) {
+  const sources = markdownLinks(
+    blocks
+      .flatMap((b) => b.segments.filter((s) => b.kind === "Fontes" || s.kind === "ia"))
+      .map((s) => s.text)
+      .join("\n"),
+  );
+  return (
+    <aside className="study__aside" aria-label="Apoio à leitura">
+      {sources.length > 0 && (
+        <Panel aria-labelledby="study-sources">
+          <h2 id="study-sources" className="study__label">
+            Fontes
+          </h2>
+          <ul className="study__sources">
+            {sources.map(({ url, label }) => (
+              <li key={url}>
+                <a href={url} target="_blank" rel="noreferrer" title={url}>
+                  {label ?? siteName(url)}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </Panel>
+      )}
+      <Panel aria-labelledby="study-practice">
+        <Stack gap={3}>
+          <h2 id="study-practice" className="study__label">
+            Depois da leitura
+          </h2>
+          <p className="t-meta">Responda às perguntas deste subtema sem consultar o texto.</p>
+          <div>
+            <Button variant="secondary" href={`#/pratica/${subtopicId}`} iconEnd="arrow-right">
+              Praticar
+            </Button>
+          </div>
+        </Stack>
+      </Panel>
+    </aside>
+  );
+}
+
+function siteName(url) {
+  try {
+    return new URL(url, window.location.href).hostname.replace(/^www\./, "");
+  } catch {
+    return url;
+  }
+}
+
+// The body as the API cut it: Markdown text, fenced code, and `[!ia]` callouts, which carry
 // "complemento sem fonte" when they have no source (spec 4.2.8).
 function Segments({ segments }) {
   if (segments.length === 0) return <p className="t-meta">Este bloco não tem texto.</p>;
@@ -310,12 +390,10 @@ function Segments({ segments }) {
           </pre>
         ) : segment.kind === "ia" ? (
           <Callout key={index} variant="ai" source={segment.source}>
-            <div className="study__text">{calloutBody(segment.text)}</div>
+            <Markdown text={calloutBody(segment.text)} />
           </Callout>
         ) : (
-          <div key={index} className="study__text">
-            {segment.text}
-          </div>
+          <Markdown key={index} text={segment.text} />
         ),
       )}
     </div>

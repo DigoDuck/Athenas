@@ -1,15 +1,149 @@
-/* Reading screen: title, progress and one opaque white sheet, as wide as a line of study text. */
+/* Reading screen: the block outline, the reading column and the sources beside it. The sheet
+   takes the whole width here, so the space goes to navigation and support, not to longer lines. */
+.ui-shell__content:has(> .study) {
+  max-width: none;
+}
+
+.study {
+  display: grid;
+  grid-template-columns: minmax(14rem, 18rem) minmax(0, 44rem) minmax(18rem, 24rem);
+  grid-template-areas:
+    ".       head ."
+    "outline main aside";
+  justify-content: center;
+  align-items: start;
+  gap: var(--space-6) var(--space-7);
+}
+
+.study__head {
+  grid-area: head;
+}
+
 .study__column {
+  grid-area: main;
   /* `ch` in the max-width resolves at reading size, so the column matches the text measure. */
   font-size: var(--text-reading);
-  max-width: calc(var(--measure-reading) + 2 * var(--space-6));
+}
+
+.study__outline {
+  grid-area: outline;
+  position: sticky;
+  top: var(--space-5);
+}
+
+.study__aside {
+  grid-area: aside;
+  position: sticky;
+  top: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.study__label {
+  margin-bottom: var(--space-3);
+  font-family: var(--font-body);
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.study__aside .study__label {
+  margin-bottom: 0;
+}
+
+.study__outline ol {
+  padding: 0;
+  list-style: none;
+}
+
+.study__outline-item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: var(--control-height);
+  padding: var(--space-2) var(--space-3);
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: var(--text-ui);
+  line-height: var(--leading-ui);
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--motion-duration) var(--motion-easing);
+}
+
+.study__outline-item svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--color-control-border);
+}
+
+.study__outline-item:hover:not(:disabled) {
+  background: var(--color-surface-muted);
+  color: var(--color-text);
+}
+
+.study__outline-item[aria-current] {
+  background: var(--color-selected);
+  color: var(--color-text);
+  font-weight: var(--weight-semibold);
+}
+
+.study__outline-item[aria-current] svg,
+.study__outline-item[data-read] svg {
+  color: var(--color-bronze);
+}
+
+.study__outline-item:disabled {
+  cursor: progress;
+}
+
+.study__sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding: 0;
+  list-style: none;
+}
+
+.study__sources a {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  min-height: 32px;
+  padding: var(--space-1) var(--space-3);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-background);
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.study__sources a:hover {
+  border-color: var(--color-bronze);
 }
 
 .study__block {
   padding: var(--space-6);
 }
 
-/* Text keeps the Markdown's own line breaks and lists. Code uses the global `pre` style. */
+/* The column already holds the line length (44rem minus padding is about 70 characters). */
+.study__block .t-reading {
+  max-width: none;
+}
+
+/* Review cards keep the text's own line breaks. */
 .study__text {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -18,4 +152,41 @@
 .study__actions {
   padding-top: var(--space-5);
   border-top: var(--border-width) solid var(--color-border);
+}
+
+/* Narrower desktops: the support moves under the text; the outline stays beside it. */
+@media (max-width: 1599px) {
+  .study {
+    grid-template-columns: 14rem minmax(0, 44rem);
+    grid-template-areas:
+      ".       head"
+      "outline main"
+      "outline aside";
+    row-gap: var(--space-6);
+  }
+
+  .study__aside {
+    position: static;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+    align-items: start;
+  }
+}
+
+/* Below 1200px the top bar is sticky too, so the outline stops under it. */
+@media (max-width: 1199px) {
+  .study__outline {
+    top: calc(var(--control-height) + var(--space-6));
+  }
+}
+
+@media (max-width: 899px) {
+  .study {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "head" "main" "aside" "outline";
+  }
+
+  .study__outline {
+    position: static;
+  }
 }
