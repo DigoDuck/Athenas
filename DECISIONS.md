@@ -369,3 +369,33 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
   order keeps `block_order` equal to `Block.order`, which resuming (D-017) depends on.
 - Risk: saving identical content also moves `updated_at`, so a block completed across such a save
   stays unread until it is read again.
+
+### D-028: Backup layout, and how the 30-day retention reaches the vault
+
+- Date: 2026-10-16. Source: backup slice (S7), on top of D-019; the vault side was left to S7.
+- Context: D-019 puts the exports in a staging folder on `C:` and copies them to the vault with
+  `robocopy`, but rules out a bare `robocopy /MIR`, which would wipe the vault folder if its path
+  were wrong. The spec does not fix how an export is laid out either.
+- Decision:
+  - `python manage.py backup` writes one folder per export, `athenas-<UTC stamp>`, holding
+    `data.json` (`dumpdata` of the three apps, the input of `loaddata`) and
+    `markdown/<area>/<concept>/<subtopic>.md`, each name `<pk>-<slug>`. The folder is written
+    as `.partial` and renamed when complete. It exports when the newest export is older than
+    24 h (or with `--force`) and removes staging exports older than 30 days, never the newest.
+  - `scripts/backup.py run` copies the staging folder with `robocopy /E`, which never deletes,
+    excluding `*.partial` and the log. After a successful copy it deletes, inside the vault
+    folder only, the subfolders whose name matches `athenas-<stamp>` exactly and whose stamp is
+    older than 30 days, never the newest one. The age comes from the name, not from file dates,
+    which Drive may change.
+  - The vault folder must already exist: the task never creates it, so a wrong path or an
+    unmounted `G:` is logged as a failure. Each run appends to `backup.log` in the staging folder
+    and exits non-zero on failure.
+  - `scripts/backup.py register` creates the hourly task with `schtasks`, under `pythonw` so no
+    window opens. Restore is `flush` and then `loaddata` (README, Backup and restore).
+- Why: a delete limited to an exact name pattern inside the configured folder can only remove
+  old exports, whatever the path holds. Deriving the age from the name keeps both sides on the
+  same 30-day rule.
+- Risk: exports dropped into the vault by hand under the same name pattern age out like the
+  others. If Drive changes file dates, `robocopy` recopies unchanged files every hour; the log
+  then shows an odd copy exit code (1 or 3) on every run, not only after an export.
+

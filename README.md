@@ -4,7 +4,7 @@ Personal study platform (Django + DRF, React + Vite, PostgreSQL). The v1 scope i
 `docs/spec.md`; decisions are in `DECISIONS.md`.
 
 Requirements: Docker Desktop (set to start with Windows), `make`, Python 3 (only for the
-use-mode helper).
+use-mode helper and the backup task).
 
 ## Dev mode
 
@@ -31,6 +31,26 @@ make use-down
 
 Bookmark `http://127.0.0.1:8470`. Containers come back after a reboot as long as Docker
 Desktop starts with Windows.
+
+## Backup and restore
+
+The backend exports into a staging folder on `C:`, and an hourly Windows task copies it to the
+vault (`DECISIONS.md` D-019, D-028). Set both folders in `.env.use` as absolute paths:
+`BACKUP_STAGING` on `C:` and `BACKUP_VAULT`, which must already exist in the vault. Then, once:
+
+```bash
+python scripts/backup.py register   # hourly task "Athenas backup"
+python scripts/backup.py run        # one run now; check backup.log in the staging folder
+```
+
+Restore replaces everything in use mode with one export. Make a fresh export first, and copy
+the export folder back from the vault into `BACKUP_STAGING` if it is no longer there:
+
+```bash
+docker compose --env-file .env.use exec backend python manage.py backup --force
+docker compose --env-file .env.use exec backend python manage.py flush --noinput
+docker compose --env-file .env.use exec backend python manage.py loaddata /backup/athenas-YYYYMMDD-HHMMSS/data.json
+```
 
 ## Ports
 

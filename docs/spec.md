@@ -157,8 +157,8 @@ example, the browser was closed) `[Q1]`. An `app_opened` event is recorded on ea
 home screen, so the "time between opening and starting" metric can be computed `[Q2]`.
 
 **Settings**: daily review cap (default 20), daily new card cap (default 5), desired retention
-(default 0.9, the library's default) `[Q10]`, pomodoro focus and break durations, backup folder
-path.
+(default 0.9, the library's default) `[Q10]`, pomodoro focus and break durations. The backup
+folders live in `.env.use`, not here (`DECISIONS.md` D-019).
 
 ### 3.3 Invariants
 

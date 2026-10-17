@@ -50,3 +50,6 @@ TIME_ZONE = "America/Bahia"
 USE_TZ = True
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# Container path of the backup staging folder; use mode bind-mounts it from C: (D-019).
+BACKUP_DIR = os.environ.get("BACKUP_DIR", "")

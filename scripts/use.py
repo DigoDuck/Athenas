@@ -7,6 +7,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 ENV = ROOT / ".env.use"
+# .env.use also fills ${BACKUP_STAGING} in docker-compose.yml.
+COMPOSE = ["docker", "compose", "--env-file", str(ENV)]
 
 
 def git(*args):
@@ -23,10 +25,12 @@ def init():
         "POSTGRES_USER=athenas\n"
         f"POSTGRES_PASSWORD={secrets.token_urlsafe(24)}\n"
         f"DJANGO_SECRET_KEY={secrets.token_urlsafe(50)}\n"
-        "DJANGO_ALLOWED_HOSTS=127.0.0.1,localhost\n",
+        "DJANGO_ALLOWED_HOSTS=127.0.0.1,localhost\n"
+        f"BACKUP_STAGING={Path.home() / 'AthenasBackup'}\n"
+        "BACKUP_VAULT=\n",
         encoding="utf-8",
     )
-    print("Created .env.use with generated secrets.")
+    print("Created .env.use with generated secrets. Set BACKUP_VAULT before `make use-up`.")
     return 0
 
 
@@ -42,11 +46,11 @@ def up():
         print("Working tree is not clean. Use mode must match the tag exactly.")
         return 1
     print(f"Starting use mode at {tag}.")
-    return subprocess.run(["docker", "compose", "up", "-d", "--build"], cwd=ROOT).returncode
+    return subprocess.run(COMPOSE + ["up", "-d", "--build"], cwd=ROOT).returncode
 
 
 def down():
-    return subprocess.run(["docker", "compose", "down"], cwd=ROOT).returncode
+    return subprocess.run(COMPOSE + ["down"], cwd=ROOT).returncode
 
 
 if __name__ == "__main__":
