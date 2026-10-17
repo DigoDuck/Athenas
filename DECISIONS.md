@@ -680,3 +680,36 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
   about 2 MB per export, about 60 MB across the 30 exports the vault keeps. If that grows too
   much, the fix is writing images once into a shared folder of the export, not changing the
   Markdown. Images are not versioned: replacing one changes it in every text that cites it.
+
+### D-034: Início, Roadmap, reading and Revisões follow Diogo's new mockups
+
+- Date: 2026-10-17. Source: Diogo sent four mockups (Início, Roadmap, a subtopic's reading,
+  Revisões) as the new design to implement. The project goal puts stability first during the
+  month of use, so the screens change and the data and endpoints do not.
+- Decision:
+  - Início and Roadmap sit on the `home` panorama, which now runs under the navigation and fades
+    to marble on the left. The opening lines sit on that light side and the rest on one opaque
+    board. Every other screen is plain marble: the garden scene and its sheet are removed.
+  - Roadmap picks the track with a select instead of tabs and shows the track as a numbered line
+    on the board. Moving and removing a step, adding a concept and removing the track move into
+    small menus (`Popover`); "Criar trilha" is the existing form.
+  - Reading: "Bloco anterior" and "Próximo bloco" open a block without marking it read, as the
+    outline already did. The sheet's own button marks the block read and opens the next one; on
+    a block already read it says "Confirmar releitura". The outline becomes the block picker. The
+    support column holds Praticar, the subtopic's "Marcado para revisar" flag (the same
+    `review_needed` the Biblioteca edits, saved through `PATCH /api/subtopics/<id>/`, the box
+    changing only after the save) and the sources. This replaces D-031's layout (outline at the
+    left, sources and Praticar at the right).
+  - Paragraphs in study text flow: lines wrapped in the Markdown source join with a space, as
+    in CommonMark, and a line ending in two spaces or a backslash keeps its break. This
+    replaces D-031's "paragraphs with their line breaks", which broke every hard-wrapped
+    paragraph mid-sentence. Sources are lists in the contract, so they keep one per line.
+  - Revisões keeps the manual card form behind a "Novo cartão" button, and the empty state
+    sends back to Início.
+  - Left out of the mockups: the "Objetivo" bookmark at the top right of Início (no function
+    behind it yet), the leaf shadow on the internal screens and the new landscape on Início and
+    Roadmap (neither file is in the repo; the current panorama stands in).
+- Why: one screen per daily action, with the next step as the largest thing on it, is what the
+  mockups ask for and what "começar e retomar sem esforço" needs.
+- Cost: a long track scrolls sideways on the board. Text on the panorama depends on the fade:
+  a new landscape needs a light left side, or its opening lines need a panel.

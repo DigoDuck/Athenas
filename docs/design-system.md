@@ -12,19 +12,23 @@ The guide below is Diogo's design system v1, copied verbatim from `athenas-desig
   - The guide's flashcard rating shows "Rever / Com esforço / Com facilidade". The spec has three ratings, errei, parcial and acertei, and no Easy (spec 4.6.2).
   - The guide has one "Revisão pendente" badge. The spec keeps the manual review flag and the automatic "has cards due" indicator separate and never merged (spec 3.2). There are two badges: "Marcado para revisar" and "Cartões para hoje".
   - The guide describes tablet and phone layouts. v1 is desktop only (spec 2.3). Below 1200 px the navigation collapses behind a "Menu" button, so a snapped desktop window still works; no phone screens are designed.
-- Backgrounds (`frontend/src/assets/scenes/`, WebP copies of Diogo's `athenas-planos-de-fundo/`) are set by the `scene` prop of `AppShell`:
-  - `garden` (default, `02-fundo-jardim`): internal screens such as Biblioteca and Roadmap. The page sits on an opaque marble sheet and the colonnade shows only in the margins.
-  - `home` (`01-fundo-principal`): the opening screen. There is no sheet, so every piece of text on that screen goes inside an opaque `Panel`, never on the photograph.
-  - `null`: no background.
+- Backgrounds (`frontend/src/assets/scenes/`, WebP copies of Diogo's `athenas-planos-de-fundo/`) are set by the `scene` prop of `AppShell` (`DECISIONS.md` D-034):
+  - `home` (`01-fundo-principal`): Início and Roadmap, the screens that open the day. The panorama runs under the whole screen, navigation included, and its left side fades to marble. Only the navigation and the page's opening lines (title, the current item, its main action) sit on that light side; everything else goes on one opaque board along the bottom.
+  - `null` (default): every other screen, on plain marble with a hairline beside the navigation. The garden scene and its opaque sheet are gone.
   - The scene is decorative: hidden in focus mode and in print, invisible to screen readers. The portrait image (`03-fundo-celular`) is not used, since v1 is desktop only. The scenes replace the separate marble texture.
 - The owl emblem is used at every size; there is no simplified small version.
 - Not in the guide, added here: success, warning and error tint backgrounds for badges (each pair is at least 5:1), and a darker error for the destructive button hover.
 - Also not in the guide (UI polish, 2026-10-17):
   - A subsection title role, 22 px Cormorant (`--text-subsection-title`, `.t-subsection-title`), for a concept inside an area in the Biblioteca. The guide jumps from the 28 px section title to 16 px interface text, which made a concept look like one of its subtopics.
   - A disabled tertiary button stays text only (no `#ECEDE8` fill): a gray block next to text buttons, such as Subir at the top of a track, outweighed the whole row. Filled buttons keep the guide's disabled fill.
-  - On internal screens the sheet sits against the navigation instead of in the middle of the work area, so on screens wider than 1440 px the garden opens to the right instead of around a floating sheet.
   - Creation forms open on demand from a "+" button (`AddForm` in `frontend/src/pages/forms.jsx`): the page action sits at the right of the page title, and a list's action sits under the list. Editors for a row open as an inset well right under that row.
-- Also not in the guide (reading screen, 2026-10-17, `DECISIONS.md` D-031): the reading screen's sheet takes the whole width, with the block outline at the left of the text and the sources and Praticar at the right (under the text below 1600 px). Study text renders through `Markdown` (`frontend/src/ui/Markdown.jsx`): Cormorant subheadings, bronze list markers, quotes as a bordered card (never a side stripe), tables with hairline rows, and images with a meta-size caption.
+- Also not in the guide (new screens, 2026-10-17, from Diogo's mockups, `DECISIONS.md` D-034):
+  - Navigation: the items hang on a thin gold line with a ring each; the current page is a dark pill with a sunset icon and a filled ring.
+  - The way forward on a screen (Continuar leitura, Continuar, Li este bloco e avançar, Voltar ao estudo) is a primary pill whose arrow sits in an amber disc (`--color-amber`). It is still one per screen; secondary actions keep the bronze outline.
+  - Início and Roadmap open with an 80 px Cormorant line (`--text-hero`) under a small bronze uppercase label, then the board (`--radius-board`).
+  - Reading: a toolbar under the title holds the block picker (a `Popover` with the list of blocks), "Bloco N de M", the read count and Bloco anterior / Próximo bloco. The block sits on a white sheet with a short amber tab at its top left; "Apoio ao estudo" beside it folds and holds Praticar, the personal review flag and the sources.
+  - `Popover` (`frontend/src/ui/Popover.jsx`): a button that opens a small panel under it, closed by Escape or a click outside. Rows inside use `.ui-popover__item`.
+- Also not in the guide (reading screen, 2026-10-17, `DECISIONS.md` D-031, layout replaced by D-034): study text renders through `Markdown` (`frontend/src/ui/Markdown.jsx`): Cormorant subheadings, bronze list markers, quotes as a bordered card (never a side stripe), tables with hairline rows, and images with a meta-size caption.
 
 ---
 
