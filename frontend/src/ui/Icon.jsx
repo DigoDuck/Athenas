@@ -124,6 +124,12 @@ const paths = {
       <path d="M4 17h16" />
     </>
   ),
+  plus: (
+    <>
+      <path d="M12 5v14" />
+      <path d="M5 12h14" />
+    </>
+  ),
   close: (
     <>
       <path d="m6 6 12 12" />

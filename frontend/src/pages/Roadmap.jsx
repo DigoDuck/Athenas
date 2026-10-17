@@ -14,7 +14,7 @@ import {
   Tabs,
 } from "../ui/index.js";
 import { useCollections } from "../useCollections.js";
-import { ActionError, NameForm } from "./forms.jsx";
+import { ActionError, AddForm } from "./forms.jsx";
 
 export default function Roadmap() {
   const { data, error, reload } = useCollections(["/api/tracks/", "/api/concepts/", "/api/areas/"]);
@@ -76,7 +76,16 @@ export default function Roadmap() {
 
   return (
     <Stack gap={6}>
-      <h1>Roadmap</h1>
+      <Inline justify="between">
+        <h1>Roadmap</h1>
+        <AddForm
+          variant="secondary"
+          label="Nome da trilha"
+          button="Criar trilha"
+          loadingLabel="Criando…"
+          onSubmit={createTrack}
+        />
+      </Inline>
       {tracks.length === 0 ? (
         <StateMessage title="Nenhuma trilha ainda.">
           Uma trilha é a ordem em que você quer estudar os conceitos.
@@ -102,7 +111,6 @@ export default function Roadmap() {
           }))}
         />
       )}
-      <NameForm label="Nome da trilha" button="Criar trilha" onSubmit={createTrack} />
     </Stack>
   );
 }
@@ -179,7 +187,7 @@ function Track({ track, concepts, areaName, act, actionError, onRemove }) {
       )}
       <ActionError>{actionError && `Não foi possível concluir. ${actionError}`}</ActionError>
       {available.length > 0 && (
-        <Inline as="form" align="end" onSubmit={addStep}>
+        <Inline as="form" align="end" className="field-row" onSubmit={addStep}>
           <Select
             label="Conceito"
             value={conceptId}

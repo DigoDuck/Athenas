@@ -1,14 +1,15 @@
 import Icon from "./Icon.jsx";
 
-// One primary action per context. The loading label is always laid out (hidden), so the
-// button keeps its width when `loading` starts. While loading it
-// shows `loadingLabel` and ignores clicks, so a form cannot be sent twice.
+// One primary action per context. A button that can load (any `loading` prop, even false)
+// always lays out its loading label (hidden), so it keeps its width when `loading` starts.
+// While loading it shows `loadingLabel` and ignores clicks, so a form cannot be sent twice.
+// A button without the prop reserves no room for it, so rows of links stay evenly spaced.
 export default function Button({
   variant = "primary",
   type = "button",
   icon,
   iconEnd,
-  loading = false,
+  loading,
   loadingLabel = "Salvando…",
   disabled = false,
   href,
@@ -25,10 +26,12 @@ export default function Button({
         {children}
         {iconEnd && <Icon name={iconEnd} />}
       </span>
-      <span className="ui-button__label ui-button__label--loading" aria-hidden={!loading || undefined}>
-        <Icon name="loader" className={loading ? "ui-spin" : undefined} />
-        {loadingLabel}
-      </span>
+      {loading !== undefined && (
+        <span className="ui-button__label ui-button__label--loading" aria-hidden={!loading || undefined}>
+          <Icon name="loader" className={loading ? "ui-spin" : undefined} />
+          {loadingLabel}
+        </span>
+      )}
     </span>
   );
 

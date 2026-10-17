@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { Button, Icon, Inline, TextField } from "../ui/index.js";
+import "./forms.css";
 
 // A labelled text field and one button. Clears itself after a successful submit and shows
-// the API's message on the field when it fails.
-export function NameForm({ label, button, onSubmit }) {
+// the API's message on the field when it fails. `onCancel` adds a "Cancelar" button and Esc.
+export function NameForm({ label, button, loadingLabel = "Adicionando…", autoFocus, onSubmit, onCancel }) {
   const [value, setValue] = useState("");
   const [error, setError] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -24,12 +25,55 @@ export function NameForm({ label, button, onSubmit }) {
   }
 
   return (
-    <Inline as="form" align="end" onSubmit={submit}>
-      <TextField label={label} value={value} error={error} onChange={(e) => setValue(e.target.value)} />
-      <Button type="submit" variant="secondary" loading={saving} loadingLabel="Adicionando…">
+    <Inline
+      as="form"
+      align="end"
+      className="field-row"
+      onSubmit={submit}
+      onKeyDown={onCancel && ((e) => e.key === "Escape" && onCancel())}
+    >
+      <TextField
+        label={label}
+        value={value}
+        error={error}
+        autoFocus={autoFocus}
+        onChange={(e) => setValue(e.target.value)}
+      />
+      <Button type="submit" variant="secondary" loading={saving} loadingLabel={loadingLabel}>
         {button}
       </Button>
+      {onCancel && (
+        <Button variant="tertiary" onClick={onCancel}>
+          Cancelar
+        </Button>
+      )}
     </Inline>
+  );
+}
+
+// A "+ button" that opens a NameForm in its place, so empty forms do not fill the page.
+// The form stays open after each add, for several names in a row; closing it hands focus back.
+export function AddForm({ variant = "tertiary", ...form }) {
+  const [open, setOpen] = useState(false);
+  const trigger = useRef(null);
+  const wasOpen = useRef(open);
+
+  useEffect(() => {
+    if (wasOpen.current && !open) trigger.current?.focus();
+    wasOpen.current = open;
+  }, [open]);
+
+  if (open) return <NameForm {...form} autoFocus onCancel={() => setOpen(false)} />;
+  return (
+    <Button
+      ref={trigger}
+      variant={variant}
+      icon="plus"
+      className="add-form__trigger"
+      onClick={() => setOpen(true)}
+    >
+      {form.button}
+    </Button>
   );
 }
 

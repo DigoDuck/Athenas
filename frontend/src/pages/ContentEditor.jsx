@@ -9,7 +9,6 @@ import {
   Inline,
   List,
   ListRow,
-  Panel,
   Stack,
   StateMessage,
   TextArea,
@@ -19,6 +18,7 @@ import "./content.css";
 
 // Paste the subtopic's Markdown, see what the import will make of it, then save (spec 4.2.1).
 // Saving needs a preview of the exact text in the field, so nothing is saved unseen.
+// It is a list item: the Library opens it right under the subtopic's row.
 export default function ContentEditor({ subtopic, onClose }) {
   const url = `/api/subtopics/${subtopic.id}/content/`;
   const [markdown, setMarkdown] = useState("");
@@ -76,9 +76,9 @@ export default function ContentEditor({ subtopic, onClose }) {
   const canSave = preview && preview.errors.length === 0 && markdown.trim();
 
   return (
-    <Panel raised ref={panel} tabIndex={-1} aria-labelledby="conteudo-subtema">
+    <li className="library-drawer" ref={panel} tabIndex={-1} aria-labelledby="conteudo-subtema">
       <Stack gap={6}>
-        <h2 id="conteudo-subtema">Conteúdo de {subtopic.name}</h2>
+        <h4 id="conteudo-subtema">Conteúdo de {subtopic.name}</h4>
         {loadError && (
           <StateMessage
             kind="error"
@@ -134,7 +134,7 @@ export default function ContentEditor({ subtopic, onClose }) {
         {preview && <Preview preview={preview} />}
         <CardApproval subtopicId={subtopic.id} version={version} />
       </Stack>
-    </Panel>
+    </li>
   );
 }
 
@@ -144,7 +144,7 @@ function Preview({ preview }) {
   return (
     <Stack as="section" gap={5} aria-labelledby="previa">
       <Inline justify="between">
-        <h3 id="previa">Prévia</h3>
+        <h5 id="previa">Prévia</h5>
         {state === "ready" ? (
           <Badge tone="success" icon="check-circle">
             Pronto
@@ -224,9 +224,9 @@ function Preview({ preview }) {
 function PreviewList({ title, empty, note, children }) {
   return (
     <Stack gap={2}>
-      <h4>
+      <h6>
         {title} ({children.length})
-      </h4>
+      </h6>
       {note && <p className="t-meta">{note}</p>}
       {children.length ? (
         <List label={title}>{children}</List>
@@ -303,7 +303,7 @@ function CardApproval({ subtopicId, version }) {
       className="card-approval"
     >
       <Inline justify="between">
-        <h3 id="aprovar-cartoes">Aprovar cartões</h3>
+        <h5 id="aprovar-cartoes">Aprovar cartões</h5>
         <span className="t-meta" aria-live="polite">
           {cards.length === 1 ? "1 pendente" : `${cards.length} pendentes`}
         </span>

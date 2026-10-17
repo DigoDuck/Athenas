@@ -115,6 +115,16 @@
   text-decoration: none;
 }
 
+/* A toggle that is on (an editor open under its row) keeps a selected background. */
+.ui-button--tertiary[aria-pressed="true"] {
+  background: var(--color-selected);
+}
+
+/* A text-only button stays text-only when disabled; a gray block would outweigh its row. */
+.ui-button--tertiary:disabled {
+  background: transparent;
+}
+
 /* Fields */
 
 .ui-field {
@@ -403,7 +413,7 @@
 
 .ui-list__main {
   display: grid;
-  flex: 1 1 16rem;
+  flex: 1 1 12rem; /* small enough that a row with five actions stays on one line at 1440 px */
   gap: var(--space-1);
 }
 
@@ -651,8 +661,11 @@ a.ui-list__title:hover {
   background-image: url("../assets/scenes/home.webp");
 }
 
-/* Internal screens: the page is an opaque sheet; the scene shows only in the margins. */
+/* Internal screens: the page is an opaque sheet; the scene shows only in the margins.
+   The sheet sits against the navigation, so on wide screens the garden opens to the right
+   instead of leaving the sheet floating in the middle. */
 .ui-shell[data-scene="garden"] .ui-shell__content {
+  margin-left: 0;
   min-height: calc(100vh - 2 * var(--layout-margin));
   padding: var(--space-6);
   border-radius: var(--radius-panel);

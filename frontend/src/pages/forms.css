@@ -1,0 +1,17 @@
+/* Fields side by side (an inline form, a pair of selects): each takes the row's free space
+   up to a comfortable width, instead of a narrow box floating on the left. The row does not
+   wrap, so a form opened in a page header keeps its buttons beside the field. */
+.ui-inline.field-row {
+  flex-wrap: nowrap;
+}
+
+.field-row > .ui-field {
+  flex: 1 1 16rem;
+  max-width: 28rem;
+}
+
+/* A tertiary "+" trigger lines its icon up with the content edge above it. */
+.ui-button--tertiary.add-form__trigger {
+  align-self: flex-start;
+  margin-left: calc(-1 * var(--space-3));
+}

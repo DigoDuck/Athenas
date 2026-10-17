@@ -53,6 +53,7 @@
   --text-display: 3.5rem; /* 56px, home opening */
   --text-page-title: 2.5rem; /* 40px */
   --text-section-title: 1.75rem; /* 28px */
+  --text-subsection-title: 1.375rem; /* 22px, not in the guide: a concept inside an area */
   --text-reading: 1.125rem; /* 18px */
   --text-ui: 1rem; /* 16px */
   --text-meta: 0.875rem; /* 14px */

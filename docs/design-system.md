@@ -19,6 +19,11 @@ The guide below is Diogo's design system v1, copied verbatim from `athenas-desig
   - The scene is decorative: hidden in focus mode and in print, invisible to screen readers. The portrait image (`03-fundo-celular`) is not used, since v1 is desktop only. The scenes replace the separate marble texture.
 - The owl emblem is used at every size; there is no simplified small version.
 - Not in the guide, added here: success, warning and error tint backgrounds for badges (each pair is at least 5:1), and a darker error for the destructive button hover.
+- Also not in the guide (UI polish, 2026-10-17):
+  - A subsection title role, 22 px Cormorant (`--text-subsection-title`, `.t-subsection-title`), for a concept inside an area in the Biblioteca. The guide jumps from the 28 px section title to 16 px interface text, which made a concept look like one of its subtopics.
+  - A disabled tertiary button stays text only (no `#ECEDE8` fill): a gray block next to text buttons, such as Subir at the top of a track, outweighed the whole row. Filled buttons keep the guide's disabled fill.
+  - On internal screens the sheet sits against the navigation instead of in the middle of the work area, so on screens wider than 1440 px the garden opens to the right instead of around a floating sheet.
+  - Creation forms open on demand from a "+" button (`AddForm` in `frontend/src/pages/forms.jsx`): the page action sits at the right of the page title, and a list's action sits under the list. Editors for a row open as an inset well right under that row.
 
 ---
 
