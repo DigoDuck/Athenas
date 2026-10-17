@@ -9,8 +9,9 @@ from django.db.models import Min
 from django.utils import timezone
 from organization.models import Settings
 
-from .models import Block, Content, Flashcard, PracticeQuestion, ReviewLog
-from .parser import ParsedContent
+from . import images
+from .models import Block, Content, Flashcard, Image, PracticeQuestion, ReviewLog
+from .parser import ParsedContent, reading_key
 
 
 @transaction.atomic
@@ -34,14 +35,15 @@ def _save_content(subtopic, parsed):
             "generated_by": parsed.generated_by,
         },
     )
-    # A block with identical kind, heading and body keeps its read mark (DECISIONS.md D-015).
+    # A block with identical kind, heading and body keeps its read mark (DECISIONS.md D-015);
+    # adding or moving an image line does not change the body it compares (D-033).
     read = defaultdict(list)
     for old in content.blocks.exclude(read_at=None):
-        read[(old.kind, old.heading, old.body)].append(old.read_at)
+        read[(old.kind, old.heading, reading_key(old.body))].append(old.read_at)
     content.blocks.all().delete()
     blocks = []
     for order, block in enumerate(parsed.blocks):
-        marks = read[(block.kind, block.heading, block.body)]
+        marks = read[(block.kind, block.heading, reading_key(block.body))]
         blocks.append(
             Block(
                 content=content,
@@ -92,6 +94,18 @@ def _sync_cards(subtopic, parsed):
             card.state_before_suspension = Flashcard.State.PENDING if rejected else card.state
             card.state = Flashcard.State.SUSPENDED
             card.save()
+
+
+def save_image(name, data, **credit) -> bool:
+    """Store or replace the image called `name`; True when it is new (D-033)."""
+    if not images.NAME_RE.fullmatch(name):
+        raise ValueError(f"Nome de imagem inválido: {name}; use letras minúsculas, números e -")
+    if found := images.problems(data, **credit):
+        raise ValueError("; ".join(found))
+    _, created = Image.objects.update_or_create(
+        name=name, defaults={"data": data, "media_type": images.media_type(data), **credit}
+    )
+    return created
 
 
 def approve_card(card) -> None:

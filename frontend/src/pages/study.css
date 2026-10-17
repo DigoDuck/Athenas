@@ -190,3 +190,9 @@
     position: static;
   }
 }
+
+/* A stored image's credit, under its caption (D-033). */
+.study__credit {
+  display: block;
+  margin-top: var(--space-1);
+}

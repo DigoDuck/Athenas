@@ -21,6 +21,9 @@ QUESTION_RE = re.compile(r"^###\s+(P\d+):\s*(.+?)\s*$")
 CARD_RE = re.compile(r"^-\s+(C\d+):\s*(.+?)\s*::\s*(.+?)\s*$")
 CARD_LABEL_RE = re.compile(r"^-\s+(C\d+):")
 SOURCE_RE = re.compile(r"Fonte:\s*(https?://\S+)")
+# One line on its own pointing at a stored image, `![legenda](/api/images/<nome>/)`, with the
+# optional `"título"` the reading screen also takes as the caption (D-033).
+IMAGE_RE = re.compile(r'^!\[([^\]]*)\]\(/api/images/([a-z0-9][a-z0-9-]*)/?(?:\s+"([^"]*)")?\)$')
 REFERENCE_PREFIX = "Resposta de referência:"
 # Stored without accents, like `Subtopic.Level` ("intermediário" -> "intermediario").
 LEVELS = {"iniciante", "intermediario", "avancado", "especialista"}
@@ -69,9 +72,10 @@ class Callout:
 
 @dataclass(frozen=True)
 class Segment:
-    kind: str  # "text", "code" or "ia"
+    kind: str  # "text", "code", "ia" or "image" (`text` is the line as written)
     text: str
     source: str | None = None
+    image: str | None = None
 
 
 @dataclass
@@ -85,6 +89,7 @@ class ParsedContent:
     questions: list[Question] = field(default_factory=list)
     cards: list[Card] = field(default_factory=list)
     callouts: list[Callout] = field(default_factory=list)
+    images: list[str] = field(default_factory=list)  # names, in order of first use
     state: str = "draft"
     warnings: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
@@ -105,6 +110,8 @@ def parse_markdown(text: str, target: Target | None = None) -> ParsedContent:
             parsed.cards, card_warnings = _parse_cards(block.body)
             parsed.warnings.extend(card_warnings)
     parsed.callouts = _parse_callouts(body)
+    found = (s.image for b in parsed.blocks for s in split_segments(b.body) if s.kind == "image")
+    parsed.images = list(dict.fromkeys(found))
 
     for label in _duplicates([q.label for q in parsed.questions]):
         parsed.errors.append(f"Rótulo duplicado: {label}")
@@ -252,6 +259,10 @@ def split_segments(body: str) -> list[Segment]:
         elif marker in ("```", "~~~"):
             close()
             kind, lines, fence = "code", [], marker
+        elif image := IMAGE_RE.match(stripped):
+            close()
+            segments.append(Segment("image", stripped, image=image[2]))
+            kind, lines = "text", []
         elif stripped.startswith("> [!ia]"):
             close()
             kind, lines = "ia", [stripped[1:].strip()]
@@ -264,6 +275,12 @@ def split_segments(body: str) -> list[Segment]:
             lines.append(line)
     close()
     return segments
+
+
+def reading_key(body: str) -> str:
+    """The body as a read mark compares it: image and blank lines do not count (D-015, D-033)."""
+    lines = (line.rstrip() for line in body.split("\n"))
+    return "\n".join(line for line in lines if line and not IMAGE_RE.match(line.strip()))
 
 
 def without_reference_answers(body: str) -> str:

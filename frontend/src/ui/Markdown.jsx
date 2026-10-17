@@ -220,6 +220,6 @@ function trimUrl(url) {
   return url.replace(/[.,;:!?]+$/, "");
 }
 
-function safeUrl(url) {
+export function safeUrl(url) {
   return /^https?:\/\//i.test(url) || /^\/(?!\/)/.test(url);
 }

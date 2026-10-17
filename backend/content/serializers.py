@@ -1,3 +1,6 @@
+import base64
+import binascii
+
 from rest_framework import serializers
 
 from .models import Block, Content, Flashcard
@@ -21,6 +24,28 @@ class FlashcardSerializer(serializers.ModelSerializer):
     class Meta:
         model = Flashcard
         fields = ["id", "origin", "subtopic", "concept", "label", "front", "back", "state"]
+
+
+OPTIONAL = {"required": False, "allow_blank": True, "default": ""}
+
+
+class ImageUploadSerializer(serializers.Serializer):
+    """JSON with the bytes in base64, so scripts/theme.py needs no multipart (D-033)."""
+
+    data = serializers.CharField()
+    generated_by = serializers.CharField(max_length=30, **OPTIONAL)
+    source_url = serializers.URLField(max_length=500, **OPTIONAL)
+    author = serializers.CharField(max_length=200, **OPTIONAL)
+    license = serializers.CharField(max_length=100, **OPTIONAL)
+
+    def validate_data(self, value):
+        try:
+            return base64.b64decode(value, validate=True)
+        except (binascii.Error, ValueError) as error:
+            raise serializers.ValidationError("data não é base64 válido") from error
+
+    def validate_generated_by(self, value):
+        return value.lower()
 
 
 class ManualCardSerializer(serializers.ModelSerializer):
