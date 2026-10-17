@@ -1,16 +1,20 @@
 """Push a study theme written by Claude into Athenas through its local API (DECISIONS.md D-030).
 
-A theme is a folder with `tema.json` (area, track, and the concepts and subtopics in study order)
-and one Markdown file per subtopic in the content contract (spec 4.1). The athenas-tema skill
-writes the folder; this script is the only way its content reaches the app.
+A theme is a folder with `tema.json` (area, track, the concepts and subtopics in study order, and
+the images with their credit) and one Markdown file per subtopic in the content contract (spec
+4.1). The athenas-tema skill writes the folder; this script is the only way its content reaches
+the app.
 
-check:  validate the folder with the app's own parser, without network.
-push:   check, then create only what is missing (area, track, concepts, steps, subtopics) and save
-        each subtopic's Markdown. It never approves, rejects, edits or deletes anything else, so
-        every card enters pending and waits for Diogo (spec 4.3).
+check:     validate the folder with the app's own parser and image rules, without network.
+push:      check, upload the images the app lacks, then create only what is missing (area, track,
+           concepts, steps, subtopics) and save each subtopic's Markdown. It never approves,
+           rejects, edits or deletes anything else, so every card enters pending and waits for
+           Diogo (spec 4.3).
+download:  save one Wikimedia Commons file into the theme folder (DECISIONS.md D-033).
 """
 
 import argparse
+import base64
 import json
 import sys
 import urllib.error
@@ -19,19 +23,42 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 USE_MODE = "http://127.0.0.1:8470"
+CREDIT = ("generated_by", "source_url", "author", "license")
+# Commons only: its file pages state author and license, so every credit can be checked (D-033).
+DOWNLOADS = ("https://upload.wikimedia.org/", "https://thumb.wikimedia.org/")
+sys.path.insert(0, str(ROOT / "backend"))  # for the app's pure modules: no Django
 
 
 def repeated(names):
     return sorted({name for name in names if names.count(name) > 1})
 
 
+def theme_images(folder, theme):
+    """(name, path, credit) for each image in tema.json; the name is the file name's stem."""
+    found = []
+    for image in theme.get("images", []):
+        path = folder / image.get("file", "")
+        found.append((path.stem, path, {key: image.get(key, "") for key in CREDIT}))
+    return found
+
+
 def check(folder):
     """The theme and the problems that block a push; prints one line per file that passes."""
-    sys.path.insert(0, str(ROOT / "backend"))
-    from content.parser import KNOWN_HEADINGS, Target, parse_markdown  # pure: no Django
+    from content import images
+    from content.parser import KNOWN_HEADINGS, Target, parse_markdown
 
     theme = json.loads((folder / "tema.json").read_text(encoding="utf-8"))
     problems = []
+    declared = set()
+    for name, path, credit in theme_images(folder, theme):
+        label = path.relative_to(folder).as_posix()
+        if not path.is_file():
+            problems.append(f"tema.json: image not found: {label}")
+            continue
+        if not images.NAME_RE.fullmatch(name):
+            problems.append(f"{label}: name it with lowercase letters, digits and -")
+        problems += [f"{label}: {item}" for item in images.problems(path.read_bytes(), **credit)]
+        declared.add(name)
     if not (theme.get("area") and theme.get("track") and theme.get("concepts")):
         problems.append("tema.json: needs area, track and at least one concept")
     concepts = theme.get("concepts", [])
@@ -67,6 +94,7 @@ def check(folder):
                 found.append("frontmatter needs origem: claude")
             if not any(b.kind == "Fontes" and "http" in b.body for b in parsed.blocks):
                 found.append("Fontes has no URL")
+            found += [f"image not in tema.json: {n}" for n in parsed.images if n not in declared]
             problems += [f"{subtopic['file']}: {item}" for item in found]
             if not found:
                 print(f"ok  {subtopic['file']}: {len(parsed.questions)} questions, "
@@ -86,6 +114,17 @@ def api(base, method, path, body=None):
             return response.status, json.load(response)
     except urllib.error.HTTPError as error:
         return error.code, error.read().decode("utf-8", "replace")
+
+
+def image_bytes(base, name):
+    """The stored image's bytes, or None when the app has no image by that name."""
+    try:
+        with urllib.request.urlopen(f"{base}/api/images/{name}/", timeout=60) as response:
+            return response.read()
+    except urllib.error.HTTPError as error:
+        if error.code == 404:
+            return None
+        sys.exit(f"GET /api/images/{name}/: HTTP {error.code}")
 
 
 def call(base, method, path, body=None, expect=200):
@@ -111,6 +150,21 @@ def push(folder, base, first, replace):
             "Diogo confirms."
         )
         return 2
+
+    images_saved, images_kept = 0, []
+    for name, path, credit in theme_images(folder, theme):
+        data = path.read_bytes()
+        stored = image_bytes(base, name)
+        if stored is not None and not replace:
+            if stored != data:
+                # Another theme or an earlier push owns this name: replacing it is on purpose.
+                images_kept.append(name)
+            continue
+        body = {"data": base64.b64encode(data).decode(), **credit}
+        status, answer = api(base, "PUT", f"/api/images/{name}/", body)
+        if status not in (200, 201):
+            sys.exit(f"PUT /api/images/{name}/: HTTP {status} {answer}")
+        images_saved += 1
 
     def create(path, body, label):
         data = call(base, "POST", path, body, expect=201)
@@ -155,20 +209,47 @@ def push(folder, base, first, replace):
             query = f"/api/flashcards/?subtopic={subtopic['id']}&state=pending"
             pending += len(call(base, "GET", query))
 
+    print(f"saved {images_saved} images")
+    if images_kept:
+        print("images left untouched, the app has other bytes (use --replace):", *images_kept)
     print(f"saved {saved} contents ({pending} cards pending approval), {unchanged} up to date")
     if kept:
         print("left untouched, the app has other content (use --replace):", ", ".join(kept))
     return 0
 
 
+def download(url, file):
+    from content import images
+
+    if not url.startswith(DOWNLOADS):
+        sys.exit(f"download takes only Wikimedia URLs: {', '.join(DOWNLOADS)} (D-033)")
+    # Wikimedia refuses requests without a User-Agent that names the client.
+    request = urllib.request.Request(url, headers={"User-Agent": "Athenas/0.1 (personal study)"})
+    with urllib.request.urlopen(request, timeout=60) as response:
+        data = response.read(images.MAX_BYTES + 1)
+    if len(data) > images.MAX_BYTES:
+        sys.exit(f"over {images.MAX_BYTES // 1024} KB: pick a smaller thumbnail (800px wide)")
+    if images.media_type(data) is None:
+        sys.exit("not a PNG, JPEG, GIF, WebP or SVG file")
+    file.parent.mkdir(parents=True, exist_ok=True)
+    file.write_bytes(data)
+    print(f"saved {file} ({len(data) // 1024} KB)")
+    return 0
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    parser.add_argument("command", choices=["check", "push"])
-    parser.add_argument("folder", type=Path)
+    parser.add_argument("command", choices=["check", "push", "download"])
+    parser.add_argument("folder", type=Path, help="the theme folder; for download, the file")
+    parser.add_argument("--url", help="download: a Wikimedia file or thumbnail address")
     parser.add_argument("--base", default=USE_MODE, help=f"API address, default {USE_MODE}")
     parser.add_argument("--first", action="store_true", help="allow the first concept (day 1)")
     parser.add_argument("--replace", action="store_true", help="re-import changed content")
     args = parser.parse_args()
+    if args.command == "download":
+        if not args.url:
+            sys.exit("download needs --url")
+        return download(args.url, args.folder)
     if args.command == "check":
         problems = check(args.folder)[1]
         print("\n".join(problems) or "all files pass")

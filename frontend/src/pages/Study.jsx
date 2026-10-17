@@ -13,6 +13,7 @@ import {
   Inline,
   Markdown,
   markdownLinks,
+  safeUrl,
   Panel,
   ProgressBar,
   Stack,
@@ -384,8 +385,43 @@ function siteName(url) {
   }
 }
 
-// The body as the API cut it: Markdown text, fenced code, and `[!ia]` callouts, which carry
-// "complemento sem fonte" when they have no source (spec 4.2.8).
+// A stored image with its credit, which lives with the image so it is never left out: a diagram
+// an AI drew carries the D-032 badge, a real picture its author, license and page (D-033).
+function Figure({ image }) {
+  const credit = image.generated_by ? (
+    <GeneratedByBadge by={image.generated_by} />
+  ) : (
+    <>
+      {image.author}, {image.license}
+      {safeUrl(image.source_url) && (
+        <>
+          {" · "}
+          <a href={image.source_url} target="_blank" rel="noreferrer">
+            {siteName(image.source_url)}
+          </a>
+        </>
+      )}
+    </>
+  );
+  return (
+    <div className="ui-markdown">
+      <figure>
+        {image.url ? (
+          <img src={image.url} alt={image.caption} loading="lazy" />
+        ) : (
+          <p className="t-meta">Imagem não encontrada.</p>
+        )}
+        <figcaption>
+          {image.caption}
+          {image.url && <span className="study__credit">{credit}</span>}
+        </figcaption>
+      </figure>
+    </div>
+  );
+}
+
+// The body as the API cut it: Markdown text, fenced code, `[!ia]` callouts, which carry
+// "complemento sem fonte" when they have no source (spec 4.2.8), and images.
 function Segments({ segments }) {
   if (segments.length === 0) return <p className="t-meta">Este bloco não tem texto.</p>;
   return (
@@ -399,6 +435,8 @@ function Segments({ segments }) {
           <Callout key={index} variant="ai" source={segment.source}>
             <Markdown text={calloutBody(segment.text)} />
           </Callout>
+        ) : segment.kind === "image" ? (
+          <Figure key={index} image={segment.image} />
         ) : (
           <Markdown key={index} text={segment.text} />
         ),
