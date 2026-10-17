@@ -520,8 +520,11 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
   import out of v1, while spec 1 and D-001 already let Claude prepare content outside the app,
   and spec 4.1 makes the Markdown template its prompt. The REST API already creates areas,
   tracks, concepts, steps and subtopics, and saves a subtopic's Markdown through the import the
-  screen uses (4.2). The app itself cannot use a claude.ai subscription: calling Claude from the
-  backend needs a paid API key, the `anthropic` package and requests that run for minutes.
+  screen uses (4.2). Inside the app, the documented path is an API key (Max plans include
+  monthly API credits, Pro does not), the `anthropic` package and requests that run for
+  minutes. Running Claude Code from the backend on Diogo's own subscription token
+  (`claude setup-token`) is a case the Claude Code docs do not cover, and it stops working once
+  `--bare`, which ignores that token, becomes the default for `claude -p`, as they announce.
 - Decision:
   - The `athenas-tema` skill for Claude Code turns one line (a theme, optionally `: goal`) into
     `temas/<slug>/` (git-ignored): `tema.json` with the area, the track, and its concepts and
@@ -539,8 +542,8 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
   - The generated Markdown carries `origem: claude` in its frontmatter. The parser ignores the
     key and the raw Markdown keeps it, so the backup and the day 28 verdict can tell generated
     content apart.
-  - The app itself still has no AI, so spec 2.2 is unchanged. A field in the app that calls the
-    API is left for after day 28, and would reuse the skill's rules as its prompt.
+  - The app itself still has no AI, so spec 2.2 is unchanged. A field in the app that calls
+    Claude is left for after day 28, and would reuse the skill's rules as its prompt.
 - Why: it needs no API key, no new dependency and no app code, so day 1 waits only for this
   change. Claude Code runs on Diogo's subscription, opens the sources itself and repeats the
   check until every file passes, a loop that a single API call from the backend would have to
