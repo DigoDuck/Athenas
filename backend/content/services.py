@@ -155,18 +155,21 @@ def rate_card(card, rating, *, now=None, enable_fuzzing=True) -> ReviewLog:
     )
 
 
-def review_queue(*, now=None) -> list[Flashcard]:
-    """Today's cards: same-day repeats first, then new cards, then due cards."""
-    repeats, picks = _today(now)
+def review_queue(*, now=None, cap=None) -> list[Flashcard]:
+    """Today's cards: same-day repeats first, then new cards, then due cards.
+
+    `cap` lowers the review cap for the day, as the return session does (spec 4.7).
+    """
+    repeats, picks = _today(now, cap)
     return repeats + picks
 
 
-def reviews_today(*, now=None) -> int:
+def reviews_today(*, now=None, cap=None) -> int:
     """The home screen's N: cards still to see today, never same-day repeats (D-022)."""
-    return len(_today(now)[1])
+    return len(_today(now, cap)[1])
 
 
-def _today(now):
+def _today(now, cap):
     now = _utc(now)
     start = timezone.make_aware(datetime.combine(timezone.localdate(now), time.min))
     end = start + timedelta(days=1)
@@ -182,7 +185,8 @@ def _today(now):
         .count()
     )
     # The review cap counts distinct cards per Bahia day (Q14); new cards take slots first.
-    free = max(settings.review_cap - len(seen_today), 0)
+    review_cap = settings.review_cap if cap is None else min(cap, settings.review_cap)
+    free = max(review_cap - len(seen_today), 0)
     new_slots = min(max(settings.new_card_cap - introduced_today, 0), free)
     new = list(active.filter(reviews__isnull=True).order_by("id")[:new_slots])
 

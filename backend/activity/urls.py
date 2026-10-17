@@ -13,5 +13,6 @@ urlpatterns = [
     path("subtopics/<int:pk>/practice/", views.PracticeView.as_view()),
     path("attempts/", views.AttemptView.as_view()),
     path("reviews/", views.ReviewView.as_view()),
+    path("home/", views.HomeView.as_view()),
     path("", include(router.urls)),
 ]

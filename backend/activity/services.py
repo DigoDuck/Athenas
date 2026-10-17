@@ -1,11 +1,13 @@
-"""Session events (spec 3.2, 4.11), reading (4.4.5, 4.8.1, 4.8.4), practice (4.8.3), review."""
+"""Session events (spec 3.2, 4.11), reading (4.4.5, 4.8.1, 4.8.4), practice (4.8.3),
+review (D-025) and the home screen (4.5)."""
 
 from content.models import Attempt, Block, ReviewLog
-from content.services import rate_card
+from content.services import rate_card, reviews_today
 from django.db import transaction
 from django.db.models.functions import TruncDate
 from django.utils import timezone
-from organization.models import Subtopic
+from organization.models import Subtopic, Track
+from organization.services import next_step
 
 from .models import SessionEvent
 
@@ -106,3 +108,91 @@ def session_days() -> set:
     completed = SessionEvent.objects.exclude(completed_at=None)
     # TruncDate uses the current time zone, America/Bahia, never the UTC date.
     return set(completed.annotate(day=TruncDate("completed_at")).values_list("day", flat=True))
+
+
+# A return session opens after this many full days without one and offers at most this many
+# reviews (spec 4.7).
+RETURN_AFTER_DAYS = 3
+RETURN_SESSION_REVIEWS = 5
+
+
+def in_return_session(*, now=None) -> bool:
+    """The first 5 reviews of a day after 3 or more full Bahia days without a session (4.7)."""
+    today = timezone.localdate(now)
+    earlier = [day for day in session_days() if day < today]
+    # Last session on Monday: Tuesday to Thursday are the full days, so Friday returns.
+    if not earlier or (today - max(earlier)).days - 1 < RETURN_AFTER_DAYS:
+        return False
+    # Each card rated completes its own review event (D-025), so reviews end the return session
+    # by count; any other activity completed today ends it at once (DECISIONS.md D-026).
+    studied = SessionEvent.objects.exclude(completed_at=None).exclude(kind=Kind.REVIEW_SESSION)
+    if studied.filter(completed_at__date=today).exists():
+        return False
+    reviewed = ReviewLog.objects.filter(reviewed_at__date=today).values("flashcard").distinct()
+    return reviewed.count() < RETURN_SESSION_REVIEWS
+
+
+def review_cap_today(*, now=None):
+    """The return session's cap, or None for the normal caps (DECISIONS.md D-026)."""
+    return RETURN_SESSION_REVIEWS if in_return_session(now=now) else None
+
+
+def open_home(*, now=None) -> dict:
+    """Records `app_opened` (spec Q2) and returns what the home screen shows (spec 4.5.2)."""
+    returning = in_return_session(now=now)
+    start_activity(Kind.APP_OPENED)
+    return {
+        "return_session": returning,
+        "last_stop": _last_stop(),
+        # The return session is only the point where Diogo stopped and its reviews (spec 4.7).
+        "next_steps": [] if returning else _next_steps(),
+        "reviews_today": reviews_today(now=now, cap=RETURN_SESSION_REVIEWS if returning else None),
+    }
+
+
+def _last_stop():
+    latest = (
+        SessionEvent.objects.filter(kind=Kind.READING)
+        .select_related("subtopic__concept")
+        .order_by("-started_at", "-id")
+        .first()
+    )
+    if latest is None:
+        return None
+    subtopic = latest.subtopic
+    block = Block.objects.filter(
+        content__subtopic=subtopic, order=resume_block_order(subtopic)
+    ).first()
+    return {
+        "subtopic": subtopic.id,
+        "subtopic_name": subtopic.name,
+        "concept_name": subtopic.concept.name,
+        # A preamble block has no heading (D-014); a re-import may have left no block at all.
+        "block_heading": (block.heading or block.kind) if block else "",
+    }
+
+
+def _next_steps():
+    """Each track's next step, with the first subtopic of its concept still to finish."""
+    steps = []
+    for track in Track.objects.prefetch_related("steps__concept__subtopics"):
+        step = next_step(track)
+        if step is None:
+            continue
+        subtopic = next(
+            (
+                s
+                for s in step.concept.subtopics.all()
+                if s.study_status != Subtopic.StudyStatus.COMPLETED
+            ),
+            None,
+        )
+        steps.append(
+            {
+                "track_name": track.name,
+                "concept_name": step.concept.name,
+                "subtopic": subtopic.id if subtopic else None,
+                "subtopic_name": subtopic.name if subtopic else "",
+            }
+        )
+    return steps

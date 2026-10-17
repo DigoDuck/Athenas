@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 
+import Home from "./pages/Home.jsx";
 import Library from "./pages/Library.jsx";
 import Practice from "./pages/Practice.jsx";
 import Review from "./pages/Review.jsx";
@@ -8,6 +9,7 @@ import Study from "./pages/Study.jsx";
 import { AppShell } from "./ui/index.js";
 
 const PAGES = {
+  inicio: { label: "Início", icon: "home", Component: Home },
   roadmap: { label: "Roadmap", icon: "roadmap", Component: Roadmap },
   biblioteca: { label: "Biblioteca", icon: "library", Component: Library },
   revisoes: { label: "Revisões", icon: "reviews", Component: Review },
@@ -29,7 +31,7 @@ function currentRoute() {
   if (key in SUBTOPIC_PAGES && /^\d+$/.test(id ?? "")) {
     return { page: "biblioteca", Subpage: SUBTOPIC_PAGES[key], subtopic: Number(id), key };
   }
-  return { page: key in PAGES ? key : "roadmap" };
+  return { page: key in PAGES ? key : "inicio" };
 }
 
 export default function App() {
@@ -44,7 +46,7 @@ export default function App() {
   const { Component } = PAGES[route.page];
 
   return (
-    <AppShell items={NAV_ITEMS} current={route.page}>
+    <AppShell items={NAV_ITEMS} current={route.page} scene={route.page === "inicio" ? "home" : "garden"}>
       {route.Subpage ? (
         <route.Subpage key={`${route.key}/${route.subtopic}`} subtopicId={route.subtopic} />
       ) : (
