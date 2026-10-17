@@ -39,6 +39,26 @@ class Block(models.Model):
         return f"{self.order} {self.kind}"
 
 
+class Image(models.Model):
+    """A picture a block shows with `![legenda](/api/images/<name>/)` (DECISIONS.md D-033).
+
+    The bytes live in the database so the app works offline and every backup carries them.
+    """
+
+    name = models.CharField(max_length=80, unique=True)
+    media_type = models.CharField(max_length=13)
+    data = models.BinaryField()
+    # "claude" for a diagram an AI drew; empty for a real picture, which then needs the rest.
+    generated_by = models.CharField(max_length=30, blank=True, default="")
+    source_url = models.URLField(max_length=500, blank=True, default="")
+    author = models.CharField(max_length=200, blank=True, default="")
+    license = models.CharField(max_length=100, blank=True, default="")
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.name
+
+
 class PracticeQuestion(models.Model):
     """Identity is the label (`P1`...) inside a subtopic (spec 3.3, item 2, and `[C2]`)."""
 
