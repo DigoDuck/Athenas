@@ -562,6 +562,37 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
   and `push` resumes where a run stopped. The month measures studying with generated content,
   which the day 28 verdict states with the features of the month (D-010).
 
+### D-029: Day 1 is 2026-10-17, on release `v0.1.1`
+
+- Date: 2026-10-17. Source: release R1 of `docs/plan.md`, run with Diogo; the date follows from
+  D-016.
+- Context: D-016 sets day 1 as the first day use mode runs a tag that passes the M1 gate, with at
+  least one concept registered. D-010 asks for the date to be recorded when it happens.
+- Decision:
+  - Day 1 is Saturday 2026-10-17 (Bahia). Use mode runs `v0.1.1` (770aabc: the M1 slices, the
+    library and roadmap polish and the theme skill of D-030). `v0.1.0` (ee91aa8) was tagged and
+    run the same day with an empty database and was replaced before any concept existed.
+  - The first concepts came from `scripts/theme.py push --first` at 14:03 UTC (11:03 Bahia):
+    the track "Engenharia de Agentes de IA", 5 concepts, 11 subtopics, 63 cards pending
+    approval. Diogo reviewed the same folder on a disposable copy before it was pushed.
+  - The D-010 window, in Bahia days: block 1 from 2026-10-17 to 10-23, block 2 from 10-24 to
+    10-30, block 3 from 10-31 to 11-06, block 4 from 11-07 to 11-13. Day 28 is 2026-11-13.
+  - Use mode runs from a separate checkout on a tag (`Projetos\Athenas-use`), not from the dev
+    clone, so dev work never stops it. The hourly backup task points at that checkout, and
+    exports reach the vault folder `07 - Assets\Athenas backup`.
+- Release checklist (plan section 5), all before day 1:
+  - `make lint` and `make test` on 770aabc: "All checks passed!", "101 passed", exit 0.
+  - The by-hand step (study, practice and review) ran on a disposable copy of the tag, never in
+    use mode, because its first concept would have started day 1 with test data.
+  - Restore drill, twice, each on a separate disposable database with the README commands
+    (`backup --force`, `flush`, `loaddata`): first with synthetic data on ee91aa8, then with the
+    export of the reviewed theme (257 objects). Every table count matched before and after.
+- Why: the verdict needs a fixed start, and recording how day 1 began keeps the first theme's
+  origin and the checks behind the tag in one place.
+- Risk: the first theme was saved before the parser kept `origem: claude` (D-030 says the raw
+  Markdown keeps the key, so the origin can be recovered from it). Restore commands with
+  `/backup/...` paths fail in Git Bash, which rewrites them; run them from PowerShell.
+
 ### D-032: The app keeps and shows who wrote a subtopic's text
 
 - Date: 2026-10-17. Source: the project goal Diogo updated on 2026-10-17 says agent-generated
