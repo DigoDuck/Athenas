@@ -378,8 +378,9 @@ v1 is done when all of the following hold in use mode on Diogo's computer:
 4. Use mode starts with Windows, listens on `127.0.0.1`, keeps its data apart from dev, and
    writes the daily JSON and Markdown backup to the vault folder.
 5. Session events are recorded for every activity, enough to compute the day 28 metrics.
-6. The core acceptance tests in `tests/acceptance/` pass, and `make lint` and `make test`
-   pass.
+6. The core acceptance tests pass: every section 8 scenario has a passing test in
+   `tests/acceptance/` or in `backend/tests/` (`DECISIONS.md` D-027, mapped in
+   `docs/acceptance-coverage.md`), and `make lint` and `make test` pass.
 
 ## 7. Core and acceptance tests
 
@@ -388,7 +389,9 @@ The core is: review scheduling and caps, status and completion rules, and Markdo
 the first month of use.
 
 Acceptance tests live in `tests/acceptance/` and are written by Diogo. Nothing else writes or
-edits files there. Section 8 proposes scenario titles.
+edits files there. For v1, a scenario also counts as covered by a passing test named after it in
+`backend/tests/`, written by the agent (`DECISIONS.md` D-027). Section 8 proposes scenario titles,
+and `docs/acceptance-coverage.md` maps each one to its tests.
 
 ## 8. Proposed acceptance scenario titles
 

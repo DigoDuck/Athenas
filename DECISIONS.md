@@ -485,3 +485,27 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
   others. If Drive changes file dates, `robocopy` recopies unchanged files every hour; the log
   then shows an odd copy exit code (1 or 3) on every run, not only after an export.
 
+
+### D-027: Agent-written tests in `backend/tests/` count as v1 acceptance tests
+
+- Date: 2026-10-17. Source: Diogo picked "Aceitar" on the card "Aceitar os testes do agente em
+  backend/tests como critério de pronto da v1?", after the implementation first rule of
+  2026-10-16 (`AGENTS.md`, How work flows).
+- Context: spec 6.6 and 7 make the core acceptance tests in `tests/acceptance/`, written by
+  Diogo, part of v1 done. Since 2026-10-16 the agent writes the core scenario tests in
+  `backend/tests/` instead, so scenarios 1 to 15 and 19 to 25 had tests only there, and the
+  spec contradicted the `v0.1.0` tag.
+- Decision:
+  - For v1, a spec section 8 scenario counts as covered when a test named after it passes,
+    either in `tests/acceptance/` (Diogo's) or in `backend/tests/` (written by the agent).
+    Both run in `make test` and in CI.
+  - `docs/acceptance-coverage.md` maps each scenario to its tests. It was checked scenario by
+    scenario before the tag, and the missing parts got tests in the same PR.
+  - `tests/acceptance/` stays Diogo's: agents never create or edit files there.
+- Why: the tag does not wait on Diogo rewriting by hand tests that already pass, and the core
+  rules stay under automated tests from day 1.
+- Cost: in `backend/tests/` the agent checks its own reading of the spec. The same reading wrote
+  the code and the test, so a misread rule passes both and only real use shows it. The coverage
+  map lowers that risk, since each test was read against the spec rule and not only its name,
+  but it is the same reader. Diogo can still move or rewrite any scenario into
+  `tests/acceptance/`; a rule found misread in use gets a fix and a new entry here.
