@@ -1,22 +1,133 @@
-/* Reading screen: the block outline, the reading column and the sources beside it. The sheet
-   takes the whole width here, so the space goes to navigation and support, not to longer lines. */
+/* Reading screen: title, a toolbar to move between blocks, the block on a white sheet and the
+   study support beside it. The page takes the whole width; the sheet holds the line length. */
 .ui-shell__content:has(> .study) {
-  max-width: none;
+  max-width: 74rem;
 }
 
+/* 48rem keeps a line of the block near 70 characters on any window. */
 .study {
   display: grid;
-  grid-template-columns: minmax(14rem, 18rem) minmax(0, 44rem) minmax(18rem, 24rem);
+  grid-template-columns: minmax(0, 48rem) minmax(18rem, 24rem);
+  justify-content: space-between;
   grid-template-areas:
-    ".       head ."
-    "outline main aside";
-  justify-content: center;
+    "head head"
+    "toolbar toolbar"
+    "main aside";
   align-items: start;
-  gap: var(--space-6) var(--space-7);
+  gap: var(--space-5) var(--space-6);
 }
 
 .study__head {
   grid-area: head;
+}
+
+.study__provenance {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.study__provenance .t-meta {
+  padding-left: var(--space-4);
+  border-left: var(--border-width) solid var(--color-border);
+}
+
+.study__toolbar {
+  grid-area: toolbar;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3) var(--space-5);
+  padding-bottom: var(--space-5);
+  border-bottom: var(--border-width) solid var(--color-border);
+}
+
+.study__toolbar .ui-progress {
+  flex: 1 1 12rem;
+}
+
+.study__toolbar .ui-progress__text,
+.study__position {
+  font-size: var(--text-ui);
+  color: var(--color-text);
+}
+
+.study__steps {
+  margin-left: auto;
+}
+
+/* The block picker: the list icon and a box naming the open block. */
+.study__picker .ui-popover__trigger {
+  gap: var(--space-4);
+  padding: 0;
+}
+
+.study__picker .ui-popover__trigger:hover,
+.study__picker .ui-popover__trigger[aria-expanded="true"] {
+  background: transparent;
+}
+
+.study__picker-icon {
+  color: var(--color-bronze);
+}
+
+.study__picker-box {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 17rem;
+  min-height: var(--control-height);
+  padding: 0 var(--space-3) 0 var(--space-4);
+  border: var(--border-width) solid var(--color-control-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+  transition: border-color var(--motion-duration) var(--motion-easing);
+}
+
+.study__picker .ui-popover__trigger:hover .study__picker-box,
+.study__picker .ui-popover__trigger[aria-expanded="true"] .study__picker-box {
+  border-color: var(--color-bronze);
+}
+
+.study__picker-name {
+  flex: 1;
+  overflow: hidden;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.study__picker-state {
+  color: var(--color-success);
+}
+
+.study__picker-box > .ui-icon:last-child {
+  color: var(--color-text);
+}
+
+.study__picker .ui-popover__panel {
+  width: 19rem;
+}
+
+.study__outline {
+  display: grid;
+  gap: var(--space-1);
+  padding: 0;
+  list-style: none;
+}
+
+.study__outline-item svg {
+  color: var(--color-control-border);
+}
+
+.study__outline-item[aria-current] svg,
+.study__outline-item[data-read] svg {
+  color: var(--color-success);
+}
+
+.study__outline-item:disabled {
+  cursor: progress;
 }
 
 .study__column {
@@ -25,83 +136,144 @@
   font-size: var(--text-reading);
 }
 
-.study__outline {
-  grid-area: outline;
-  position: sticky;
-  top: var(--space-5);
+/* The open block: a white sheet with an amber tab at its top left. */
+.study__block {
+  position: relative;
+  padding: var(--space-6) var(--space-7);
 }
 
+.study__block::before {
+  content: "";
+  position: absolute;
+  top: var(--space-5);
+  left: calc(-1 * var(--border-width));
+  width: 3px;
+  height: var(--space-7);
+  border-radius: 0 2px 2px 0;
+  background: var(--color-amber);
+}
+
+/* Focus lands on the sheet so readers follow a new block; a ring around the text is noise. */
+.study__block:focus-visible {
+  outline: none;
+}
+
+.study__block h2 {
+  font-size: var(--text-block-title);
+}
+
+/* The sheet already holds the line length (about 70 characters at 1440 px). */
+.study__block .t-reading {
+  max-width: none;
+}
+
+.study__actions,
+.study__forward {
+  padding-top: var(--space-5);
+  border-top: var(--border-width) solid var(--color-border);
+}
+
+.study__forward {
+  display: grid;
+  justify-items: end;
+  gap: var(--space-3);
+}
+
+.study__next {
+  color: var(--color-bronze);
+}
+
+/* Study support: one heading that folds, and a row per aid. */
 .study__aside {
   grid-area: aside;
   position: sticky;
   top: var(--space-5);
+  padding-left: var(--space-5);
+  border-left: var(--border-width) solid var(--color-border);
+}
+
+.study__aside summary {
+  list-style: none;
+  cursor: pointer;
+}
+
+.study__aside summary::-webkit-details-marker {
+  display: none;
+}
+
+.study__aside-head {
   display: flex;
-  flex-direction: column;
-  gap: var(--space-5);
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: var(--target-size);
+  padding-bottom: var(--space-3);
+  border-bottom: var(--border-width) solid var(--color-border);
 }
 
-.study__label {
-  margin-bottom: var(--space-3);
-  font-family: var(--font-body);
-  font-size: var(--text-meta);
-  line-height: var(--leading-meta);
-  font-weight: var(--weight-semibold);
-  letter-spacing: var(--tracking-caps);
-  text-transform: uppercase;
-  color: var(--color-text-muted);
+.study__chevron {
+  transition: transform var(--motion-duration) var(--motion-easing);
 }
 
-.study__aside .study__label {
-  margin-bottom: 0;
+details[open] > summary .study__chevron {
+  transform: rotate(180deg);
 }
 
-.study__outline ol {
+.study__support {
   padding: 0;
   list-style: none;
 }
 
-.study__outline-item {
+.study__support > li {
+  border-bottom: var(--border-width) solid var(--color-border);
+}
+
+.study__support-row {
   display: flex;
   align-items: flex-start;
-  gap: var(--space-2);
-  width: 100%;
-  min-height: var(--control-height);
-  padding: var(--space-2) var(--space-3);
-  border: 0;
-  border-radius: var(--radius-control);
-  background: transparent;
-  color: var(--color-text-muted);
-  font: inherit;
-  font-size: var(--text-ui);
-  line-height: var(--leading-ui);
-  text-align: left;
+  gap: var(--space-4);
+  padding: var(--space-5) var(--space-2);
+  color: var(--color-text);
+  text-decoration: none;
   cursor: pointer;
-  transition: background var(--motion-duration) var(--motion-easing);
+  border-radius: var(--radius-control);
+  transition: background-color var(--motion-duration) var(--motion-easing);
 }
 
-.study__outline-item svg {
-  flex: none;
-  margin-top: 2px;
-  color: var(--color-control-border);
-}
-
-.study__outline-item:hover:not(:disabled) {
+.study__support-row:hover {
   background: var(--color-surface-muted);
+}
+
+.study__support-row > .ui-icon:first-child {
   color: var(--color-text);
 }
 
-.study__outline-item[aria-current] {
-  background: var(--color-selected);
-  color: var(--color-text);
-  font-weight: var(--weight-semibold);
+.study__support-row > .ui-icon:last-child:not(:first-child) {
+  margin-left: auto;
+  margin-top: var(--space-1);
 }
 
-.study__outline-item[aria-current] svg,
-.study__outline-item[data-read] svg {
-  color: var(--color-bronze);
+.study__support-text {
+  display: grid;
+  gap: var(--space-1);
 }
 
-.study__outline-item:disabled {
+.study__support-title {
+  font-size: var(--text-reading);
+  line-height: var(--leading-ui);
+}
+
+.study__check {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  margin: 0;
+  accent-color: var(--color-bronze);
+  cursor: pointer;
+}
+
+.study__check:disabled,
+.study__check[aria-busy] {
   cursor: progress;
 }
 
@@ -109,7 +281,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
-  padding: 0;
+  padding: 0 var(--space-2) var(--space-5) calc(var(--space-2) + var(--icon-md) + var(--space-4));
   list-style: none;
 }
 
@@ -121,7 +293,7 @@
   padding: var(--space-1) var(--space-3);
   border: var(--border-width) solid var(--color-border);
   border-radius: 999px;
-  background: var(--color-background);
+  background: var(--color-surface);
   font-size: var(--text-meta);
   line-height: var(--leading-meta);
   text-decoration: none;
@@ -132,15 +304,6 @@
 
 .study__sources a:hover {
   border-color: var(--color-bronze);
-}
-
-.study__block {
-  padding: var(--space-6);
-}
-
-/* The column already holds the line length (44rem minus padding is about 70 characters). */
-.study__block .t-reading {
-  max-width: none;
 }
 
 /* Review cards keep the text's own line breaks. */
@@ -154,40 +317,21 @@
   border-top: var(--border-width) solid var(--color-border);
 }
 
-/* Narrower desktops: the support moves under the text; the outline stays beside it. */
-@media (max-width: 1599px) {
+/* Narrower windows: the support moves under the block. */
+@media (max-width: 1099px) {
   .study {
-    grid-template-columns: 14rem minmax(0, 44rem);
-    grid-template-areas:
-      ".       head"
-      "outline main"
-      "outline aside";
-    row-gap: var(--space-6);
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "head" "toolbar" "main" "aside";
   }
 
   .study__aside {
     position: static;
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
-    align-items: start;
-  }
-}
-
-/* Below 1200px the top bar is sticky too, so the outline stops under it. */
-@media (max-width: 1199px) {
-  .study__outline {
-    top: calc(var(--control-height) + var(--space-6));
-  }
-}
-
-@media (max-width: 899px) {
-  .study {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-areas: "head" "main" "aside" "outline";
+    padding-left: 0;
+    border-left: 0;
   }
 
-  .study__outline {
-    position: static;
+  .study__block {
+    padding: var(--space-5);
   }
 }
 
