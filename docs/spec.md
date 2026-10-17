@@ -128,6 +128,9 @@ Diogo's own text, `DECISIONS.md` D-032).
 
 **Block**: kind (one of the known headings in 4.1, or `extra`), heading text, body, order.
 
+**Image**: a picture a block shows, stored in the app with its name, its bytes and its credit:
+who drew it (an AI) or where it came from (page, author, license) (`DECISIONS.md` D-033).
+
 **PracticeQuestion**: subtopic, label (`P1`, `P2`, ...), prompt, reference answer, archived
 flag. The label is the identity `[C2]`.
 
@@ -210,7 +213,9 @@ Resposta de referência: ...
 
 Headings are matched by their Portuguese text exactly as above. They are part of the contract,
 not UI copy. `origem` is optional: it names the AI that wrote the text, and Diogo's own text has
-none (`DECISIONS.md` D-032).
+none (`DECISIONS.md` D-032). An image is a line of its own,
+`![<legenda>](/api/images/<nome>/ "<título opcional>")`, naming an image stored in the app
+(`DECISIONS.md` D-033).
 
 ### 4.2 Import rules
 
@@ -241,6 +246,9 @@ none (`DECISIONS.md` D-032).
 10. Content with an `origem` shows "Gerado por <origem>" in the preview, while its pending
     cards are approved, in the reading and next to each reference answer (`DECISIONS.md`
     D-032).
+11. An image line shows the stored image with its caption and credit. A name with no stored
+    image shows a warning in the preview and its caption in the reading. Adding, moving or
+    removing an image line keeps a block's read mark (`DECISIONS.md` D-033).
 
 ### 4.3 Pending card approval
 
