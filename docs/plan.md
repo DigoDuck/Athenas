@@ -109,9 +109,11 @@ Why this order:
 | --- | --- | --- | --- | --- |
 | S8 | `feat/notebook-mode` | PLUMBING | Notebook presentation: Objetivo, Ideia central, Exemplo, Resumo para o caderno, then one practice prompt (Q16); notebook event | S |
 | S9 | `feat/settings-pomodoro` | PLUMBING | Settings screen (caps, retention, pomodoro durations); pomodoro with one discreet notice that never blocks studying | M |
+| S10 | `feat/theme-screen` | CORE | "Novo tema" screen: Diogo types a theme and a goal, the app builds the request for any AI (the Markdown contract and the `athenas-tema` rules) to copy, then checks the pasted answer with the parser and creates the track, concepts, subtopics and contents, cards pending; one concept per round (D-030) | M |
 
 Each one goes into the verdict under "features that shipped that month". Nothing outside spec 2.1
-enters M2, and a 14-day extension, if it happens, has no new features (D-010).
+enters M2 except S10, which Diogo brought into v1 (D-030), and a 14-day extension, if it happens,
+has no new features (D-010).
 
 ### M3: Day 28
 

@@ -3,6 +3,9 @@
 .env.*
 !.env.example
 
+# themes Claude writes before they reach the app (DECISIONS.md D-030)
+temas/
+
 # python
 __pycache__/
 *.pyc
