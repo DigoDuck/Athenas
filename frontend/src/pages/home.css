@@ -63,13 +63,57 @@
   font-size: clamp(1.25rem, 1.45vw, 1.5rem);
 }
 
+/* The board is a marble slab: its top right corner steps down into a band that runs off the
+   right edge of the window, and its thickness shows under it. */
 .scenic__board {
+  --fillet: 36px;
+  /* From the content's right edge to the window's, even when the content is centered. */
+  --bleed: calc(
+    var(--layout-margin) +
+      max(0px, (100vw - var(--layout-nav-width) - 2 * var(--layout-margin) - var(--layout-max-width)) / 2)
+  );
+  position: relative;
   margin-top: auto;
+  margin-right: clamp(var(--space-7), 10vw, 12rem);
   padding: var(--space-5) var(--space-7);
   border: 0;
   border-radius: var(--radius-board);
   background: var(--color-board);
-  box-shadow: var(--shadow-overlay);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 14px 0 -3px var(--color-board-edge),
+    0 15px 0 -3px rgba(52, 57, 47, 0.12),
+    0 30px 40px -12px rgba(52, 57, 47, 0.45);
+}
+
+/* The band, with a concave fillet where it meets the slab above and below. */
+.scenic__board::after {
+  content: "";
+  position: absolute;
+  top: var(--radius-board);
+  bottom: var(--radius-board);
+  left: 100%;
+  right: calc(-1 * (var(--bleed) + clamp(var(--space-7), 10vw, 12rem)));
+  pointer-events: none;
+  /* The band's own thickness, following its curves; a blur would smudge onto the slab. */
+  filter: drop-shadow(0 14px 0 var(--color-board-edge));
+  background:
+    radial-gradient(circle at 100% 0, transparent var(--fillet), var(--color-board) calc(var(--fillet) + 0.5px))
+      0 0 / var(--fillet) var(--fillet) no-repeat,
+    radial-gradient(circle at 100% 100%, transparent var(--fillet), var(--color-board) calc(var(--fillet) + 0.5px))
+      0 100% / var(--fillet) var(--fillet) no-repeat,
+    linear-gradient(var(--color-board), var(--color-board)) 0 var(--fillet) / 100%
+      calc(100% - 2 * var(--fillet)) no-repeat;
+}
+
+@media (max-width: 767px) {
+  .scenic__board {
+    margin-right: 0;
+  }
+
+  .scenic__board::after {
+    display: none;
+  }
 }
 
 .scenic__board h2 {

@@ -690,6 +690,9 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
   - Início and Roadmap sit on the `home` panorama, which now runs under the navigation and fades
     to marble on the left. The opening lines sit on that light side and the rest on one opaque
     board. Every other screen is plain marble: the garden scene and its sheet are removed.
+    The board is drawn as a marble slab, as in the mockups: its top right corner steps down
+    into a band that runs off the right edge of the window, and its thickness shows under it
+    (CSS only: a pseudo-element with concave fillets and solid offset shadows, no image).
   - Roadmap picks the track with a select instead of tabs and shows the track as a numbered line
     on the board. Moving and removing a step, adding a concept and removing the track move into
     small menus (`Popover`); "Criar trilha" is the existing form.

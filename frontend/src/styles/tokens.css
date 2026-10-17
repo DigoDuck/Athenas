@@ -50,6 +50,7 @@
   --color-primary-hover: #1e2d1a;
   --color-primary-pressed: #172314;
   --color-board: #f8f3ec; /* the warm board over the panorama */
+  --color-board-edge: #e6d6ba; /* the board's visible thickness under it */
   --color-disabled-bg: #ecede8;
   --color-disabled-text: #62675d;
 
