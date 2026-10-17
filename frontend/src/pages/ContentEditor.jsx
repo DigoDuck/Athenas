@@ -18,10 +18,11 @@ import "./content.css";
 
 // Paste the subtopic's Markdown, see what the import will make of it, then save (spec 4.2.1).
 // Saving needs a preview of the exact text in the field, so nothing is saved unseen.
-// It is a list item: the Library opens it right under the subtopic's row.
-export default function ContentEditor({ subtopic, onClose }) {
+// It is a list item: the Library opens it right under the subtopic's row. The Library keeps the
+// unsaved text (`draft`, `onDraft`), so closing the editor or opening another row never loses it.
+export default function ContentEditor({ subtopic, draft, onDraft, onClose }) {
   const url = `/api/subtopics/${subtopic.id}/content/`;
-  const [markdown, setMarkdown] = useState("");
+  const [markdown, setMarkdown] = useState(draft ?? "");
   const [loadError, setLoadError] = useState(null);
   const [preview, setPreview] = useState(null);
   const [busy, setBusy] = useState(null);
@@ -36,7 +37,8 @@ export default function ContentEditor({ subtopic, onClose }) {
   useEffect(() => {
     let active = true;
     api.get(url).then(
-      (content) => active && setMarkdown(content.raw_markdown),
+      // A draft, or text typed before the saved version arrives, wins over the saved version.
+      (content) => active && setMarkdown((current) => current || content.raw_markdown),
       (e) => active && e.status !== 404 && setLoadError(e.message),
     );
     return () => {
@@ -48,6 +50,7 @@ export default function ContentEditor({ subtopic, onClose }) {
     setMarkdown(value);
     setPreview(null);
     setSaved(null);
+    onDraft(value);
   }
 
   async function act(kind, request) {
@@ -70,13 +73,20 @@ export default function ContentEditor({ subtopic, onClose }) {
     act("save", async () => {
       const content = await api.put(url, { markdown });
       setSaved(content.state);
+      onDraft(undefined);
       setVersion((v) => v + 1);
     });
 
   const canSave = preview && preview.errors.length === 0 && markdown.trim();
 
   return (
-    <li className="library-drawer" ref={panel} tabIndex={-1} aria-labelledby="conteudo-subtema">
+    <li
+      className="library-drawer"
+      ref={panel}
+      tabIndex={-1}
+      aria-labelledby="conteudo-subtema"
+      onKeyDown={(e) => e.key === "Escape" && onClose()}
+    >
       <Stack gap={6}>
         <h4 id="conteudo-subtema">Conteúdo de {subtopic.name}</h4>
         {loadError && (
@@ -91,6 +101,7 @@ export default function ContentEditor({ subtopic, onClose }) {
           label="Markdown do subtema"
           help="Cole o arquivo inteiro, com o frontmatter. Depois pré-visualize para poder salvar."
           rows={14}
+          status={draft !== undefined && !saved ? "Ainda não salvo." : undefined}
           value={markdown}
           onChange={(e) => edit(e.target.value)}
           spellCheck={false}

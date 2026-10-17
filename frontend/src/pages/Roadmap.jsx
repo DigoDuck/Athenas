@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { api } from "../api.js";
 import {
@@ -121,7 +121,30 @@ function Track({ track, concepts, areaName, act, actionError, onRemove }) {
   const available = concepts.filter((c) => !inTrack.has(c.id));
   const last = track.steps.length - 1;
 
-  const move = (step, direction) => act(() => api.post(`/api/steps/${step.id}/move/`, { direction }));
+  const conceptSelect = useRef(null);
+  // Element ids to focus once the reloaded track is on screen, the first one enabled; empty
+  // means the concept select. Set before the write, read when the new track renders.
+  const refocus = useRef(null);
+
+  // Moving a step re-renders the list and drops focus, so it goes back to the same button,
+  // or to its sibling when the step reached the top or the bottom and the button went disabled.
+  useEffect(() => {
+    if (!refocus.current) return;
+    const target = refocus.current.map((id) => document.getElementById(id)).find((el) => el && !el.disabled);
+    refocus.current = null;
+    (target ?? conceptSelect.current)?.focus();
+  }, [track]);
+
+  function move(step, direction) {
+    const [same, other] = direction === "up" ? ["subir", "descer"] : ["descer", "subir"];
+    refocus.current = [`${same}-${step.id}`, `${other}-${step.id}`];
+    act(() => api.post(`/api/steps/${step.id}/move/`, { direction }));
+  }
+
+  function removeStep(step) {
+    refocus.current = [];
+    act(() => api.delete(`/api/steps/${step.id}/`));
+  }
 
   async function addStep(event) {
     event.preventDefault();
@@ -156,6 +179,7 @@ function Track({ track, concepts, areaName, act, actionError, onRemove }) {
               action={
                 <>
                   <Button
+                    id={`subir-${step.id}`}
                     variant="tertiary"
                     disabled={index === 0}
                     aria-label={`Subir ${step.concept_name}`}
@@ -164,6 +188,7 @@ function Track({ track, concepts, areaName, act, actionError, onRemove }) {
                     Subir
                   </Button>
                   <Button
+                    id={`descer-${step.id}`}
                     variant="tertiary"
                     disabled={index === last}
                     aria-label={`Descer ${step.concept_name}`}
@@ -175,7 +200,7 @@ function Track({ track, concepts, areaName, act, actionError, onRemove }) {
                     variant="tertiary"
                     icon="close"
                     aria-label={`Tirar da trilha ${step.concept_name}`}
-                    onClick={() => act(() => api.delete(`/api/steps/${step.id}/`))}
+                    onClick={() => removeStep(step)}
                   >
                     Tirar da trilha
                   </Button>
@@ -189,6 +214,7 @@ function Track({ track, concepts, areaName, act, actionError, onRemove }) {
       {available.length > 0 && (
         <Inline as="form" align="end" className="field-row" onSubmit={addStep}>
           <Select
+            ref={conceptSelect}
             label="Conceito"
             value={conceptId}
             placeholder="Escolha um conceito"

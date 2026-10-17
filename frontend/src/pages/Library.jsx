@@ -44,6 +44,8 @@ export default function Library() {
   const [actionError, setActionError] = useState(null);
   const [editing, setEditing] = useState(null);
   const [contentOf, setContentOf] = useState(null);
+  // Unsaved Markdown per subtopic id, kept while the content editor is closed.
+  const [drafts, setDrafts] = useState({});
 
   // Runs a write and reloads. Returns the error message, or null when it worked.
   async function run(write) {
@@ -150,6 +152,8 @@ export default function Library() {
                 contentOf={contentOf}
                 onContent={setContentOf}
                 onCloseContent={closeContent}
+                drafts={drafts}
+                onDraft={(id, text) => setDrafts((all) => ({ ...all, [id]: text }))}
                 run={run}
                 remove={remove}
                 actionError={actionError}
@@ -190,6 +194,8 @@ function Concept({
   contentOf,
   onContent,
   onCloseContent,
+  drafts,
+  onDraft,
   run,
   remove,
   actionError,
@@ -289,7 +295,14 @@ function Concept({
               />
               {/* Editors open right under their row, not at the end of the page. */}
               {editing === s.id && <SubtopicEditor subtopic={s} run={run} onClose={onCloseEditor} />}
-              {contentOf === s.id && <ContentEditor subtopic={s} onClose={onCloseContent} />}
+              {contentOf === s.id && (
+                <ContentEditor
+                  subtopic={s}
+                  draft={drafts[s.id]}
+                  onDraft={(text) => onDraft(s.id, text)}
+                  onClose={onCloseContent}
+                />
+              )}
             </Fragment>
           ))}
         </List>
@@ -316,7 +329,13 @@ function SubtopicEditor({ subtopic, run, onClose }) {
   useEffect(() => panel.current?.focus(), []);
 
   return (
-    <li className="library-drawer" ref={panel} tabIndex={-1} aria-labelledby="classificar-subtema">
+    <li
+      className="library-drawer"
+      ref={panel}
+      tabIndex={-1}
+      aria-labelledby="classificar-subtema"
+      onKeyDown={(e) => e.key === "Escape" && onClose()}
+    >
       <h4 id="classificar-subtema">Classificar {subtopic.name}</h4>
       {error && (
         <StateMessage kind="error" title="Não foi possível salvar.">
