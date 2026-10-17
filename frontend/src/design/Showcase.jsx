@@ -40,7 +40,8 @@ const secondaryItems = [{ id: "config", label: "Configurações", icon: "setting
 
 const scenes = [
   { value: "none", label: "Mármore (telas internas)" },
-  { value: "home", label: "Panorama (Início e Roadmap)" },
+  { value: "home", label: "Panorama do Início" },
+  { value: "roadmap", label: "Panorama do Roadmap" },
 ];
 
 const colors = [
@@ -118,9 +119,9 @@ export default function Showcase() {
   );
 
   // The panorama: opening lines on its light left side, everything else on opaque panels.
-  if (scene === "home") {
+  if (scene !== "none") {
     return (
-      <AppShell items={navItems} secondaryItems={secondaryItems} current="inicio" scene="home">
+      <AppShell items={navItems} secondaryItems={secondaryItems} current="inicio" scene={scene}>
         <div className="showcase__home">
           <Panel raised aria-labelledby="retomar">
             <Stack>
@@ -143,7 +144,6 @@ export default function Showcase() {
       items={navItems}
       secondaryItems={secondaryItems}
       current="biblioteca"
-      scene={scene === "none" ? null : scene}
     >
       <div className="showcase">
         <header className="showcase__header">

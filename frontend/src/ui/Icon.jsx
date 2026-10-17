@@ -123,14 +123,14 @@ const paths = {
   ),
   cards: (
     <>
-      <rect x="7" y="4" width="12" height="15" rx="2" transform="rotate(12 13 11.5)" />
-      <path d="M5.5 7.5 4 17.5a2 2 0 0 0 1.7 2.3l7.8 1.2" />
+      <rect x="7" y="5" width="13" height="16" rx="2" />
+      <path d="M5 17 2.5 6.5A2 2 0 0 1 4 4l9-2a2 2 0 0 1 2.4 1.5L16 5" />
     </>
   ),
   refresh: (
     <>
-      <path d="M20 12a8 8 0 1 1-2.4-5.7" />
-      <path d="M20 4v4h-4" />
+      <path d="M20 7v5h-5" />
+      <path d="M20 12a8 8 0 1 0-2.3 5.7" />
     </>
   ),
   graduation: (

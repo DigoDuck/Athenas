@@ -687,9 +687,14 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
   Revisões) as the new design to implement. The project goal puts stability first during the
   month of use, so the screens change and the data and endpoints do not.
 - Decision:
-  - Início and Roadmap sit on the `home` panorama, which now runs under the navigation and fades
-    to marble on the left. The opening lines sit on that light side and the rest on one opaque
-    board. Every other screen is plain marble: the garden scene and its sheet are removed.
+  - Início and Roadmap each sit on a sunset panorama from Diogo's frontend kit (`home-sunset`,
+    `roadmap-sunset`, with 1280px copies up to 1440px windows), which runs under the navigation
+    and fades to marble on the left. The opening lines sit on that light side and the rest on
+    one opaque board. The out-of-focus bushes at the bottom right are cut from the same
+    photograph into a full-size transparent layer drawn in front of the page, so they overlap
+    the board as in the mockups; menus still open above them. Every other screen is plain
+    marble with the kit's faint olive-leaf shadow in the top corner, behind the navigation only:
+    the garden scene, its sheet and the old `home.webp` are removed.
     The board is drawn as a marble slab, as in the mockups: its top right corner steps down
     into a band that runs off the right edge of the window, and its thickness shows under it
     (CSS only: a pseudo-element with concave fillets and solid offset shadows, no image).

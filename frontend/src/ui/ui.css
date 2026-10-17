@@ -879,25 +879,82 @@ a.ui-list__title:hover {
 }
 
 /* Scenes (decor): fixed behind the whole screen. The left side fades to marble so the
-   navigation and the page's opening text read on it; anything else sits on an opaque panel. */
-.ui-shell__scene {
+   navigation and the page's opening text read on it; anything else sits on an opaque panel.
+   The foliage layer is cut from the same photograph at full size, so the identical cover and
+   position keep it exactly on the bushes while it passes in front of the page. */
+.ui-shell__scene,
+.ui-shell__foliage {
   position: fixed;
   inset: 0;
-  background-color: var(--color-background);
-  background-position: center, right center;
+  background-position: center top;
+  background-repeat: no-repeat;
   background-size: cover;
 }
 
+.ui-shell__scene {
+  background-color: var(--color-background);
+}
+
+.ui-shell__scene::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--color-background) 78%, transparent),
+    color-mix(in srgb, var(--color-background) 43%, transparent) 24%,
+    transparent 53%
+  );
+}
+
 .ui-shell__scene--home {
-  background-image:
-    linear-gradient(
-      90deg,
-      color-mix(in srgb, var(--color-background) 96%, transparent) 0,
-      color-mix(in srgb, var(--color-background) 88%, transparent) 30%,
-      color-mix(in srgb, var(--color-background) 40%, transparent) 48%,
-      transparent 62%
-    ),
-    url("../assets/scenes/home.webp");
+  background-image: url("../assets/scenes/home-sunset.webp");
+}
+
+.ui-shell__scene--roadmap {
+  background-image: url("../assets/scenes/roadmap-sunset.webp");
+}
+
+@media (max-width: 1440px) {
+  .ui-shell__scene--home {
+    background-image: url("../assets/scenes/home-sunset-1280.webp");
+  }
+
+  .ui-shell__scene--roadmap {
+    background-image: url("../assets/scenes/roadmap-sunset-1280.webp");
+  }
+}
+
+/* The page drops its own stacking layer under a scene, so the foliage covers the board while
+   menus (z-index 10) still open above the foliage. */
+.ui-shell[data-scene] .ui-shell__main {
+  z-index: auto;
+}
+
+.ui-shell__foliage {
+  z-index: 2;
+}
+
+.ui-shell__foliage--home {
+  background-image: url("../assets/scenes/home-foliage.webp");
+}
+
+.ui-shell__foliage--roadmap {
+  background-image: url("../assets/scenes/roadmap-foliage.webp");
+}
+
+/* The olive-leaf shadow on quiet screens: a mask over a warm gray, kept in the top corner
+   behind the navigation, never under study text. */
+.ui-shell__leaf {
+  position: fixed;
+  top: -48px;
+  left: -38px;
+  width: 390px;
+  aspect-ratio: 1;
+  background: var(--color-shadow-ink);
+  mask: url("../assets/decor/olive-shadow.webp") left top / contain no-repeat;
+  opacity: 0.42;
+  filter: blur(5px);
 }
 
 .ui-nav {

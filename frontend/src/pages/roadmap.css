@@ -89,12 +89,12 @@
 }
 
 /* One column per step on a line that joins the numbers; long tracks scroll sideways. */
+/* Long tracks wrap to a new row: a scrolling row would clip the step menus. */
 .roadmap__steps {
   display: grid;
-  grid-auto-columns: minmax(10rem, 1fr);
-  grid-auto-flow: column;
+  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+  row-gap: var(--space-5);
   padding: 0 0 var(--space-2);
-  overflow-x: auto;
   list-style: none;
 }
 

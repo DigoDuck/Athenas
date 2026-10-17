@@ -8,11 +8,12 @@ import Icon from "./Icon.jsx";
 // items: [{ id, label, icon, href }]; `current` is the active item id.
 // Routing is left to the caller: items are plain links.
 //
-// `scene="home"` puts the sunset panorama behind the whole screen, for the screens that open
-// the day (Início, Roadmap). It is decorative and disappears in focus mode and in print. Its
-// left side fades to marble: only the navigation and the page's opening lines sit there, and
-// everything else on the page goes on an opaque Panel. Without a scene (default) the page sits
-// on the marble background.
+// `scene="home"` or `scene="roadmap"` puts a sunset panorama behind the whole screen, for the
+// screens that open the day (Início, Roadmap), and the bushes cut from the same photograph in
+// front of the page, so they overlap the board. Both are decorative and disappear in focus mode
+// and in print. The panorama's left side fades to marble: only the navigation and the page's
+// opening lines sit there. Without a scene (default) the page sits on marble with a faint
+// olive-leaf shadow in the top corner, behind the navigation only.
 
 // The owl emblem with the wordmark. The image is decorative: the wordmark names the link.
 // `compact` puts them side by side, for the collapsed top bar.
@@ -59,7 +60,7 @@ export default function AppShell({
       data-nav-open={open ? "true" : undefined}
       data-scene={scene || undefined}
     >
-      {scene && <div className={`ui-shell__scene ui-shell__scene--${scene} decor`} aria-hidden="true" />}
+      <div className={scene ? `ui-shell__scene ui-shell__scene--${scene} decor` : "ui-shell__leaf decor"} aria-hidden="true" />
       {/* The hash is the app's router, so the skip link moves focus without changing the URL. */}
       <a
         className="ui-skip-link"
@@ -103,6 +104,7 @@ export default function AppShell({
       <main className="ui-shell__main" id="conteudo" tabIndex={-1}>
         <div className="ui-shell__content">{children}</div>
       </main>
+      {scene && <div className={`ui-shell__foliage ui-shell__foliage--${scene} decor`} aria-hidden="true" />}
       {aside && (
         <aside className="ui-shell__aside" data-print="hide">
           {aside}

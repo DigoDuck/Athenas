@@ -22,8 +22,8 @@ const NAV_ITEMS = Object.entries(PAGES).map(([id, { label, icon }]) => ({
   href: `#/${id}`,
 }));
 
-// The screens that open the day get the panorama; the rest stay on plain marble.
-const SCENIC = new Set(["inicio", "roadmap"]);
+// The screens that open the day get a panorama each; the rest stay on plain marble.
+const SCENES = { inicio: "home", roadmap: "roadmap" };
 
 // "#/estudo/<subtopic id>" is reading and "#/pratica/<subtopic id>" practice; the nav keeps
 // Biblioteca marked.
@@ -49,7 +49,7 @@ export default function App() {
   const { Component } = PAGES[route.page];
 
   return (
-    <AppShell items={NAV_ITEMS} current={route.page} scene={SCENIC.has(route.page) && !route.Subpage ? "home" : null}>
+    <AppShell items={NAV_ITEMS} current={route.page} scene={route.Subpage ? null : (SCENES[route.page] ?? null)}>
       {route.Subpage ? (
         <route.Subpage key={`${route.key}/${route.subtopic}`} subtopicId={route.subtopic} />
       ) : (
