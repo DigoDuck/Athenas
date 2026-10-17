@@ -60,7 +60,7 @@ h3,
 .t-section-title {
   font-family: var(--font-display);
   font-weight: var(--weight-semibold);
-  color: var(--color-text);
+  color: var(--color-heading);
   text-wrap: balance;
 }
 
@@ -71,6 +71,7 @@ h3,
 
 h1,
 .t-page-title {
+  font-weight: var(--weight-bold);
   font-size: var(--text-page-title);
   line-height: var(--leading-page-title);
 }

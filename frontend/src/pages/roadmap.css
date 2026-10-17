@@ -31,7 +31,8 @@
   border: 0;
   border-bottom: var(--border-width) solid var(--color-control-border);
   background: transparent;
-  font-size: var(--text-subsection-title);
+  font-size: var(--text-lead);
+  color: var(--color-heading);
   cursor: pointer;
 }
 
@@ -67,12 +68,17 @@
   max-width: 44rem;
 }
 
-.roadmap__current .scenic__note {
-  max-width: 34rem;
+.roadmap__current .scenic__title {
+  font-size: calc(0.88 * var(--text-hero));
 }
 
-.roadmap__status {
+.roadmap__current .scenic__subtitle {
   margin-top: var(--space-3);
+  font-size: var(--text-section-title);
+}
+
+.roadmap__current .scenic__note {
+  max-width: 34rem;
 }
 
 .roadmap__board-head {
@@ -97,7 +103,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--space-2);
   padding: 0 var(--space-3);
   text-align: center;
 }
@@ -109,7 +115,7 @@
   left: 0;
   right: 0;
   height: var(--border-width);
-  background: var(--color-gold);
+  background: var(--color-copper);
 }
 
 .roadmap__step:first-child::before {
@@ -124,21 +130,21 @@
   position: relative;
   display: grid;
   place-items: center;
-  width: 52px;
-  height: 52px;
-  border: 1.5px solid var(--color-gold);
+  width: 56px;
+  height: 56px;
+  border: 1.5px solid var(--color-copper);
   border-radius: 50%;
   background: var(--color-surface);
   font-family: var(--font-display);
   font-size: var(--text-reading);
   font-weight: var(--weight-semibold);
   font-variant-numeric: lining-nums;
-  color: var(--color-text);
+  color: var(--color-heading);
 }
 
 .roadmap__step[aria-current] .roadmap__number {
-  border-color: var(--color-text);
-  background: var(--color-text);
+  border-color: var(--color-primary);
+  background: var(--color-primary);
   color: var(--color-text-inverse);
   box-shadow: 0 0 0 4px var(--color-surface), 0 0 0 5px var(--color-amber);
 }
@@ -148,7 +154,9 @@
   font-size: var(--text-subsection-title);
   line-height: var(--leading-section-title);
   font-weight: var(--weight-semibold);
+  color: var(--color-heading);
   text-wrap: balance;
+  max-width: 7.5em;
   /* Two lines for every name, so the badges and menus line up across the steps. */
   min-height: calc(2em * var(--leading-section-title));
 }
@@ -163,4 +171,18 @@
   left: 50%;
   transform: translateX(-50%);
   text-align: left;
+}
+
+.roadmap__status .ui-badge,
+.roadmap__board-head .t-meta {
+  font-size: var(--text-ui);
+}
+
+/* The current step, the board and its five columns share one window at 900px tall. */
+.roadmap__current .scenic__action {
+  margin-top: var(--space-4);
+}
+
+.roadmap__status {
+  margin-top: var(--space-2);
 }

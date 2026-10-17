@@ -24,44 +24,56 @@
   font-weight: var(--weight-semibold);
   letter-spacing: 0.32em;
   text-transform: uppercase;
-  color: var(--color-bronze);
+  color: var(--color-rust);
 }
 
 .scenic__title {
   font-size: var(--text-hero);
+  font-weight: var(--weight-bold);
   line-height: var(--leading-hero);
-  letter-spacing: -0.01em;
+  letter-spacing: -0.015em;
 }
 
 .scenic__subtitle {
   margin-top: var(--space-4);
-  font-size: var(--text-section-title);
+  font-size: var(--text-hero-sub);
   line-height: var(--leading-section-title);
+  color: var(--color-heading);
 }
 
 .scenic__note {
   margin-top: var(--space-2);
-  font-size: var(--text-reading);
+  font-size: var(--text-lead);
   color: var(--color-text-muted);
 }
 
 .scenic__note strong {
   font-weight: var(--weight-semibold);
-  color: var(--color-text);
+  color: var(--color-heading);
 }
 
 /* The opening action is the largest control on the screen. */
 .scenic__action {
-  --control-height: 56px;
+  --control-height: 64px;
   margin-top: var(--space-5);
-  font-size: var(--text-reading);
+}
+
+.scenic__action .ui-button {
+  padding-left: var(--space-6);
+  font-size: clamp(1.25rem, 1.45vw, 1.5rem);
 }
 
 .scenic__board {
   margin-top: auto;
-  padding: var(--space-6) var(--space-7) var(--space-5);
+  padding: var(--space-5) var(--space-7);
+  border: 0;
   border-radius: var(--radius-board);
+  background: var(--color-board);
   box-shadow: var(--shadow-overlay);
+}
+
+.scenic__board h2 {
+  font-size: var(--text-board-title);
 }
 
 /* Início's board: the track and practice side by side, today's reviews along the bottom. */
@@ -74,7 +86,7 @@
 .home__column {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  gap: var(--space-3);
 }
 
 .home__column + .home__column {
@@ -100,15 +112,18 @@
 }
 
 .home__lead {
-  font-size: var(--text-reading);
+  font-size: var(--text-lead);
   line-height: var(--leading-ui);
+  color: var(--color-text-muted);
 }
 
 .home__steps .home__lead {
   font-size: var(--text-subsection-title);
+  color: var(--color-heading);
 }
 
 .home__meta {
+  font-size: var(--text-lead);
   color: var(--color-text-muted);
 }
 
@@ -119,7 +134,13 @@
 
 .home__link {
   padding-left: 0;
-  font-size: var(--text-reading);
+  font-size: var(--text-lead);
+  color: var(--color-rust);
+}
+
+.home__column .ui-button--secondary {
+  --control-height: 52px;
+  font-size: var(--text-lead);
 }
 
 .home__reviews {
@@ -137,7 +158,7 @@
   font-family: var(--font-body);
   font-size: var(--text-ui);
   line-height: var(--leading-ui);
-  font-weight: var(--weight-semibold);
+  font-weight: var(--weight-regular);
 }
 
 .home__reviews > p {

@@ -706,6 +706,16 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
     paragraph mid-sentence. Sources are lists in the contract, so they keep one per line.
   - Revisões keeps the manual card form behind a "Novo cartão" button, and the empty state
     sends back to Início.
+  - The visual scale follows the mockups, not the v1 guide: type is larger and grows with the
+    window (study text 18 to 24px, UI 16 to 18px), titles are near black and the opening
+    lines, page titles and the open block use Cormorant Garamond 700 (a second weight file of
+    the same family). Study text, the navigation and the breadcrumb links are navy ink; the
+    primary action and the current page are forest green; the navigation line, its rings and
+    the open block's tab are copper; the current crumb and the next block are rust. Button
+    labels are regular weight, the owl emblem is copper, and the success and info tints are
+    more saturated. Every text pair stays at 4.5:1 or more (`tokens.css` lists each ratio).
+  - "Praticar este subtema" stays a link with a chevron to the right; the mockup draws it as a
+    disclosure, but nothing would open under it.
   - Left out of the mockups: the "Objetivo" bookmark at the top right of Início (no function
     behind it yet), the leaf shadow on the internal screens and the new landscape on Início and
     Roadmap (neither file is in the repo; the current panorama stands in).

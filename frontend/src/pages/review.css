@@ -123,6 +123,30 @@
   gap: var(--space-3);
   padding-left: var(--space-6);
   border-left: var(--border-width) solid var(--color-border);
-  font-size: var(--text-reading);
+  font-size: var(--text-lead);
   line-height: 2.5;
+}
+
+/* The mockup sets the empty state larger than the shared StateMessage. */
+.reviews__empty .ui-state__title {
+  font-size: var(--text-board-title);
+}
+
+.reviews__empty .ui-state__text {
+  max-width: 22em;
+  font-size: var(--text-lead);
+}
+
+.reviews__empty-actions .ui-button {
+  --control-height: 60px;
+  font-size: var(--text-lead);
+}
+
+.reviews__head .t-meta,
+.reviews__note .t-meta {
+  font-size: var(--text-ui);
+}
+
+.reviews__note p:not(.t-meta) {
+  font-size: var(--text-lead);
 }

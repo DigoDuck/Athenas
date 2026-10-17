@@ -196,12 +196,12 @@ export default function Study({ subtopicId }) {
             className="study__picker"
             trigger={
               <>
-                <Icon name="list" size={24} className="study__picker-icon" />
+                <Icon name="list" size={30} className="study__picker-icon" />
                 <span className="study__picker-box">
-                  <Icon name={block.read_at ? "check-circle" : "circle"} className="study__picker-state" />
+                  <Icon name={block.read_at ? "check-circle" : "circle"} size={24} className="study__picker-state" />
                   <span className="visually-hidden">Escolher bloco. Bloco atual: </span>
                   <span className="study__picker-name">{block.heading || "Introdução"}</span>
-                  <Icon name="chevron-down" />
+                  <Icon name="chevron-down" size={24} />
                 </span>
               </>
             }
@@ -383,17 +383,17 @@ function Aside({ blocks, subtopicId }) {
     <details className="study__aside" open>
       <summary className="study__aside-head">
         <h2 className="t-section-title">Apoio ao estudo</h2>
-        <Icon name="chevron-down" size={24} className="study__chevron" />
+        <Icon name="chevron-down" size={28} className="study__chevron" />
       </summary>
       <ul className="study__support">
         <li>
           <a className="study__support-row" href={`#/pratica/${subtopicId}`}>
-            <Icon name="pencil" size={24} />
+            <Icon name="pencil" size={30} />
             <span className="study__support-text">
               <span className="study__support-title">Praticar este subtema</span>
               <span className="t-meta">Explicação e questões</span>
             </span>
-            <Icon name="chevron-right" />
+            <Icon name="chevron-right" size={24} />
           </a>
         </li>
         <li>
@@ -403,14 +403,14 @@ function Aside({ blocks, subtopicId }) {
           <li>
             <details className="study__sources-box">
               <summary className="study__support-row">
-                <Icon name="file-text" size={24} />
+                <Icon name="file-text" size={30} />
                 <span className="study__support-text">
                   <span className="study__support-title">Fontes</span>
                   <span className="t-meta">
                     {sources.length === 1 ? "1 referência" : `${sources.length} referências`}
                   </span>
                 </span>
-                <Icon name="chevron-down" className="study__chevron" />
+                <Icon name="chevron-down" size={24} className="study__chevron" />
               </summary>
               <ul className="study__sources">
                 {sources.map(({ url, label }) => (

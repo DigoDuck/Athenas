@@ -51,7 +51,8 @@ export function CardsDueBadge() {
 export function GeneratedByBadge({ by }) {
   return (
     <Badge tone="info" icon="info">
-      Gerado por {by}
+      {/* The stored value is lowercase ("claude"); the mark names the tool as a name. */}
+      Gerado por {by.charAt(0).toUpperCase() + by.slice(1)}
     </Badge>
   );
 }

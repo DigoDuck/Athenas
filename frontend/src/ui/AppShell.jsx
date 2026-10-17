@@ -19,7 +19,7 @@ import Icon from "./Icon.jsx";
 export function Brand({ compact = false }) {
   return (
     <a className={`ui-brand${compact ? " ui-brand--compact" : ""}`} href="/">
-      <img className="ui-brand__emblem" src={emblem} alt="" width={compact ? 32 : 56} height={compact ? 32 : 56} />
+      <img className="ui-brand__emblem" src={emblem} alt="" width={compact ? 32 : 72} height={compact ? 32 : 72} />
       <span className="ui-brand__word">Athenas</span>
     </a>
   );
@@ -35,7 +35,7 @@ function NavList({ items, current }) {
             href={item.href}
             aria-current={item.id === current ? "page" : undefined}
           >
-            <Icon name={item.icon} size={24} />
+            <Icon name={item.icon} size={28} />
             {item.label}
           </a>
         </li>

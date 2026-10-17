@@ -79,7 +79,7 @@ export default function Review() {
         <ReviewCard key={`${card.id}:${round}`} card={card} focusOnShow={round > 0} onRated={onRated} />
       ) : (
         <Panel raised as="div" className="reviews__empty">
-          <Icon name="cards" size={48} />
+          <Icon name="cards" size={56} />
           <p className="ui-state__title">Nenhum cartão para revisar agora.</p>
           <p className="ui-state__text">Os próximos aparecem aqui quando chegar a hora de revê-los.</p>
           <Inline gap={5} justify="center" className="reviews__empty-actions">
@@ -93,7 +93,7 @@ export default function Review() {
         </Panel>
       )}
       <aside className="reviews__note" aria-label="Sobre os cartões">
-        <Icon name="info" size={28} />
+        <Icon name="info" size={32} />
         <div>
           <p>Cartões importados só entram na revisão após aprovação.</p>
           <p className="t-meta">Cartões manuais criados aqui entram diretamente na revisão.</p>
