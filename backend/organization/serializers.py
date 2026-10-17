@@ -113,5 +113,4 @@ class SettingsSerializer(serializers.ModelSerializer):
             "desired_retention",
             "pomodoro_focus_minutes",
             "pomodoro_break_minutes",
-            "backup_folder",
         ]

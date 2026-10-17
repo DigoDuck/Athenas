@@ -121,7 +121,6 @@ class Settings(models.Model):
     pomodoro_break_minutes = models.PositiveIntegerField(
         default=5, validators=[MinValueValidator(1), MaxValueValidator(60)]
     )
-    backup_folder = models.CharField(max_length=500, blank=True)
 
     class Meta:
         verbose_name_plural = "settings"
