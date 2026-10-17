@@ -76,6 +76,37 @@
   background: var(--color-primary-pressed);
 }
 
+/* The way forward: a pill whose arrow sits in an amber disc at the end. */
+.ui-button--primary:has(.ui-button__end) {
+  border-radius: 999px;
+  padding-right: var(--space-1);
+}
+
+.ui-button__end {
+  display: inline-flex;
+}
+
+.ui-button--primary .ui-button__end {
+  align-items: center;
+  justify-content: center;
+  width: calc(var(--control-height) - 2 * var(--space-1));
+  aspect-ratio: 1;
+  margin-left: var(--space-3);
+  border-radius: 50%;
+  background: var(--color-amber);
+  color: var(--color-text);
+  transition: transform var(--motion-duration) var(--motion-easing);
+}
+
+.ui-button--primary:hover .ui-button__end {
+  transform: translateX(2px);
+}
+
+.ui-button--primary:disabled .ui-button__end {
+  background: transparent;
+  color: inherit;
+}
+
 .ui-button--secondary {
   background: var(--color-surface);
   border-color: var(--color-bronze);
@@ -683,6 +714,91 @@ a.ui-list__title:hover {
   color: var(--color-text-muted);
 }
 
+/* Popover: a small panel under its button, above the page. */
+
+.ui-popover {
+  position: relative;
+}
+
+.ui-popover__trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--control-height);
+  min-width: var(--control-height);
+  justify-content: center;
+  padding: 0 var(--space-2);
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--color-text);
+  cursor: pointer;
+  transition: background-color var(--motion-duration) var(--motion-easing);
+}
+
+.ui-popover__trigger:hover,
+.ui-popover__trigger[aria-expanded="true"] {
+  background: var(--color-selected);
+}
+
+.ui-popover__panel {
+  position: absolute;
+  top: calc(100% + var(--space-1));
+  left: 0;
+  z-index: 10;
+  display: grid;
+  gap: var(--space-1);
+  min-width: 15rem;
+  max-height: min(70vh, 32rem);
+  padding: var(--space-2);
+  overflow-y: auto;
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-panel);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-overlay);
+}
+
+.ui-popover__panel[data-align="end"] {
+  left: auto;
+  right: 0;
+}
+
+/* A row inside the panel: a menu action or a list entry. */
+.ui-popover__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: var(--control-height);
+  padding: var(--space-2) var(--space-3);
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.ui-popover__item:hover:not(:disabled) {
+  background: var(--color-surface-muted);
+}
+
+.ui-popover__item[aria-current] {
+  background: var(--color-selected);
+  font-weight: var(--weight-semibold);
+}
+
+.ui-popover__item:disabled {
+  color: var(--color-disabled-text);
+  cursor: not-allowed;
+}
+
+.ui-popover__item--danger {
+  color: var(--color-error);
+}
+
 /* Brand */
 
 .ui-brand {
@@ -743,36 +859,33 @@ a.ui-list__title:hover {
   position: relative;
   z-index: 1;
   border-right: var(--border-width) solid var(--color-border);
-  background: var(--color-surface);
 }
 
-/* Sunset backgrounds (decor): fixed behind the work area, never under study text. */
+/* Over a scene the photograph runs under the navigation; its light side carries the text. */
+.ui-shell[data-scene] .ui-shell__nav-column {
+  border-right-color: transparent;
+}
+
+/* Scenes (decor): fixed behind the whole screen. The left side fades to marble so the
+   navigation and the page's opening text read on it; anything else sits on an opaque panel. */
 .ui-shell__scene {
   position: fixed;
-  inset: 0 0 0 var(--layout-nav-width);
+  inset: 0;
   background-color: var(--color-background);
-  background-position: center;
+  background-position: center, right center;
   background-size: cover;
 }
 
-.ui-shell__scene--garden {
-  background-image: url("../assets/scenes/garden.webp");
-}
-
 .ui-shell__scene--home {
-  background-image: url("../assets/scenes/home.webp");
-}
-
-/* Internal screens: the page is an opaque sheet; the scene shows only in the margins.
-   The sheet sits against the navigation, so on wide screens the garden opens to the right
-   instead of leaving the sheet floating in the middle. */
-.ui-shell[data-scene="garden"] .ui-shell__content {
-  margin-left: 0;
-  min-height: calc(100vh - 2 * var(--layout-margin));
-  padding: var(--space-6);
-  border-radius: var(--radius-panel);
-  background: var(--color-background);
-  box-shadow: var(--shadow-panel);
+  background-image:
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--color-background) 96%, transparent) 0,
+      color-mix(in srgb, var(--color-background) 88%, transparent) 30%,
+      color-mix(in srgb, var(--color-background) 40%, transparent) 48%,
+      transparent 62%
+    ),
+    url("../assets/scenes/home.webp");
 }
 
 .ui-nav {
@@ -791,39 +904,75 @@ a.ui-list__title:hover {
   padding: 0 var(--space-3) var(--space-6);
 }
 
+/* The items hang on a thin gold line, one ring each; the current page is a dark pill. */
 .ui-nav__list {
+  position: relative;
   display: grid;
-  gap: var(--space-1);
-  padding: 0;
+  gap: var(--space-4);
+  padding: 0 0 0 var(--space-5);
   list-style: none;
 }
 
+.ui-nav__list::before {
+  content: "";
+  position: absolute;
+  top: calc(-1 * var(--space-5));
+  bottom: calc(-1 * var(--space-6));
+  left: var(--space-2);
+  width: var(--border-width);
+  background: linear-gradient(var(--color-gold) 85%, transparent);
+}
+
 .ui-nav__item {
+  position: relative;
   display: flex;
   align-items: center;
   gap: var(--space-3);
   min-height: var(--target-size);
-  padding: 0 var(--space-3);
-  border-left: 3px solid transparent;
-  border-radius: var(--radius-control);
-  color: var(--color-text-muted);
+  padding: 0 var(--space-4);
+  border-radius: 999px;
+  color: var(--color-text);
   text-decoration: none;
+  transition:
+    background-color var(--motion-duration) var(--motion-easing),
+    color var(--motion-duration) var(--motion-easing);
+}
+
+.ui-nav__item::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: calc(var(--space-2) - var(--space-5) - 5px);
+  width: 11px;
+  height: 11px;
+  border: 1.5px solid var(--color-gold);
+  border-radius: 50%;
+  background: var(--color-background);
+  transform: translateY(-50%);
+}
+
+.ui-nav__item .ui-icon {
+  color: var(--color-text);
 }
 
 .ui-nav__item:hover {
-  color: var(--color-text);
-  background: var(--color-background);
+  background: color-mix(in srgb, var(--color-selected) 70%, transparent);
 }
 
 .ui-nav__item[aria-current="page"] {
-  border-left-color: var(--color-bronze);
-  background: var(--color-selected);
-  color: var(--color-text);
+  background: var(--color-text);
+  color: var(--color-text-inverse);
   font-weight: var(--weight-semibold);
 }
 
 .ui-nav__item[aria-current="page"] .ui-icon {
-  color: var(--color-bronze);
+  color: var(--color-sunset);
+}
+
+.ui-nav__item[aria-current="page"]::before {
+  border-color: var(--color-bronze);
+  background: var(--color-sunset);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-sunset) 35%, transparent);
 }
 
 .ui-nav__secondary {
@@ -889,19 +1038,12 @@ a.ui-list__title:hover {
     border-right: 0;
   }
 
-  .ui-shell__scene {
-    left: 0;
-  }
-
-  .ui-shell[data-scene="garden"] .ui-shell__content {
-    padding: var(--space-5);
-  }
-
   .ui-nav {
     display: none;
     position: static;
     height: auto;
     border-bottom: var(--border-width) solid var(--color-border);
+    background: var(--color-surface);
   }
 
   .ui-nav__brand {

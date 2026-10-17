@@ -8,13 +8,11 @@ import Icon from "./Icon.jsx";
 // items: [{ id, label, icon, href }]; `current` is the active item id.
 // Routing is left to the caller: items are plain links.
 //
-// `scene` puts one of the sunset backgrounds behind the work area. Both are decorative and
-// disappear in focus mode and in print.
-// - "garden" (default): internal screens. The page sits on an opaque sheet and the
-//   colonnade shows only in the margins around it.
-// - "home": the opening screen. There is no sheet, so every piece of text on that page
-//   must sit inside an opaque Panel, never on the photograph.
-// - null: no background.
+// `scene="home"` puts the sunset panorama behind the whole screen, for the screens that open
+// the day (Início, Roadmap). It is decorative and disappears in focus mode and in print. Its
+// left side fades to marble: only the navigation and the page's opening lines sit there, and
+// everything else on the page goes on an opaque Panel. Without a scene (default) the page sits
+// on the marble background.
 
 // The owl emblem with the wordmark. The image is decorative: the wordmark names the link.
 // `compact` puts them side by side, for the collapsed top bar.
@@ -51,7 +49,7 @@ export default function AppShell({
   secondaryItems = [],
   current,
   aside,
-  scene = "garden",
+  scene = null,
   children,
 }) {
   const [open, setOpen] = useState(false);

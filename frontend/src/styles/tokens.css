@@ -23,6 +23,7 @@
   /* Brand light. Decorative: never small text on white. */
   --color-gold: #b79a52; /* 2.71:1, emblems and ornaments */
   --color-sunset: #e6af50; /* 1.98:1, light and small highlights */
+  --color-amber: #c98b3f; /* disc behind the arrow of a forward action; 4.1:1 with --color-text */
 
   /* Accent */
   --color-bronze: #805c1f; /* 6.05:1, links, active icons, focus, progress fill */
@@ -50,15 +51,18 @@
   --font-body: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", Consolas, ui-monospace, monospace;
 
+  --text-hero: 5rem; /* 80px, not in the guide: the opening line of Início and Roadmap */
   --text-display: 3.5rem; /* 56px, home opening */
   --text-page-title: 2.5rem; /* 40px */
   --text-section-title: 1.75rem; /* 28px */
+  --text-block-title: 2.125rem; /* 34px, not in the guide: the open block on the reading screen */
   --text-subsection-title: 1.375rem; /* 22px, not in the guide: a concept inside an area */
   --text-reading: 1.125rem; /* 18px */
   --text-ui: 1rem; /* 16px */
   --text-meta: 0.875rem; /* 14px */
   --text-code: 0.9375rem; /* 15px */
 
+  --leading-hero: 0.95;
   --leading-display: 1.1;
   --leading-page-title: 1.15;
   --leading-section-title: 1.25;
@@ -86,8 +90,10 @@
   /* Shapes */
   --radius-control: 6px;
   --radius-panel: 10px;
+  --radius-board: 28px; /* the large board over the panorama */
   --border-width: 1px;
   --shadow-panel: 0 4px 16px rgba(52, 57, 47, 0.06);
+  --shadow-overlay: 0 12px 32px rgba(52, 57, 47, 0.14); /* a popover above the page */
 
   /* Controls */
   --control-height: 44px;
@@ -108,7 +114,7 @@
   /* Layout */
   --layout-nav-width: 224px;
   --layout-max-width: 1440px;
-  --layout-margin: var(--space-6);
+  --layout-margin: var(--space-7);
   --layout-aside-width: 360px;
 }
 
@@ -121,6 +127,7 @@
 @media (max-width: 767px) {
   :root {
     --layout-margin: var(--space-4);
+    --text-hero: 3rem; /* 48 */
     --text-display: 2.25rem; /* 36 */
     --text-page-title: 1.875rem; /* 30 */
     --text-section-title: 1.5rem; /* 24 */

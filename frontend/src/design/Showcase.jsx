@@ -7,11 +7,13 @@ import {
   Callout,
   CardsDueBadge,
   GeneratedByBadge,
+  Icon,
   Inline,
   List,
   ListRow,
   Markdown,
   Panel,
+  Popover,
   ProgressBar,
   ReviewFlagBadge,
   Select,
@@ -37,9 +39,8 @@ const navItems = [
 const secondaryItems = [{ id: "config", label: "Configurações", icon: "settings", href: "#design" }];
 
 const scenes = [
-  { value: "garden", label: "Jardim (telas internas)" },
-  { value: "home", label: "Principal (tela inicial)" },
-  { value: "none", label: "Nenhum" },
+  { value: "none", label: "Mármore (telas internas)" },
+  { value: "home", label: "Panorama (Início e Roadmap)" },
 ];
 
 const colors = [
@@ -86,7 +87,7 @@ function Section({ title, children }) {
 export default function Showcase() {
   const [tab, setTab] = useState("explicacao");
   const [focusMode, setFocusMode] = useState(false);
-  const [scene, setScene] = useState("garden");
+  const [scene, setScene] = useState("none");
   const [saving, setSaving] = useState(false);
   const [name, setName] = useState("");
 
@@ -108,7 +109,7 @@ export default function Showcase() {
     />
   );
 
-  // The home scene has no sheet: text only inside opaque panels, as the opening screen will do.
+  // The panorama: opening lines on its light left side, everything else on opaque panels.
   if (scene === "home") {
     return (
       <AppShell items={navItems} secondaryItems={secondaryItems} current="inicio" scene="home">
@@ -262,6 +263,18 @@ export default function Showcase() {
               { id: "caderno", label: "Modo caderno", content: <p>Versão para copiar no caderno.</p> },
             ]}
           />
+          <Popover label="Ações da etapa" trigger={<Icon name="more" />}>
+            {(close) => (
+              <>
+                <button type="button" className="ui-popover__item" onClick={close}>
+                  Mover para antes
+                </button>
+                <button type="button" className="ui-popover__item ui-popover__item--danger" onClick={close}>
+                  Tirar da trilha
+                </button>
+              </>
+            )}
+          </Popover>
         </Section>
 
         <Section title="Situação e progresso">

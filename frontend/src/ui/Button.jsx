@@ -4,6 +4,7 @@ import Icon from "./Icon.jsx";
 // always lays out its loading label (hidden), so it keeps its width when `loading` starts.
 // While loading it shows `loadingLabel` and ignores clicks, so a form cannot be sent twice.
 // A button without the prop reserves no room for it, so rows of links stay evenly spaced.
+// A primary button with an end icon is the screen's way forward: the icon sits in an amber disc.
 export default function Button({
   variant = "primary",
   type = "button",
@@ -24,7 +25,11 @@ export default function Button({
       <span className="ui-button__label" aria-hidden={loading || undefined}>
         {icon && <Icon name={icon} />}
         {children}
-        {iconEnd && <Icon name={iconEnd} />}
+        {iconEnd && (
+          <span className="ui-button__end">
+            <Icon name={iconEnd} />
+          </span>
+        )}
       </span>
       {loading !== undefined && (
         <span className="ui-button__label ui-button__label--loading" aria-hidden={!loading || undefined}>

@@ -16,6 +16,7 @@ export { Inline, Stack } from "./Layout.jsx";
 export { List, ListRow } from "./List.jsx";
 export { default as Markdown, markdownLinks, safeUrl } from "./Markdown.jsx";
 export { default as Panel } from "./Panel.jsx";
+export { default as Popover } from "./Popover.jsx";
 export { default as ProgressBar } from "./ProgressBar.jsx";
 export { default as StateMessage } from "./StateMessage.jsx";
 export { default as Switch } from "./Switch.jsx";
