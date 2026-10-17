@@ -26,14 +26,17 @@ class FlashcardSerializer(serializers.ModelSerializer):
         fields = ["id", "origin", "subtopic", "concept", "label", "front", "back", "state"]
 
 
+OPTIONAL = {"required": False, "allow_blank": True, "default": ""}
+
+
 class ImageUploadSerializer(serializers.Serializer):
     """JSON with the bytes in base64, so scripts/theme.py needs no multipart (D-033)."""
 
     data = serializers.CharField()
-    generated_by = serializers.CharField(max_length=30, required=False, allow_blank=True, default="")
-    source_url = serializers.URLField(max_length=500, required=False, allow_blank=True, default="")
-    author = serializers.CharField(max_length=200, required=False, allow_blank=True, default="")
-    license = serializers.CharField(max_length=100, required=False, allow_blank=True, default="")
+    generated_by = serializers.CharField(max_length=30, **OPTIONAL)
+    source_url = serializers.URLField(max_length=500, **OPTIONAL)
+    author = serializers.CharField(max_length=200, **OPTIONAL)
+    license = serializers.CharField(max_length=100, **OPTIONAL)
 
     def validate_data(self, value):
         try:
