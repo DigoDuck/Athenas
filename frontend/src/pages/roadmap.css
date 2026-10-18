@@ -94,7 +94,7 @@
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
   row-gap: var(--space-5);
-  padding: 0 0 var(--space-2);
+  padding: 0;
   list-style: none;
 }
 
@@ -178,7 +178,31 @@
   font-size: var(--text-ui);
 }
 
-/* The current step, the board and its five columns share one window at 900px tall. */
+/* The current step and the whole board fit one window from 1440x900 up; at 1672x941 the board's
+   bottom line falls where the approved mockup has it, which is where the foliage was cut. */
+.roadmap {
+  gap: var(--space-5);
+}
+
+.roadmap .scenic__board {
+  gap: var(--space-3);
+  border-bottom-right-radius: 0;
+  padding-block: var(--space-4);
+}
+
+/* Here the band runs flush with the slab's bottom line, which continues behind the bush. */
+.roadmap .scenic__board::after {
+  bottom: 0;
+  background:
+    radial-gradient(circle at 100% 0, transparent var(--fillet), var(--color-board) calc(var(--fillet) + 0.5px))
+      0 0 / var(--fillet) var(--fillet) no-repeat,
+    linear-gradient(var(--color-board), var(--color-board)) 0 var(--fillet) / 100% 100% no-repeat;
+}
+
+.roadmap__board-head h2 {
+  line-height: var(--leading-hero);
+}
+
 .roadmap__current .scenic__action {
   margin-top: var(--space-4);
 }

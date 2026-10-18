@@ -84,7 +84,7 @@ export default function Roadmap() {
   const track = tracks.find((t) => t.id === selected) ?? tracks[0];
 
   return (
-    <div className="scenic">
+    <div className="scenic roadmap">
       <div className="roadmap__top">
         <div className="scenic__hero">
           <h1>Roadmap</h1>
