@@ -193,6 +193,10 @@
 /* Here the band runs flush with the slab's bottom line, which continues behind the bush. */
 .roadmap .scenic__board::after {
   bottom: 0;
+  /* Tucked under the slab's edge, so the two thickness lines meet without a gap. */
+  left: calc(100% - var(--space-1));
+  /* The slab's own thickness shows 11px (14px less its 3px inset), so the band matches it. */
+  filter: drop-shadow(0 11px 0 var(--color-board-edge));
   background:
     radial-gradient(circle at 100% 0, transparent var(--fillet), var(--color-board) calc(var(--fillet) + 0.5px))
       0 0 / var(--fillet) var(--fillet) no-repeat,

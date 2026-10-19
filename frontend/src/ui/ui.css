@@ -931,8 +931,10 @@ a.ui-list__title:hover {
   z-index: auto;
 }
 
+/* What stands in front of the board casts a soft shadow on it, so it reads as in front. */
 .ui-shell__foliage {
   z-index: 2;
+  filter: drop-shadow(-8px 10px 12px color-mix(in srgb, var(--color-shadow-ink) 55%, transparent));
 }
 
 .ui-shell__foliage--home {
