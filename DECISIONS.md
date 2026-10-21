@@ -731,3 +731,23 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
   mockups ask for and what "começar e retomar sem esforço" needs.
 - Cost: a long track scrolls sideways on the board. Text on the panorama depends on the fade:
   a new landscape needs a light left side, or its opening lines need a panel.
+- Note: the "Left out" item on the leaf shadow and the new landscape, and the sideways scroll
+  in "Cost", are out of date; D-035 records what shipped.
+
+### D-035: What D-034 shipped beyond its own text
+
+- Date: 2026-10-21. Source: the last commits of PR #41 changed D-034's text after review, but
+  the PR was merged before that change reached it.
+- Decision:
+  - D-034 shipped with the kit's sunset panoramas on Início and Roadmap and the kit's leaf
+    shadow on the internal screens; neither is left out.
+  - A long track wraps to a second row on the board instead of scrolling sideways, so the step
+    menus are never clipped.
+  - Where the board meets the bushes, the leaves are matted from the approved mockups, and on
+    Início the marble cap is cut along its own outline, so both stand in front of the board;
+    that layer casts a soft shadow on it. Roadmap's board fits one window from 1440x900 up, and
+    at the mockup's 1672x941 its bottom line falls where the mockup has it.
+- Why: D-034 is the record of the new design, and it should describe what the app does.
+- Cost: the foreground layers match the mockups exactly only at 1672x941 and follow the
+  photograph, not the board, at other widths; a board that changes height moves its bottom
+  line away from the cut.
