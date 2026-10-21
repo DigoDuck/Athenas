@@ -1,5 +1,7 @@
 """Session events (spec 3.2, 4.11), reading (4.4.5, 4.8.1, 4.8.4), practice (4.8.3),
-review (D-025) and the home screen (4.5)."""
+review (D-025), the home screen (4.5) and the day 28 metric (4.11.2)."""
+
+from datetime import date, timedelta
 
 from content.models import Attempt, Block, ReviewLog
 from content.services import rate_card, reviews_today
@@ -108,6 +110,58 @@ def session_days() -> set:
     completed = SessionEvent.objects.exclude(completed_at=None)
     # TruncDate uses the current time zone, America/Bahia, never the UTC date.
     return set(completed.annotate(day=TruncDate("completed_at")).values_list("day", flat=True))
+
+
+# The day 28 window: blocks of 7 Bahia days from day 1, a block counts with 3 days of use, and a
+# 2 of 4 gets blocks 5 and 6 as its one extension (DECISIONS.md D-010, D-029 and D-038).
+DAY_1 = date(2026, 10, 17)
+BLOCK_DAYS = 7
+DAYS_TO_MEET = 3
+BLOCKS = (1, 2, 3, 4)
+EXTENSION = (5, 6)
+
+
+def day28_block(number, days, *, today) -> dict:
+    """One block, `met`, `missed` or `open`, decided as soon as the days left cannot change it."""
+    start = DAY_1 + timedelta(days=BLOCK_DAYS * (number - 1))
+    dates = [start + timedelta(days=n) for n in range(BLOCK_DAYS)]
+    # Read as of `today`: a later day of use did not exist yet on that date.
+    used = [day for day in dates if day in days and day <= today]
+    # Today is not over, so it can still become a day of use.
+    left = sum(1 for day in dates if day >= today and day not in used)
+    if len(used) >= DAYS_TO_MEET:
+        status = "met"
+    elif len(used) + left < DAYS_TO_MEET:
+        status = "missed"
+    else:
+        status = "open"
+    return {"number": number, "start": start, "end": dates[-1], "days": used, "status": status}
+
+
+def day28_metric(days, *, today) -> dict:
+    """The D-010 reading of a set of Bahia days of use, read on the Bahia date `today`."""
+    blocks = [day28_block(n, days, today=today) for n in BLOCKS]
+    met = [b["number"] for b in blocks if b["status"] == "met"]
+    possible = [b["number"] for b in blocks if b["status"] != "missed"]
+    result = {"blocks": blocks, "extension": [], "tie_break": False}
+    if len(met) >= 3:
+        return result | {"reading": "success"}
+    if len(possible) <= 1:
+        return result | {"reading": "not_confirmed"}
+    if len(possible) > 2 or len(met) < 2:
+        return result | {"reading": "pending"}
+    # 2 of 4. Blocks 3 and 4 met: one extra block is enough (tie-break, DECISIONS.md D-038).
+    extension = [day28_block(n, days, today=today) for n in EXTENSION]
+    needed = 1 if met == [3, 4] else 2
+    extra_met = sum(b["status"] == "met" for b in extension)
+    extra_possible = sum(b["status"] != "missed" for b in extension)
+    if extra_met >= needed:
+        reading = "success"
+    elif extra_possible < needed:
+        reading = "not_confirmed"
+    else:
+        reading = "extension"
+    return result | {"extension": extension, "tie_break": needed == 1, "reading": reading}
 
 
 # A return session opens after this many full days without one and offers at most this many
