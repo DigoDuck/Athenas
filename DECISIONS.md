@@ -731,3 +731,46 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
   mockups ask for and what "começar e retomar sem esforço" needs.
 - Cost: a long track scrolls sideways on the board. Text on the panorama depends on the fade:
   a new landscape needs a light left side, or its opening lines need a panel.
+
+### D-040: "Novo tema" imports a pasted AI answer, one concept per round
+
+- Date: 2026-10-21. Source: S10 in `docs/plan.md`, which D-030 brought into v1 so that any AI,
+  Gemini Notebook included, can prepare a theme without the Claude Code skill. Built with Diogo
+  away; every choice below is the recommended option.
+- Decision:
+  - The screen (`#/novo-tema`, in the navigation) takes the theme, the goal, the area, the track,
+    the level and the AI used, and writes the request to copy: the contract of spec 4.1 and the
+    `athenas-tema` rules, asking for the track's next concept only, with 2 to 4 subtopics. The
+    request lists the concepts the track already has, so the next round continues it; an AI that
+    finds the theme covered answers "TRILHA COMPLETA". Nothing calls an AI from the app (D-030).
+  - The answer comes back in one code block fenced with `~~~~`, so the code inside it survives and
+    the chat's copy button gives the raw Markdown. The server cuts it into documents at each
+    frontmatter that names a `subtema`, drops a fence wrapped around everything or around each
+    document, and shows the chat text around them as ignored, never saved.
+  - Area and track come from the screen; each document's frontmatter names its concept and
+    subtopic. Saving creates only what is missing (area, track, concept, step at the end of the
+    track, subtopic at the end of the concept) and imports each document through the same
+    `import_content`, so every card enters pending (spec 4.3). It is all or nothing: one blocked
+    document blocks the round.
+  - A subtopic that already has text keeps it, as `scripts/theme.py push` does without
+    `--replace`: changing studied text is done in the Biblioteca, one subtopic at a time. A
+    document identical to what the app holds is reported as such.
+  - The origin is the AI named on the screen, written into each document's `origem` and
+    replacing whatever the answer claims, because Diogo knows which chat he pasted from and a
+    missing key would pass generated text as his (D-032). It is one word, so it cannot add a
+    frontmatter line.
+  - Blocking, as in the content editor: duplicate labels, a document without `conceito` or
+    `subtema`, a subtopic repeated in the answer, a name over 160 characters. Everything else the
+    skill's check refuses (missing headings, extra headings, draft, no `nivel`, no link under
+    Fontes) is listed per document and does not block, since spec 4.2.1 allows saving incomplete
+    content and Diogo sees the check before creating. `scripts/theme.py check` reads the same
+    list from the parser (`contract_gaps`), so both paths keep one contract.
+  - "Copiar pedido de correção" turns the listed problems into a message for the AI.
+  - The form and the pasted answer stay in the browser's storage until the round is created.
+- Why: one concept per round keeps a chat answer short enough not to be cut off, and pasting needs
+  no key, no cost and no dependency. The parser stays the only gate, so pasted content meets the
+  same contract as pushed content.
+- Cost: a theme of four concepts takes about five rounds of two pastes each. Links under Fontes
+  are not opened by the app: a chat AI without browsing can cite a page it never read, so the
+  Fontes and the `[!ia]` callouts are still what Diogo checks before approving a card. Images
+  stay out of this path (no upload screen, D-033).

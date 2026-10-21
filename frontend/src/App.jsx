@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import Home from "./pages/Home.jsx";
 import Library from "./pages/Library.jsx";
+import NewTheme from "./pages/NewTheme.jsx";
 import Practice from "./pages/Practice.jsx";
 import Review from "./pages/Review.jsx";
 import Roadmap from "./pages/Roadmap.jsx";
@@ -13,6 +14,7 @@ const PAGES = {
   roadmap: { label: "Roadmap", icon: "roadmap", Component: Roadmap },
   biblioteca: { label: "Biblioteca", icon: "library", Component: Library },
   revisoes: { label: "Revisões", icon: "reviews", Component: Review },
+  "novo-tema": { label: "Novo tema", icon: "plus", Component: NewTheme },
 };
 
 const NAV_ITEMS = Object.entries(PAGES).map(([id, { label, icon }]) => ({

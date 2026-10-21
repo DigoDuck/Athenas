@@ -48,7 +48,8 @@ Each item at its minimum `[D3]`:
 
 ### 2.2 Out of scope for v1
 
-Integrated AI, automatic generation of activities, structured import, history-based
+Integrated AI, automatic generation of activities, structured import (except the "Novo tema"
+screen, which imports a pasted AI answer, `DECISIONS.md` D-040), history-based
 recommendations, mobile screens, deploy, login, drag-to-reorder, prerequisite graphs,
 configurable completion criteria, rich text editor, restore through the UI, metrics dashboard,
 folders deeper than three levels, multi-user. Any change to this list needs Diogo's ok.
@@ -249,6 +250,11 @@ none (`DECISIONS.md` D-032). An image is a line of its own,
 11. An image line shows the stored image with its caption and credit. A name with no stored
     image shows a warning in the preview and its caption in the reading. Adding, moving or
     removing an image line keeps a block's read mark (`DECISIONS.md` D-033).
+12. The "Novo tema" screen builds a request for any AI and imports its pasted answer: one
+    document per subtopic, each named by its frontmatter, into the track chosen on the screen.
+    It creates only what is missing, never changes a subtopic that already has text, marks every
+    document with the AI named on the screen and, like any import, leaves every card pending
+    (`DECISIONS.md` D-040).
 
 ### 4.3 Pending card approval
 
