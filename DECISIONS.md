@@ -767,5 +767,5 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
   the right reading for "the day's reviews" but means days away do not lower the fraction (the
   sessions lost to being away are written by hand, D-010). Each load of Início writes an
   `app_opened`, so going back to Início mid-visit restarts the open-to-start clock. On day 28,
-  concepts completed after 2026-10-30 cannot have reviews 15 days later inside the window, so
+  concepts completed after 2026-10-29 cannot have reviews 15 days later inside the window, so
   the accuracy metric will rest on few cards.
