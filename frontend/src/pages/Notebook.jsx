@@ -78,7 +78,9 @@ export default function Notebook({ subtopicId }) {
     try {
       setEvent(await api.post(`/api/events/${event.id}/complete/`));
     } catch (e) {
-      setError(`Não foi possível registrar o caderno. ${e.message}`);
+      // 409 means an earlier try was saved and only its answer was lost.
+      if (e.status === 409) setEvent({ ...event, completed_at: new Date().toISOString() });
+      else setError(`Não foi possível registrar o caderno. ${e.message}`);
     }
     setBusy(null);
   }
@@ -126,7 +128,9 @@ export default function Notebook({ subtopicId }) {
   return (
     <Stack gap={6} className="notebook">
       <Stack gap={4}>
-        <Breadcrumb items={crumbs} />
+        <div data-print="hide">
+          <Breadcrumb items={crumbs} />
+        </div>
         <h1>{page.subtopic}</h1>
         {page.generated_by && (
           <div className="study__provenance">

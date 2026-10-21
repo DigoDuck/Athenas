@@ -111,8 +111,9 @@ NOTEBOOK_BLOCKS = ("Objetivo", "Ideia central", "Exemplo", "Resumo para o cadern
 def notebook(subtopic) -> dict:
     """The notebook blocks that have text, the ones missing, and one question (DECISIONS.md D-036).
 
-    The question is the one answered longest ago, never answered first, so copying the same
-    subtopic again asks something else. None means "explain in my words".
+    Questions go from never answered to answered longest ago, and each finished copy moves one
+    step down that list, so copying the same subtopic again asks something else even when the
+    answer stays on paper. None means "explain in my words".
     """
     blocks = [
         b
@@ -121,18 +122,18 @@ def notebook(subtopic) -> dict:
     ]
     blocks.sort(key=lambda b: (NOTEBOOK_BLOCKS.index(b.kind), b.order))
     shown = {b.kind for b in blocks}
-    question = (
+    questions = list(
         # The same questions Practice offers, so the prompt can be answered there.
         PracticeQuestion.objects.filter(subtopic=subtopic, archived=False)
         .exclude(reference_answer="")
         .annotate(answered_at=Max("attempts__created_at"))
         .order_by(F("answered_at").asc(nulls_first=True), "id")
-        .first()
     )
+    copies = subtopic.events.filter(kind=Kind.NOTEBOOK).exclude(completed_at=None).count()
     return {
         "blocks": blocks,
         "missing": [kind for kind in NOTEBOOK_BLOCKS if kind not in shown],
-        "question": question,
+        "question": questions[copies % len(questions)] if questions else None,
     }
 
 
