@@ -4,13 +4,6 @@
   color: var(--color-ink);
 }
 
-/* The origin badge at the size the reading screen gives it. */
-.notebook .ui-badge {
-  gap: var(--space-2);
-  padding: var(--space-1) var(--space-3);
-  font-size: var(--text-lead);
-}
-
 /* `ch` resolves at reading size, so the sheet holds about 70 characters a line. */
 .notebook__sheet {
   display: grid;
@@ -52,14 +45,9 @@
   justify-self: stretch;
 }
 
+/* Focus lands here only so the reader hears the result; a ring around the message is noise. */
 .notebook__actions > div:focus-visible {
   outline: none;
-}
-
-.notebook__actions .ui-button--primary {
-  --control-height: 56px;
-  padding-left: var(--space-5);
-  font-size: var(--text-lead);
 }
 
 @media (max-width: 1099px) {

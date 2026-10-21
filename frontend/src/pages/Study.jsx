@@ -370,8 +370,8 @@ export default function Study({ subtopicId }) {
   );
 }
 
-// What sits beside the text, folded under one heading: practice, the personal review flag
-// and the subtopic's sources.
+// What sits beside the text, folded under one heading: practice, notebook mode, the personal
+// review flag and the subtopic's sources.
 function Aside({ blocks, subtopicId }) {
   const sources = markdownLinks(
     blocks

@@ -4,7 +4,6 @@ practice (4.8.3), review (D-025) and the home screen (4.5)."""
 from content.models import Attempt, Block, PracticeQuestion, ReviewLog
 from content.services import rate_card, reviews_today
 from django.db import transaction
-from django.db.models import F, Max
 from django.db.models.functions import TruncDate
 from django.utils import timezone
 from organization.models import Subtopic, Track
@@ -111,9 +110,9 @@ NOTEBOOK_BLOCKS = ("Objetivo", "Ideia central", "Exemplo", "Resumo para o cadern
 def notebook(subtopic) -> dict:
     """The notebook blocks that have text, the ones missing, and one question (DECISIONS.md D-036).
 
-    Questions go from never answered to answered longest ago, and each finished copy moves one
-    step down that list, so copying the same subtopic again asks something else even when the
-    answer stays on paper. None means "explain in my words".
+    Each finished copy moves one question further in Practice's order, wrapping around, so copying
+    the subtopic again asks something else even when every answer stays on paper. It never looks
+    at how earlier answers went (spec 2.2). None means "explain in my words".
     """
     blocks = [
         b
@@ -122,12 +121,11 @@ def notebook(subtopic) -> dict:
     ]
     blocks.sort(key=lambda b: (NOTEBOOK_BLOCKS.index(b.kind), b.order))
     shown = {b.kind for b in blocks}
+    # The same questions Practice offers, in its order, so the prompt can be answered there.
     questions = list(
-        # The same questions Practice offers, so the prompt can be answered there.
-        PracticeQuestion.objects.filter(subtopic=subtopic, archived=False)
-        .exclude(reference_answer="")
-        .annotate(answered_at=Max("attempts__created_at"))
-        .order_by(F("answered_at").asc(nulls_first=True), "id")
+        PracticeQuestion.objects.filter(subtopic=subtopic, archived=False).exclude(
+            reference_answer=""
+        )
     )
     copies = subtopic.events.filter(kind=Kind.NOTEBOOK).exclude(completed_at=None).count()
     return {

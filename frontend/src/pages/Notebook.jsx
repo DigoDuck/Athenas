@@ -135,7 +135,10 @@ export default function Notebook({ subtopicId }) {
         {page.generated_by && (
           <div className="study__provenance">
             <GeneratedByBadge by={page.generated_by} />
-            <p className="t-meta">Confira o conteúdo nas fontes.</p>
+            {/* The sources are not on the printed sheet. */}
+            <p className="t-meta" data-print="hide">
+              Confira o conteúdo nas fontes.
+            </p>
           </div>
         )}
       </Stack>
