@@ -62,6 +62,8 @@ class Subtopic(models.Model):
         max_length=12, choices=StudyStatus, default=StudyStatus.NOT_STARTED
     )
     review_needed = models.BooleanField(default=False)
+    # When it was last confirmed completed, for spec 4.11.3; empty when it is not completed.
+    completed_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ["concept_id", "order", "id"]
