@@ -96,6 +96,50 @@ const paths = {
   ),
   "chevron-right": <path d="m9 6 6 6-6 6" />,
   "chevron-down": <path d="m6 9 6 6 6-6" />,
+  "chevron-up": <path d="m6 15 6-6 6 6" />,
+  list: (
+    <>
+      <path d="M9 6h11" />
+      <path d="M9 12h11" />
+      <path d="M9 18h11" />
+      <path d="M4 6h.01" />
+      <path d="M4 12h.01" />
+      <path d="M4 18h.01" />
+    </>
+  ),
+  more: (
+    <>
+      <path d="M6 12h.01" strokeWidth="3" />
+      <path d="M12 12h.01" strokeWidth="3" />
+      <path d="M18 12h.01" strokeWidth="3" />
+    </>
+  ),
+  "more-vertical": (
+    <>
+      <path d="M12 6h.01" strokeWidth="3" />
+      <path d="M12 12h.01" strokeWidth="3" />
+      <path d="M12 18h.01" strokeWidth="3" />
+    </>
+  ),
+  cards: (
+    <>
+      <rect x="7" y="5" width="13" height="16" rx="2" />
+      <path d="M5 17 2.5 6.5A2 2 0 0 1 4 4l9-2a2 2 0 0 1 2.4 1.5L16 5" />
+    </>
+  ),
+  refresh: (
+    <>
+      <path d="M20 7v5h-5" />
+      <path d="M20 12a8 8 0 1 0-2.3 5.7" />
+    </>
+  ),
+  graduation: (
+    <>
+      <path d="m2 9 10-5 10 5-10 5Z" />
+      <path d="M6 11v5c2 2 10 2 12 0v-5" />
+      <path d="M22 9v6" />
+    </>
+  ),
   "file-text": (
     <>
       <path d="M14 3H6v18h12V7Z" />

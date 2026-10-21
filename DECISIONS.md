@@ -680,3 +680,54 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
   about 2 MB per export, about 60 MB across the 30 exports the vault keeps. If that grows too
   much, the fix is writing images once into a shared folder of the export, not changing the
   Markdown. Images are not versioned: replacing one changes it in every text that cites it.
+
+### D-034: Início, Roadmap, reading and Revisões follow Diogo's new mockups
+
+- Date: 2026-10-17. Source: Diogo sent four mockups (Início, Roadmap, a subtopic's reading,
+  Revisões) as the new design to implement. The project goal puts stability first during the
+  month of use, so the screens change and the data and endpoints do not.
+- Decision:
+  - Início and Roadmap each sit on a sunset panorama from Diogo's frontend kit (`home-sunset`,
+    `roadmap-sunset`, with 1280px copies up to 1440px windows), which runs under the navigation
+    and fades to marble on the left. The opening lines sit on that light side and the rest on
+    one opaque board. The out-of-focus bushes at the bottom right are cut from the same
+    photograph into a full-size transparent layer drawn in front of the page, so they overlap
+    the board as in the mockups; menus still open above them. Every other screen is plain
+    marble with the kit's faint olive-leaf shadow in the top corner, behind the navigation only:
+    the garden scene, its sheet and the old `home.webp` are removed.
+    The board is drawn as a marble slab, as in the mockups: its top right corner steps down
+    into a band that runs off the right edge of the window, and its thickness shows under it
+    (CSS only: a pseudo-element with concave fillets and solid offset shadows, no image).
+  - Roadmap picks the track with a select instead of tabs and shows the track as a numbered line
+    on the board. Moving and removing a step, adding a concept and removing the track move into
+    small menus (`Popover`); "Criar trilha" is the existing form.
+  - Reading: "Bloco anterior" and "Próximo bloco" open a block without marking it read, as the
+    outline already did. The sheet's own button marks the block read and opens the next one; on
+    a block already read it says "Confirmar releitura". The outline becomes the block picker. The
+    support column holds Praticar, the subtopic's "Marcado para revisar" flag (the same
+    `review_needed` the Biblioteca edits, saved through `PATCH /api/subtopics/<id>/`, the box
+    changing only after the save) and the sources. This replaces D-031's layout (outline at the
+    left, sources and Praticar at the right).
+  - Paragraphs in study text flow: lines wrapped in the Markdown source join with a space, as
+    in CommonMark, and a line ending in two spaces or a backslash keeps its break. This
+    replaces D-031's "paragraphs with their line breaks", which broke every hard-wrapped
+    paragraph mid-sentence. Sources are lists in the contract, so they keep one per line.
+  - Revisões keeps the manual card form behind a "Novo cartão" button, and the empty state
+    sends back to Início.
+  - The visual scale follows the mockups, not the v1 guide: type is larger and grows with the
+    window (study text 18 to 24px, UI 16 to 18px), titles are near black and the opening
+    lines, page titles and the open block use Cormorant Garamond 700 (a second weight file of
+    the same family). Study text, the navigation and the breadcrumb links are navy ink; the
+    primary action and the current page are forest green; the navigation line, its rings and
+    the open block's tab are copper; the current crumb and the next block are rust. Button
+    labels are regular weight, the owl emblem is copper, and the success and info tints are
+    more saturated. Every text pair stays at 4.5:1 or more (`tokens.css` lists each ratio).
+  - "Praticar este subtema" stays a link with a chevron to the right; the mockup draws it as a
+    disclosure, but nothing would open under it.
+  - Left out of the mockups: the "Objetivo" bookmark at the top right of Início (no function
+    behind it yet), the leaf shadow on the internal screens and the new landscape on Início and
+    Roadmap (neither file is in the repo; the current panorama stands in).
+- Why: one screen per daily action, with the next step as the largest thing on it, is what the
+  mockups ask for and what "começar e retomar sem esforço" needs.
+- Cost: a long track scrolls sideways on the board. Text on the panorama depends on the fade:
+  a new landscape needs a light left side, or its opening lines need a panel.

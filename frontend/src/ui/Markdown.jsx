@@ -89,16 +89,17 @@ function blocks(text) {
     } else {
       const paragraph = [];
       while (i < lines.length && lines[i].trim() && !startsBlock(lines, i)) {
-        paragraph.push(lines[i].trim());
+        paragraph.push(lines[i]);
         i += 1;
       }
-      // A single line break stays a break, as the plain text showed it (one source per line).
+      // Lines wrapped in the source make one flowing paragraph, as in CommonMark; a line that
+      // ends in two spaces or a backslash keeps its break (DECISIONS.md D-034).
       out.push(
         <p key={key}>
           {paragraph.map((part, n) => (
             <Fragment key={n}>
-              {n > 0 && <br />}
-              {inline(part)}
+              {n > 0 && (/( {2}|\\)$/.test(paragraph[n - 1]) ? <br /> : " ")}
+              {inline(part.trim().replace(/\\$/, ""))}
             </Fragment>
           ))}
         </p>,

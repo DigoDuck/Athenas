@@ -14,6 +14,9 @@ try {
   assert.match(html("Um **termo** e *ênfase* com `code`."), /<strong>termo<\/strong>.*<em>ênfase<\/em>.*<code>code<\/code>/);
   assert.match(html("nome_completo e snake_case"), /^<div class="ui-markdown"><p>nome_completo e snake_case<\/p><\/div>$/);
   assert.match(html("1. um\n2. dois\n   - filho"), /<ol><li>um<\/li><li><p>dois<\/p><ul><li>filho<\/li><\/ul><\/li><\/ol>/);
+  // Hard-wrapped lines flow as one paragraph; two trailing spaces or a backslash keep a break.
+  assert.match(html("uma frase\nquebrada"), /<p>uma frase quebrada<\/p>/);
+  assert.match(html("linha um  \nlinha dois\\\nlinha três"), /<p>linha um<br\/>linha dois<br\/>linha três<\/p>/);
   assert.match(html("| a | b |\n| --- | --- |\n| 1 | 2 |"), /<th>a<\/th>.*<td>2<\/td>/);
   assert.match(html('![Diagrama](/media/x.png "Legenda")'), /<img src="\/media\/x.png" alt="Diagrama".*<figcaption>Legenda<\/figcaption>/);
   assert.match(html("Veja https://a.org/x."), /<a href="https:\/\/a.org\/x" target="_blank" rel="noreferrer">https:\/\/a.org\/x<\/a>\./);

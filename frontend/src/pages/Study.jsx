@@ -15,6 +15,7 @@ import {
   markdownLinks,
   safeUrl,
   Panel,
+  Popover,
   ProgressBar,
   Stack,
   StateMessage,
@@ -163,33 +164,17 @@ export default function Study({ subtopicId }) {
   const block = order === null ? null : blocks[order];
   const unread = blocks.filter((b) => !b.read_at);
   const last = order === blocks.length - 1;
+  const forward = block?.read_at
+    ? last
+      ? "Confirmar releitura"
+      : "Confirmar releitura e avançar"
+    : last
+      ? "Li este bloco"
+      : "Li este bloco e avançar";
 
   return (
     <div className="study">
-      {blocks.length > 0 && (
-        <nav className="study__outline" aria-label="Blocos do subtema">
-          <p className="study__label">Neste subtema</p>
-          <ol>
-            {blocks.map((b, index) => (
-              <li key={b.order}>
-                <button
-                  type="button"
-                  className="study__outline-item"
-                  aria-current={index === order ? "step" : undefined}
-                  data-read={b.read_at ? "" : undefined}
-                  disabled={busy !== null}
-                  onClick={() => index !== order && open(index)}
-                >
-                  <Icon name={b.read_at ? "check-circle" : "circle"} />
-                  <span>{b.heading || "Introdução"}</span>
-                  {b.read_at && <span className="visually-hidden"> (lido)</span>}
-                </button>
-              </li>
-            ))}
-          </ol>
-        </nav>
-      )}
-      <Stack gap={6} className="study__head">
+      <Stack gap={4} className="study__head">
         <Breadcrumb
           items={[
             { label: "Biblioteca", href: "#/biblioteca" },
@@ -197,24 +182,83 @@ export default function Study({ subtopicId }) {
             { label: reading.subtopic },
           ]}
         />
-        <Stack gap={3}>
-          <h1>{reading.subtopic}</h1>
-          {reading.generated_by && (
-            <Inline gap={2}>
-              <GeneratedByBadge by={reading.generated_by} />
-              <p className="t-meta">Bem escrito não quer dizer correto: confira nas Fontes.</p>
-            </Inline>
-          )}
-          {blocks.length > 0 && (
-            <ProgressBar
-              value={blocks.length - unread.length}
-              max={blocks.length}
-              unit="blocos lidos"
-              label="Blocos lidos"
-            />
-          )}
-        </Stack>
+        <h1>{reading.subtopic}</h1>
+        {reading.generated_by && (
+          <div className="study__provenance">
+            <GeneratedByBadge by={reading.generated_by} />
+            <p className="t-meta">Confira o conteúdo nas fontes.</p>
+          </div>
+        )}
       </Stack>
+      {block && (
+        <div className="study__toolbar">
+          <Popover
+            className="study__picker"
+            trigger={
+              <>
+                <Icon name="list" size={30} className="study__picker-icon" />
+                <span className="study__picker-box">
+                  <Icon name={block.read_at ? "check-circle" : "circle"} size={24} className="study__picker-state" />
+                  <span className="visually-hidden">Escolher bloco. Bloco atual: </span>
+                  <span className="study__picker-name">{block.heading || "Introdução"}</span>
+                  <Icon name="chevron-down" size={24} />
+                </span>
+              </>
+            }
+          >
+            {(close) => (
+              <ol className="study__outline" aria-label="Blocos do subtema">
+                {blocks.map((b, index) => (
+                  <li key={b.order}>
+                    <button
+                      type="button"
+                      className="ui-popover__item study__outline-item"
+                      aria-current={index === order ? "step" : undefined}
+                      data-read={b.read_at ? "" : undefined}
+                      disabled={busy !== null}
+                      onClick={() => {
+                        close();
+                        if (index !== order) open(index);
+                      }}
+                    >
+                      <Icon name={b.read_at ? "check-circle" : "circle"} />
+                      <span>{b.heading || "Introdução"}</span>
+                      {b.read_at && <span className="visually-hidden"> (lido)</span>}
+                    </button>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </Popover>
+          <p className="study__position">
+            Bloco {order + 1} de {blocks.length}
+          </p>
+          <ProgressBar
+            value={blocks.length - unread.length}
+            max={blocks.length}
+            unit="lidos"
+            label="Blocos lidos"
+          />
+          <Inline gap={3} className="study__steps">
+            <Button
+              variant="secondary"
+              icon="arrow-left"
+              disabled={order === 0 || busy !== null}
+              onClick={() => open(order - 1)}
+            >
+              Bloco anterior
+            </Button>
+            <Button
+              variant="secondary"
+              iconEnd="arrow-right"
+              disabled={last || busy !== null}
+              onClick={() => open(order + 1)}
+            >
+              Próximo bloco
+            </Button>
+          </Inline>
+        </div>
+      )}
       <Stack gap={6} className="study__column">
         {blocks.length === 0 ? (
           <StateMessage
@@ -231,23 +275,20 @@ export default function Study({ subtopicId }) {
             aria-labelledby="bloco-titulo"
             className="study__block"
           >
-            <Inline justify="between">
-              <p className="t-meta">
-                Bloco {order + 1} de {blocks.length}
-              </p>
+            <Inline justify="between" align="start">
+              {/* Text before the first heading is an extra block with no heading (D-014). */}
+              <h2 id="bloco-titulo" className={block.heading ? undefined : "visually-hidden"}>
+                {block.heading || "Introdução"}
+              </h2>
               {block.read_at && (
                 <Badge tone="success" icon="check-circle">
                   Lido
                 </Badge>
               )}
             </Inline>
-            {/* Text before the first heading is an extra block with no heading (D-014). */}
-            <h2 id="bloco-titulo" className={block.heading ? undefined : "visually-hidden"}>
-              {block.heading || "Introdução"}
-            </h2>
             <Segments segments={block.segments} />
             <ActionError>{error}</ActionError>
-            {finished && (
+            {finished ? (
               <div ref={end} tabIndex={-1}>
                 {unread.length > 0 ? (
                   <StateMessage
@@ -276,29 +317,24 @@ export default function Study({ subtopicId }) {
                   </StateMessage>
                 )}
               </div>
-            )}
-            <Inline justify="between" className="study__actions">
-              <Button
-                variant="secondary"
-                icon="arrow-left"
-                disabled={order === 0 || busy !== null}
-                onClick={() => open(order - 1)}
-              >
-                Anterior
-              </Button>
-              {!finished && (
+            ) : (
+              <div className="study__forward">
                 <Button
-                  icon={last ? "check" : undefined}
-                  iconEnd={last ? undefined : "arrow-right"}
+                  iconEnd={last ? "check" : "arrow-right"}
                   loading={busy === "read"}
                   loadingLabel="Marcando…"
                   disabled={busy === "open" || !event}
                   onClick={markRead}
                 >
-                  {last ? "Li este bloco" : "Li este bloco, próximo"}
+                  {forward}
                 </Button>
-              )}
-            </Inline>
+                {!last && (
+                  <p className="t-meta">
+                    A seguir: <span className="study__next">{blocks[order + 1].heading || "Introdução"}</span>
+                  </p>
+                )}
+              </div>
+            )}
           </Panel>
         ) : order !== null ? (
           // A re-import left fewer blocks than the one being read.
@@ -334,7 +370,8 @@ export default function Study({ subtopicId }) {
   );
 }
 
-// What sits beside the text: the subtopic's sources and the way to practice after reading.
+// What sits beside the text, folded under one heading: practice, the personal review flag
+// and the subtopic's sources.
 function Aside({ blocks, subtopicId }) {
   const sources = markdownLinks(
     blocks
@@ -343,37 +380,102 @@ function Aside({ blocks, subtopicId }) {
       .join("\n"),
   );
   return (
-    <aside className="study__aside" aria-label="Apoio à leitura">
-      {sources.length > 0 && (
-        <Panel aria-labelledby="study-sources">
-          <h2 id="study-sources" className="study__label">
-            Fontes
-          </h2>
-          <ul className="study__sources">
-            {sources.map(({ url, label }) => (
-              <li key={url}>
-                <a href={url} target="_blank" rel="noreferrer" title={url}>
-                  {label ?? siteName(url)}
-                </a>
-              </li>
-            ))}
-          </ul>
-        </Panel>
-      )}
-      <Panel aria-labelledby="study-practice">
-        <Stack gap={3}>
-          <h2 id="study-practice" className="study__label">
-            Depois da leitura
-          </h2>
-          <p className="t-meta">Responda às perguntas deste subtema sem consultar o texto.</p>
-          <div>
-            <Button variant="secondary" href={`#/pratica/${subtopicId}`} iconEnd="arrow-right">
-              Praticar
-            </Button>
-          </div>
-        </Stack>
-      </Panel>
-    </aside>
+    <details className="study__aside" open>
+      <summary className="study__aside-head">
+        <h2 className="t-section-title">Apoio ao estudo</h2>
+        <Icon name="chevron-down" size={28} className="study__chevron" />
+      </summary>
+      <ul className="study__support">
+        <li>
+          <a className="study__support-row" href={`#/pratica/${subtopicId}`}>
+            <Icon name="pencil" size={30} />
+            <span className="study__support-text">
+              <span className="study__support-title">Praticar este subtema</span>
+              <span className="t-meta">Explicação e questões</span>
+            </span>
+            <Icon name="chevron-right" size={24} />
+          </a>
+        </li>
+        <li>
+          <ReviewFlag subtopicId={subtopicId} />
+        </li>
+        {sources.length > 0 && (
+          <li>
+            <details className="study__sources-box">
+              <summary className="study__support-row">
+                <Icon name="file-text" size={30} />
+                <span className="study__support-text">
+                  <span className="study__support-title">Fontes</span>
+                  <span className="t-meta">
+                    {sources.length === 1 ? "1 referência" : `${sources.length} referências`}
+                  </span>
+                </span>
+                <Icon name="chevron-down" size={24} className="study__chevron" />
+              </summary>
+              <ul className="study__sources">
+                {sources.map(({ url, label }) => (
+                  <li key={url}>
+                    <a href={url} target="_blank" rel="noreferrer" title={url}>
+                      {label ?? siteName(url)}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          </li>
+        )}
+      </ul>
+    </details>
+  );
+}
+
+// "Marcado para revisar" is Diogo's own flag on the subtopic (spec 3.2); it never touches the
+// cards' schedule. The box follows the server: it changes only after the save is confirmed.
+function ReviewFlag({ subtopicId }) {
+  const [flag, setFlag] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    api.get(`/api/subtopics/${subtopicId}/`).then(
+      (s) => setFlag(s.review_needed),
+      (e) => setError(`Não foi possível ler a marcação. ${e.message}`),
+    );
+  }, [subtopicId]);
+
+  async function toggle(e) {
+    // Ignored while saving rather than disabled, so focus stays on the box.
+    if (saving) return;
+    const next = e.target.checked;
+    setSaving(true);
+    setError(null);
+    try {
+      const saved = await api.patch(`/api/subtopics/${subtopicId}/`, { review_needed: next });
+      setFlag(saved.review_needed);
+    } catch (failure) {
+      setError(`Não foi possível salvar a marcação. ${failure.message}`);
+    }
+    setSaving(false);
+  }
+
+  return (
+    <div>
+      <label className="study__support-row">
+        <input
+          type="checkbox"
+          className="study__check"
+          checked={flag === true}
+          disabled={flag === null}
+          aria-busy={saving || undefined}
+          onChange={toggle}
+        />
+        <span className="study__support-text">
+          <span className="study__support-title">Marcar este subtema para revisar</span>
+          <span className="t-meta">Marcação pessoal. Não altera a agenda dos cartões.</span>
+        </span>
+      </label>
+      <ActionError>{error}</ActionError>
+    </div>
   );
 }
 

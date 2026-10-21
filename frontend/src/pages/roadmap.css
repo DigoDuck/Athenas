@@ -1,0 +1,216 @@
+/* Roadmap over the panorama: the track picker and the current step on the light side, the
+   whole track as a numbered line on the board. */
+.roadmap__top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-5);
+}
+
+.roadmap__top .scenic__hero > h1 {
+  margin-bottom: var(--space-3);
+}
+
+.roadmap__picker {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+/* The track name reads as a title with an underline, and stays a native select. */
+.roadmap__select {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.roadmap__select select {
+  appearance: none;
+  min-height: var(--control-height);
+  padding: 0 calc(var(--icon-sm) + var(--space-4)) 0 var(--space-2);
+  border: 0;
+  border-bottom: var(--border-width) solid var(--color-control-border);
+  background: transparent;
+  font-size: var(--text-lead);
+  color: var(--color-heading);
+  cursor: pointer;
+}
+
+.roadmap__select select:hover {
+  border-bottom-color: var(--color-bronze);
+}
+
+.roadmap__select .ui-icon {
+  position: absolute;
+  right: var(--space-2);
+  pointer-events: none;
+}
+
+.roadmap__menu {
+  display: grid;
+  gap: var(--space-4);
+  width: 20rem;
+  padding: var(--space-3);
+}
+
+/* "Criar trilha" sits on the photograph: the open form gets its own opaque card. */
+.roadmap__create:has(form) {
+  padding: var(--space-4);
+  border-radius: var(--radius-panel);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-panel);
+}
+
+.roadmap__current {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  max-width: 44rem;
+}
+
+.roadmap__current .scenic__title {
+  font-size: calc(0.88 * var(--text-hero));
+}
+
+.roadmap__current .scenic__subtitle {
+  margin-top: var(--space-3);
+  font-size: var(--text-section-title);
+}
+
+.roadmap__current .scenic__note {
+  max-width: 34rem;
+}
+
+.roadmap__board-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+/* One column per step on a line that joins the numbers; long tracks scroll sideways. */
+/* Long tracks wrap to a new row: a scrolling row would clip the step menus. */
+.roadmap__steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+  row-gap: var(--space-5);
+  padding: 0;
+  list-style: none;
+}
+
+.roadmap__step {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-3);
+  text-align: center;
+}
+
+.roadmap__step::before {
+  content: "";
+  position: absolute;
+  top: 26px;
+  left: 0;
+  right: 0;
+  height: var(--border-width);
+  background: var(--color-copper);
+}
+
+.roadmap__step:first-child::before {
+  left: 50%;
+}
+
+.roadmap__step:last-child::before {
+  right: 50%;
+}
+
+.roadmap__number {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border: 1.5px solid var(--color-copper);
+  border-radius: 50%;
+  background: var(--color-surface);
+  font-family: var(--font-display);
+  font-size: var(--text-reading);
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: lining-nums;
+  color: var(--color-heading);
+}
+
+.roadmap__step[aria-current] .roadmap__number {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  color: var(--color-text-inverse);
+  box-shadow: 0 0 0 4px var(--color-surface), 0 0 0 5px var(--color-amber);
+}
+
+.roadmap__name {
+  font-family: var(--font-display);
+  font-size: var(--text-subsection-title);
+  line-height: var(--leading-section-title);
+  font-weight: var(--weight-semibold);
+  color: var(--color-heading);
+  text-wrap: balance;
+  max-width: 7.5em;
+  /* Two lines for every name, so the badges and menus line up across the steps. */
+  min-height: calc(2em * var(--leading-section-title));
+}
+
+.roadmap__step-menu .ui-popover__trigger {
+  min-height: 32px;
+  min-width: 44px;
+  border-color: var(--color-control-border);
+}
+
+.roadmap__step-menu .ui-popover__panel {
+  left: 50%;
+  transform: translateX(-50%);
+  text-align: left;
+}
+
+.roadmap__status .ui-badge,
+.roadmap__board-head .t-meta {
+  font-size: var(--text-ui);
+}
+
+/* The current step and the whole board fit one window from 1440x900 up; at 1672x941 the board's
+   bottom line falls where the approved mockup has it, which is where the foliage was cut. */
+.roadmap {
+  gap: var(--space-5);
+}
+
+.roadmap .scenic__board {
+  gap: var(--space-3);
+  border-bottom-right-radius: 0;
+  padding-block: var(--space-4);
+}
+
+/* Here the band runs flush with the slab's bottom line, which continues behind the bush. */
+.roadmap .scenic__board::after {
+  bottom: 0;
+  /* Tucked under the slab's edge, so the two thickness lines meet without a gap. */
+  left: calc(100% - var(--space-1));
+  /* The slab's own thickness shows 11px (14px less its 3px inset), so the band matches it. */
+  filter: drop-shadow(0 11px 0 var(--color-board-edge));
+  background:
+    radial-gradient(circle at 100% 0, transparent var(--fillet), var(--color-board) calc(var(--fillet) + 0.5px))
+      0 0 / var(--fillet) var(--fillet) no-repeat,
+    linear-gradient(var(--color-board), var(--color-board)) 0 var(--fillet) / 100% 100% no-repeat;
+}
+
+.roadmap__board-head h2 {
+  line-height: var(--leading-hero);
+}
+
+.roadmap__current .scenic__action {
+  margin-top: var(--space-4);
+}
+
+.roadmap__status {
+  margin-top: var(--space-2);
+}

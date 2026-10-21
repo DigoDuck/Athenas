@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { api } from "../api.js";
-import { Button, Inline, Panel, Stack, StateMessage } from "../ui/index.js";
+import { Button, Icon, Panel, StateMessage } from "../ui/index.js";
 import "./home.css";
 
 // Home screen (spec 4.5.2): continue where I stopped, then today's reviews, then each track's
 // next step. Every load records `app_opened` through POST /api/home/ (DECISIONS.md D-026).
 // A return session (spec 4.7) shows only the first two, and no text mentions the absence.
-// The scene is the statue panorama, so every piece of text sits in an opaque Panel.
+// The opening lines sit on the panorama's light side; the rest is on one opaque board.
 export default function Home() {
   const [home, setHome] = useState(null);
   const [error, setError] = useState(null);
@@ -31,8 +31,9 @@ export default function Home() {
 
   if (error || !home) {
     return (
-      <div className="home">
-        <Panel raised>
+      <div className="scenic">
+        <h1>Início</h1>
+        <Panel raised className="scenic__board">
           {error ? (
             <StateMessage
               kind="error"
@@ -49,103 +50,114 @@ export default function Home() {
     );
   }
 
+  const stop = home.last_stop;
   return (
-    <div className="home">
-      <LastStop stop={home.last_stop} />
-      <Panel as="section" aria-labelledby="home-reviews">
-        <Inline justify="between">
-          <h2 id="home-reviews" className="home__reviews">
-            Revisões de hoje: {home.reviews_today}
-          </h2>
-          {home.reviews_today > 0 && (
-            <Button variant="secondary" href="#/revisoes" iconEnd="arrow-right">
-              Revisar
-            </Button>
+    <div className="scenic">
+      <LastStop stop={stop} />
+      <Panel raised className="scenic__board">
+        {(home.next_steps.length > 0 || stop) && (
+          <div className="home__columns">
+            {home.next_steps.length > 0 && <NextSteps steps={home.next_steps} />}
+            {stop && (
+              <section className="home__column" aria-labelledby="home-practice">
+                <h2 id="home-practice">Coloque em palavras</h2>
+                <div className="home__item">
+                  <Icon name="pencil" size={32} />
+                  <p className="home__lead">Pratique o conteúdo que está estudando.</p>
+                </div>
+                <div className="home__indent">
+                  <Button variant="secondary" icon="pencil" href={`#/pratica/${stop.subtopic}`}>
+                    Abrir prática
+                  </Button>
+                </div>
+              </section>
+            )}
+          </div>
+        )}
+        <section className="home__reviews" aria-labelledby="home-reviews">
+          <Icon name="reviews" size={28} />
+          <h2 id="home-reviews">Revisões de hoje</h2>
+          {home.reviews_today > 0 ? (
+            <>
+              <p>
+                {home.reviews_today === 1 ? "1 cartão para hoje." : `${home.reviews_today} cartões para hoje.`}
+              </p>
+              <Button variant="tertiary" href="#/revisoes" iconEnd="arrow-right">
+                Revisar
+              </Button>
+            </>
+          ) : (
+            <p>Nenhum cartão para hoje.</p>
           )}
-        </Inline>
+        </section>
       </Panel>
-      {home.next_steps.length > 0 && <NextSteps steps={home.next_steps} />}
     </div>
   );
 }
 
 function LastStop({ stop }) {
-  if (!stop) {
-    return (
-      <Panel raised aria-labelledby="home-title">
-        <Stack gap={3}>
-          <h1 id="home-title" className="t-display">
-            Uma etapa de cada vez
-          </h1>
-          <p>Escolha um subtema na Biblioteca e abra o primeiro bloco.</p>
-        </Stack>
-        <div>
-          <Button href="#/biblioteca" iconEnd="arrow-right">
-            Abrir a Biblioteca
-          </Button>
-        </div>
-      </Panel>
-    );
-  }
   return (
-    <Panel raised aria-labelledby="home-title">
-      <Stack gap={3}>
-        <h1 id="home-title" className="t-display">
-          Continue de onde parou
-        </h1>
-        <Stack gap={1}>
-          <p className="home__subtopic">{stop.subtopic_name}</p>
-          <p className="t-meta">
-            {stop.concept_name}
-            {stop.block_heading && ` · ${stop.block_heading}`}
-          </p>
-        </Stack>
-      </Stack>
-      <div>
-        <Button href={`#/estudo/${stop.subtopic}`} iconEnd="arrow-right">
-          Continuar
-        </Button>
-      </div>
-    </Panel>
+    <section className="scenic__hero" aria-labelledby="home-title">
+      <h1>Início</h1>
+      {stop ? (
+        <>
+          <p className="scenic__eyebrow">Continue de onde parou</p>
+          <h2 id="home-title" className="scenic__title">
+            {stop.subtopic_name}
+          </h2>
+          <p className="scenic__subtitle">{stop.concept_name}</p>
+          {stop.block_heading && (
+            <p className="scenic__note">
+              Retome no bloco <strong>{stop.block_heading}</strong>.
+            </p>
+          )}
+          <div className="scenic__action">
+            <Button href={`#/estudo/${stop.subtopic}`} iconEnd="arrow-right">
+              Continuar leitura
+            </Button>
+          </div>
+        </>
+      ) : (
+        <>
+          <p className="scenic__eyebrow">Uma etapa de cada vez</p>
+          <h2 id="home-title" className="scenic__title">
+            Comece pela Biblioteca
+          </h2>
+          <p className="scenic__note">Escolha um subtema e abra o primeiro bloco.</p>
+          <div className="scenic__action">
+            <Button href="#/biblioteca" iconEnd="arrow-right">
+              Abrir a Biblioteca
+            </Button>
+          </div>
+        </>
+      )}
+    </section>
   );
 }
 
 function NextSteps({ steps }) {
   return (
-    <Panel as="section" aria-labelledby="home-next">
-      <h2 id="home-next" className="t-section-title">
-        Próximo passo
-      </h2>
+    <section className="home__column" aria-labelledby="home-path">
+      <h2 id="home-path">Seu percurso</h2>
       <ul className="home__steps">
         {steps.map((step) => (
-          <li key={step.track_name} className="home__step">
+          <li key={step.track_name} className="home__item">
+            <Icon name="graduation" size={32} />
             <div>
-              <p className="home__concept">{step.concept_name}</p>
-              <p className="t-meta">
-                {step.track_name}
+              <p className="home__lead">{step.track_name}</p>
+              <p className="home__meta">
+                Próximo passo: {step.concept_name}
                 {step.subtopic_name && ` · ${step.subtopic_name}`}
               </p>
             </div>
-            {step.subtopic ? (
-              <Button
-                variant="tertiary"
-                href={`#/estudo/${step.subtopic}`}
-                aria-label={`Estudar ${step.subtopic_name}`}
-              >
-                Estudar
-              </Button>
-            ) : (
-              <Button
-                variant="tertiary"
-                href="#/biblioteca"
-                aria-label={`Preparar ${step.concept_name} na Biblioteca`}
-              >
-                Preparar na Biblioteca
-              </Button>
-            )}
           </li>
         ))}
       </ul>
-    </Panel>
+      <div className="home__indent">
+        <Button variant="tertiary" href="#/roadmap" iconEnd="arrow-right" className="home__link">
+          Ver roadmap
+        </Button>
+      </div>
+    </section>
   );
 }

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { api } from "../api.js";
-import { Button, Inline, Panel, Select, Stack, StateMessage, TextArea } from "../ui/index.js";
+import { Button, Icon, Inline, Panel, Select, Stack, StateMessage, TextArea } from "../ui/index.js";
 import { ActionError, toOptions } from "./forms.jsx";
 import "./review.css";
 import "./study.css";
@@ -21,6 +21,7 @@ export default function Review() {
   const [loadError, setLoadError] = useState(null);
   // Counts ratings, so a card shown again after a rating is a new showing with a new event.
   const [round, setRound] = useState(0);
+  const [creating, setCreating] = useState(false);
 
   const load = useCallback(
     () =>
@@ -46,11 +47,24 @@ export default function Review() {
   const [card] = queue?.cards ?? [];
 
   return (
-    <Stack gap={6} className="study__column">
-      <Stack gap={3}>
-        <h1>Revisões</h1>
-        {queue && <p className="t-meta">Revisões de hoje: {queue.count}</p>}
-      </Stack>
+    <div className="reviews">
+      <header className="reviews__head">
+        <Stack gap={2}>
+          <h1>Revisões</h1>
+          {queue && <p className="t-meta">Revisões de hoje: {queue.count}</p>}
+        </Stack>
+        <Button
+          variant="secondary"
+          icon={creating ? "close" : "plus"}
+          aria-expanded={creating}
+          aria-controls={creating ? "novo-cartao-form" : undefined}
+          onClick={() => setCreating(!creating)}
+        >
+          {creating ? "Fechar novo cartão" : "Novo cartão"}
+        </Button>
+      </header>
+      {/* Reloading under a card on screen could swap it for the new one and abandon its event. */}
+      {creating && <ManualCardForm onCreated={() => !card && load()} />}
       {loadError ? (
         <StateMessage
           kind="error"
@@ -64,22 +78,32 @@ export default function Review() {
       ) : card ? (
         <ReviewCard key={`${card.id}:${round}`} card={card} focusOnShow={round > 0} onRated={onRated} />
       ) : (
-        <Panel raised as="div">
-          <StateMessage
-            title="Nenhum cartão para revisar agora."
-            action={
-              <Button variant="secondary" onClick={load}>
-                Procurar de novo
-              </Button>
-            }
-          >
-            Os próximos aparecem aqui quando chegar a hora de revê-los.
-          </StateMessage>
+        <Panel raised as="div" className="reviews__empty">
+          <Icon name="cards" size={56} />
+          <p className="ui-state__title">Nenhum cartão para revisar agora.</p>
+          <p className="ui-state__text">Os próximos aparecem aqui quando chegar a hora de revê-los.</p>
+          <Inline gap={5} justify="center" className="reviews__empty-actions">
+            <Button href="#/inicio" iconEnd="arrow-right">
+              Voltar ao estudo
+            </Button>
+            <Button variant="secondary" icon="refresh" onClick={load}>
+              Procurar de novo
+            </Button>
+          </Inline>
         </Panel>
       )}
-      {/* Reloading under a card on screen could swap it for the new one and abandon its event. */}
-      <ManualCardForm onCreated={() => !card && load()} />
-    </Stack>
+      <aside className="reviews__note" aria-label="Sobre os cartões">
+        <Icon name="info" size={32} />
+        <div>
+          <p>Cartões importados só entram na revisão após aprovação.</p>
+          <p className="t-meta">Cartões manuais criados aqui entram diretamente na revisão.</p>
+        </div>
+        <a href="#/biblioteca" className="reviews__note-link">
+          Conferir na Biblioteca
+          <Icon name="arrow-right" />
+        </a>
+      </aside>
+    </div>
   );
 }
 
@@ -279,7 +303,7 @@ function ManualCardForm({ onCreated }) {
   }
 
   return (
-    <Panel as="section" className="review" aria-labelledby="novo-cartao">
+    <Panel as="section" className="review" id="novo-cartao-form" aria-labelledby="novo-cartao">
       <Stack as="form" gap={4} onSubmit={submit} noValidate>
         <Stack gap={2}>
           <h2 id="novo-cartao">Novo cartão</h2>

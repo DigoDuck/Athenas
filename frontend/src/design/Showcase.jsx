@@ -7,11 +7,13 @@ import {
   Callout,
   CardsDueBadge,
   GeneratedByBadge,
+  Icon,
   Inline,
   List,
   ListRow,
   Markdown,
   Panel,
+  Popover,
   ProgressBar,
   ReviewFlagBadge,
   Select,
@@ -37,22 +39,30 @@ const navItems = [
 const secondaryItems = [{ id: "config", label: "Configurações", icon: "settings", href: "#design" }];
 
 const scenes = [
-  { value: "garden", label: "Jardim (telas internas)" },
-  { value: "home", label: "Principal (tela inicial)" },
-  { value: "none", label: "Nenhum" },
+  { value: "none", label: "Mármore (telas internas)" },
+  { value: "home", label: "Panorama do Início" },
+  { value: "roadmap", label: "Panorama do Roadmap" },
 ];
 
 const colors = [
   ["background", "Mármore"],
   ["surface", "Superfície"],
   ["surface-muted", "Superfície auxiliar"],
+  ["heading", "Títulos"],
   ["text", "Texto"],
   ["text-muted", "Texto secundário"],
+  ["ink", "Tinta (leitura e navegação)"],
+  ["ink-muted", "Tinta secundária"],
+  ["primary", "Ação principal"],
+  ["board", "Quadro sobre o panorama"],
   ["border", "Separador"],
   ["control-border", "Contorno de controle"],
   ["gold", "Ouro (decorativo)"],
   ["sunset", "Pôr do sol (decorativo)"],
+  ["amber", "Âmbar (decorativo)"],
+  ["copper", "Cobre (decorativo)"],
   ["bronze", "Bronze"],
+  ["rust", "Ferrugem (onde o leitor está)"],
   ["selected", "Seleção"],
   ["success", "Sucesso"],
   ["error", "Erro"],
@@ -86,7 +96,7 @@ function Section({ title, children }) {
 export default function Showcase() {
   const [tab, setTab] = useState("explicacao");
   const [focusMode, setFocusMode] = useState(false);
-  const [scene, setScene] = useState("garden");
+  const [scene, setScene] = useState("none");
   const [saving, setSaving] = useState(false);
   const [name, setName] = useState("");
 
@@ -108,10 +118,10 @@ export default function Showcase() {
     />
   );
 
-  // The home scene has no sheet: text only inside opaque panels, as the opening screen will do.
-  if (scene === "home") {
+  // The panorama: opening lines on its light left side, everything else on opaque panels.
+  if (scene !== "none") {
     return (
-      <AppShell items={navItems} secondaryItems={secondaryItems} current="inicio" scene="home">
+      <AppShell items={navItems} secondaryItems={secondaryItems} current="inicio" scene={scene}>
         <div className="showcase__home">
           <Panel raised aria-labelledby="retomar">
             <Stack>
@@ -134,7 +144,6 @@ export default function Showcase() {
       items={navItems}
       secondaryItems={secondaryItems}
       current="biblioteca"
-      scene={scene === "none" ? null : scene}
     >
       <div className="showcase">
         <header className="showcase__header">
@@ -262,6 +271,18 @@ export default function Showcase() {
               { id: "caderno", label: "Modo caderno", content: <p>Versão para copiar no caderno.</p> },
             ]}
           />
+          <Popover label="Ações da etapa" trigger={<Icon name="more" />}>
+            {(close) => (
+              <>
+                <button type="button" className="ui-popover__item" onClick={close}>
+                  Mover para antes
+                </button>
+                <button type="button" className="ui-popover__item ui-popover__item--danger" onClick={close}>
+                  Tirar da trilha
+                </button>
+              </>
+            )}
+          </Popover>
         </Section>
 
         <Section title="Situação e progresso">

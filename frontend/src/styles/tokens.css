@@ -12,7 +12,10 @@
   --color-selected: #f4e7ce; /* localized selection background */
 
   /* Text */
-  --color-text: #34392f; /* 11.85:1, also the primary action */
+  --color-text: #34392f; /* 11.85:1 */
+  --color-heading: #1b1d18; /* 16.9:1, titles: the mockups set them near black */
+  --color-ink: #0e2952; /* 14.4:1, navy for the text being studied and the navigation */
+  --color-ink-muted: #3a5a78; /* 7.0:1, navy secondary text on the reading screen */
   --color-text-muted: #62675d; /* 5.81:1, secondary text and metadata */
   --color-text-inverse: #ffffff;
 
@@ -23,25 +26,32 @@
   /* Brand light. Decorative: never small text on white. */
   --color-gold: #b79a52; /* 2.71:1, emblems and ornaments */
   --color-sunset: #e6af50; /* 1.98:1, light and small highlights */
+  --color-amber: #c98b3f; /* disc behind the arrow of a forward action; 4.1:1 with --color-text */
+  --color-copper: #b0612a; /* 4.6:1, the navigation line, rings and the open block's tab */
 
   /* Accent */
-  --color-bronze: #805c1f; /* 6.05:1, links, active icons, focus, progress fill */
+  --color-bronze: #805c1f; /* 6.05:1, links, active icons, focus */
+  --color-rust: #a24d01; /* 5.8:1, where the reader is: current crumb, the next block */
 
   /* Feedback. Each pairs with a tint background; every pair is at least 5:1.
      The guide defines only the info tint (#EDF2F5); the other tints are derived. */
-  --color-success: #456149;
-  --color-success-tint: #e8efe8;
+  --color-success: #16671b;
+  --color-success-tint: #e0f3e5;
   --color-error: #9d3c32;
   --color-error-hover: #84322a; /* not in the guide: darker error for the destructive hover */
   --color-error-tint: #f6e6e3;
   --color-warning: #77540e;
   --color-warning-tint: #f6ebd2;
-  --color-info: #365d74;
-  --color-info-tint: #edf2f5;
+  --color-info: #0a39c6;
+  --color-info-tint: #dcecfc;
 
-  /* Primary button states */
-  --color-primary-hover: #242820;
-  --color-primary-pressed: #1d211a;
+  /* Primary button states: forest green from the mockups, 12.2:1 with white */
+  --color-primary: #283a23;
+  --color-primary-hover: #1e2d1a;
+  --color-primary-pressed: #172314;
+  --color-board: #f8f3ec; /* the warm board over the panorama */
+  --color-board-edge: #e6d6ba; /* the board's visible thickness under it */
+  --color-shadow-ink: #73634f; /* the olive-leaf shadow on quiet screens, always faded */
   --color-disabled-bg: #ecede8;
   --color-disabled-text: #62675d;
 
@@ -50,15 +60,22 @@
   --font-body: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", Consolas, ui-monospace, monospace;
 
+  /* Desktop sizes follow Diogo's mockups (D-034), larger than the guide; fluid with the window. */
+  --text-hero: clamp(4rem, 6.4vw, 7rem); /* the opening line of Início and Roadmap */
+  --text-hero-sub: clamp(1.75rem, 2.2vw, 2.25rem); /* the line under it */
   --text-display: 3.5rem; /* 56px, home opening */
-  --text-page-title: 2.5rem; /* 40px */
-  --text-section-title: 1.75rem; /* 28px */
+  --text-page-title: clamp(2.5rem, 2.8vw, 2.875rem); /* 40 to 46px */
+  --text-section-title: clamp(1.75rem, 1.9vw, 2rem); /* 28 to 32px */
+  --text-board-title: clamp(2rem, 2.4vw, 2.5rem); /* the heading of a board or empty state */
+  --text-block-title: clamp(2.125rem, 2.4vw, 2.5rem); /* the open block on the reading screen */
   --text-subsection-title: 1.375rem; /* 22px, not in the guide: a concept inside an area */
-  --text-reading: 1.125rem; /* 18px */
-  --text-ui: 1rem; /* 16px */
-  --text-meta: 0.875rem; /* 14px */
+  --text-reading: clamp(1.125rem, 0.5rem + 0.9vw, 1.5rem); /* 18px, 21px at 1440, 24px max */
+  --text-lead: clamp(1.125rem, 1.2vw, 1.25rem); /* 18 to 20px, a line that leads a row */
+  --text-ui: clamp(1rem, 0.6rem + 0.45vw, 1.125rem); /* 16px, 17px at 1440, 18px max */
+  --text-meta: clamp(0.875rem, 0.55rem + 0.35vw, 1rem); /* 14 to 16px */
   --text-code: 0.9375rem; /* 15px */
 
+  --leading-hero: 0.95;
   --leading-display: 1.1;
   --leading-page-title: 1.15;
   --leading-section-title: 1.25;
@@ -69,6 +86,7 @@
 
   --weight-regular: 400;
   --weight-semibold: 600;
+  --weight-bold: 700; /* Cormorant only: the opening line over the panorama */
 
   --measure-reading: 66ch; /* guide: 60 to 72 characters per line */
   --tracking-caps: 0.16em; /* brand and small uppercase labels */
@@ -86,11 +104,13 @@
   /* Shapes */
   --radius-control: 6px;
   --radius-panel: 10px;
+  --radius-board: 28px; /* the large board over the panorama */
   --border-width: 1px;
   --shadow-panel: 0 4px 16px rgba(52, 57, 47, 0.06);
+  --shadow-overlay: 0 12px 32px rgba(52, 57, 47, 0.14); /* a popover above the page */
 
   /* Controls */
-  --control-height: 44px;
+  --control-height: 48px;
   --target-size: 48px;
   --icon-sm: 20px;
   --icon-md: 24px;
@@ -108,7 +128,7 @@
   /* Layout */
   --layout-nav-width: 224px;
   --layout-max-width: 1440px;
-  --layout-margin: var(--space-6);
+  --layout-margin: var(--space-7);
   --layout-aside-width: 360px;
 }
 
@@ -121,6 +141,8 @@
 @media (max-width: 767px) {
   :root {
     --layout-margin: var(--space-4);
+    --text-hero: 3rem; /* 48 */
+    --text-hero-sub: 1.5rem;
     --text-display: 2.25rem; /* 36 */
     --text-page-title: 1.875rem; /* 30 */
     --text-section-title: 1.5rem; /* 24 */

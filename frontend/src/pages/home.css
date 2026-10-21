@@ -1,39 +1,210 @@
-/* Home: one column of opaque panels on the left, so the statue stays in view on the right. */
-.home {
+/* Screens over the panorama (Início, Roadmap): the opening lines on its light left side, then
+   one opaque board along the bottom of the window, so the scenery stays in view between them. */
+.scenic {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
-  max-width: var(--measure-reading);
+  gap: var(--space-6);
+  min-height: calc(100vh - 2 * var(--layout-margin));
 }
 
-.home__subtopic {
-  font-family: var(--font-display);
-  font-size: var(--text-section-title);
+.scenic__hero {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  max-width: 40rem;
+}
+
+.scenic__hero > h1 {
+  margin-bottom: var(--space-6);
+}
+
+.scenic__eyebrow {
+  margin-bottom: var(--space-3);
+  font-size: var(--text-meta);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--color-rust);
+}
+
+.scenic__title {
+  font-size: var(--text-hero);
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-hero);
+  letter-spacing: -0.015em;
+}
+
+.scenic__subtitle {
+  margin-top: var(--space-4);
+  font-size: var(--text-hero-sub);
   line-height: var(--leading-section-title);
-  font-weight: var(--weight-semibold);
+  color: var(--color-heading);
 }
 
-.home__reviews {
-  font-family: var(--font-body);
-  font-size: var(--text-ui);
-  line-height: var(--leading-ui);
+.scenic__note {
+  margin-top: var(--space-2);
+  font-size: var(--text-lead);
+  color: var(--color-text-muted);
+}
+
+.scenic__note strong {
   font-weight: var(--weight-semibold);
+  color: var(--color-heading);
+}
+
+/* The opening action is the largest control on the screen. */
+.scenic__action {
+  --control-height: 64px;
+  margin-top: var(--space-5);
+}
+
+.scenic__action .ui-button {
+  padding-left: var(--space-6);
+  font-size: clamp(1.25rem, 1.45vw, 1.5rem);
+}
+
+/* The board is a marble slab: its top right corner steps down into a band that runs off the
+   right edge of the window, and its thickness shows under it. */
+.scenic__board {
+  --fillet: 36px;
+  /* From the content's right edge to the window's, even when the content is centered. */
+  --bleed: calc(
+    var(--layout-margin) +
+      max(0px, (100vw - var(--layout-nav-width) - 2 * var(--layout-margin) - var(--layout-max-width)) / 2)
+  );
+  position: relative;
+  margin-top: auto;
+  margin-right: clamp(var(--space-7), 10vw, 12rem);
+  padding: var(--space-5) var(--space-7);
+  border: 0;
+  border-radius: var(--radius-board);
+  background: var(--color-board);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 14px 0 -3px var(--color-board-edge),
+    0 15px 0 -3px rgba(52, 57, 47, 0.12),
+    0 30px 40px -12px rgba(52, 57, 47, 0.45);
+}
+
+/* The band, with a concave fillet where it meets the slab above and below. */
+.scenic__board::after {
+  content: "";
+  position: absolute;
+  top: var(--radius-board);
+  bottom: var(--radius-board);
+  left: 100%;
+  right: calc(-1 * (var(--bleed) + clamp(var(--space-7), 10vw, 12rem)));
+  pointer-events: none;
+  /* The band's own thickness, following its curves; a blur would smudge onto the slab. */
+  filter: drop-shadow(0 14px 0 var(--color-board-edge));
+  background:
+    radial-gradient(circle at 100% 0, transparent var(--fillet), var(--color-board) calc(var(--fillet) + 0.5px))
+      0 0 / var(--fillet) var(--fillet) no-repeat,
+    radial-gradient(circle at 100% 100%, transparent var(--fillet), var(--color-board) calc(var(--fillet) + 0.5px))
+      0 100% / var(--fillet) var(--fillet) no-repeat,
+    linear-gradient(var(--color-board), var(--color-board)) 0 var(--fillet) / 100%
+      calc(100% - 2 * var(--fillet)) no-repeat;
+}
+
+@media (max-width: 767px) {
+  .scenic__board {
+    margin-right: 0;
+  }
+
+  .scenic__board::after {
+    display: none;
+  }
+}
+
+.scenic__board h2 {
+  font-size: var(--text-board-title);
+}
+
+/* Início's board: the track and practice side by side, today's reviews along the bottom. */
+.home__columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+  gap: var(--space-6) var(--space-7);
+}
+
+.home__column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.home__column + .home__column {
+  padding-left: var(--space-7);
+  border-left: var(--border-width) solid var(--color-border);
 }
 
 .home__steps {
+  display: grid;
+  gap: var(--space-4);
   padding: 0;
   list-style: none;
 }
 
-.home__step {
+.home__item {
   display: flex;
+  align-items: flex-start;
+  gap: var(--space-5);
+}
+
+.home__item > .ui-icon {
+  color: var(--color-bronze);
+}
+
+.home__lead {
+  font-size: var(--text-lead);
+  line-height: var(--leading-ui);
+  color: var(--color-text-muted);
+}
+
+.home__steps .home__lead {
+  font-size: var(--text-subsection-title);
+  color: var(--color-heading);
+}
+
+.home__meta {
+  font-size: var(--text-lead);
+  color: var(--color-text-muted);
+}
+
+/* Actions line up under the text, past the icon. */
+.home__indent {
+  padding-left: calc(32px + var(--space-5));
+}
+
+.home__link {
+  padding-left: 0;
+  font-size: var(--text-lead);
+  color: var(--color-rust);
+}
+
+.home__column .ui-button--secondary {
+  --control-height: 52px;
+  font-size: var(--text-lead);
+}
+
+.home__reviews {
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--space-4);
-  padding: var(--space-3) 0;
+  gap: var(--space-3) var(--space-4);
+  padding-top: var(--space-4);
   border-top: var(--border-width) solid var(--color-border);
 }
 
-.home__concept {
-  font-weight: var(--weight-semibold);
+.home__reviews > h2 {
+  padding-right: var(--space-4);
+  border-right: var(--border-width) solid var(--color-border);
+  font-family: var(--font-body);
+  font-size: var(--text-ui);
+  line-height: var(--leading-ui);
+  font-weight: var(--weight-regular);
+}
+
+.home__reviews > p {
+  color: var(--color-text-muted);
 }

@@ -8,20 +8,19 @@ import Icon from "./Icon.jsx";
 // items: [{ id, label, icon, href }]; `current` is the active item id.
 // Routing is left to the caller: items are plain links.
 //
-// `scene` puts one of the sunset backgrounds behind the work area. Both are decorative and
-// disappear in focus mode and in print.
-// - "garden" (default): internal screens. The page sits on an opaque sheet and the
-//   colonnade shows only in the margins around it.
-// - "home": the opening screen. There is no sheet, so every piece of text on that page
-//   must sit inside an opaque Panel, never on the photograph.
-// - null: no background.
+// `scene="home"` or `scene="roadmap"` puts a sunset panorama behind the whole screen, for the
+// screens that open the day (Início, Roadmap), and the bushes cut from the same photograph in
+// front of the page, so they overlap the board. Both are decorative and disappear in focus mode
+// and in print. The panorama's left side fades to marble: only the navigation and the page's
+// opening lines sit there. Without a scene (default) the page sits on marble with a faint
+// olive-leaf shadow in the top corner, behind the navigation only.
 
 // The owl emblem with the wordmark. The image is decorative: the wordmark names the link.
 // `compact` puts them side by side, for the collapsed top bar.
 export function Brand({ compact = false }) {
   return (
     <a className={`ui-brand${compact ? " ui-brand--compact" : ""}`} href="/">
-      <img className="ui-brand__emblem" src={emblem} alt="" width={compact ? 32 : 56} height={compact ? 32 : 56} />
+      <img className="ui-brand__emblem" src={emblem} alt="" width={compact ? 32 : 72} height={compact ? 32 : 72} />
       <span className="ui-brand__word">Athenas</span>
     </a>
   );
@@ -37,7 +36,7 @@ function NavList({ items, current }) {
             href={item.href}
             aria-current={item.id === current ? "page" : undefined}
           >
-            <Icon name={item.icon} size={24} />
+            <Icon name={item.icon} size={28} />
             {item.label}
           </a>
         </li>
@@ -51,7 +50,7 @@ export default function AppShell({
   secondaryItems = [],
   current,
   aside,
-  scene = "garden",
+  scene = null,
   children,
 }) {
   const [open, setOpen] = useState(false);
@@ -61,7 +60,7 @@ export default function AppShell({
       data-nav-open={open ? "true" : undefined}
       data-scene={scene || undefined}
     >
-      {scene && <div className={`ui-shell__scene ui-shell__scene--${scene} decor`} aria-hidden="true" />}
+      <div className={scene ? `ui-shell__scene ui-shell__scene--${scene} decor` : "ui-shell__leaf decor"} aria-hidden="true" />
       {/* The hash is the app's router, so the skip link moves focus without changing the URL. */}
       <a
         className="ui-skip-link"
@@ -105,6 +104,7 @@ export default function AppShell({
       <main className="ui-shell__main" id="conteudo" tabIndex={-1}>
         <div className="ui-shell__content">{children}</div>
       </main>
+      {scene && <div className={`ui-shell__foliage ui-shell__foliage--${scene} decor`} aria-hidden="true" />}
       {aside && (
         <aside className="ui-shell__aside" data-print="hide">
           {aside}
