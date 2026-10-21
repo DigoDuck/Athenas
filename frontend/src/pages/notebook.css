@@ -69,4 +69,11 @@
     overflow: visible;
     white-space: pre-wrap;
   }
+
+  /* A table scrolls on screen; on paper a long token in a cell must break instead. */
+  .notebook__sheet code,
+  .notebook__sheet td,
+  .notebook__sheet th {
+    overflow-wrap: anywhere;
+  }
 }
