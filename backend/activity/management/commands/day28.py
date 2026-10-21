@@ -49,11 +49,13 @@ def report(metric, today):
     lines += ["", f"Blocks that met the bar: {met} of 4."]
     if metric["tie_break"]:
         lines.append("Blocks 3 and 4 met the bar, so one extension block is enough (D-038).")
+    # D-010's order: numbers per block, the two items the events cannot know, the reading.
     lines += [
-        f"Reading: {READINGS[metric['reading']]}",
         "",
-        "Not in the session events, to be written by hand: the features that shipped that month "
-        "and the sessions lost to being away from the computer.",
+        "Features that shipped that month: (write by hand)",
+        "Sessions lost to being away from the computer: (write by hand)",
+        "",
+        f"Reading: {READINGS[metric['reading']]}",
     ]
     return "\n".join(lines)
 

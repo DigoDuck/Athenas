@@ -109,6 +109,13 @@ def test_the_reading_waits_while_open_blocks_can_change_it():
     assert early["reading"] == "pending" and early["extension"] == []
 
 
+def test_a_past_read_date_ignores_the_days_of_use_after_it():
+    metric = day28_metric(use(b1=3, b2=3, b3=3), today=date(2026, 10, 20))
+    assert statuses(metric) == ["met", "open", "open", "open"]
+    assert metric["blocks"][1]["days"] == []
+    assert metric["reading"] == "pending"
+
+
 def finished_at(when, *, completed=True):
     finished = when if completed else None
     return SessionEvent.objects.create(
@@ -135,6 +142,8 @@ def test_the_command_counts_completed_activities_by_bahia_day(capsys):
     assert "| 2 | 2026-10-24 to 2026-10-30 | 1 | 10-24 | missed |" in out
     assert "Blocks that met the bar: 1 of 4." in out
     assert "Reading: hypothesis not confirmed." in out
+    # D-010's order: the reading comes after the items written by hand.
+    assert out.index("Features that shipped") < out.index("Sessions lost") < out.index("Reading:")
 
 
 @pytest.mark.django_db(transaction=True)

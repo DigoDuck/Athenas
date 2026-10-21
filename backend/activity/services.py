@@ -125,9 +125,10 @@ def day28_block(number, days, *, today) -> dict:
     """One block, `met`, `missed` or `open`, decided as soon as the days left cannot change it."""
     start = DAY_1 + timedelta(days=BLOCK_DAYS * (number - 1))
     dates = [start + timedelta(days=n) for n in range(BLOCK_DAYS)]
-    used = [day for day in dates if day in days]
+    # Read as of `today`: a later day of use did not exist yet on that date.
+    used = [day for day in dates if day in days and day <= today]
     # Today is not over, so it can still become a day of use.
-    left = sum(1 for day in dates if day >= today and day not in days)
+    left = sum(1 for day in dates if day >= today and day not in used)
     if len(used) >= DAYS_TO_MEET:
         status = "met"
     elif len(used) + left < DAYS_TO_MEET:
