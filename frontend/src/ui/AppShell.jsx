@@ -6,7 +6,8 @@ import Icon from "./Icon.jsx";
 // Desktop layout: 224px side navigation, flexible work area with a 32px margin.
 // Below 1200px (a snapped window, for example) the navigation collapses behind a labelled button.
 // items: [{ id, label, icon, href }]; `current` is the active item id.
-// Routing is left to the caller: items are plain links.
+// Routing is left to the caller: items are plain links. `navFooter` sits at the bottom of the
+// navigation, above the secondary items, for a quiet tool such as the pomodoro.
 //
 // `scene="home"` or `scene="roadmap"` puts a sunset panorama behind the whole screen, for the
 // screens that open the day (Início, Roadmap), and the bushes cut from the same photograph in
@@ -50,6 +51,7 @@ export default function AppShell({
   secondaryItems = [],
   current,
   aside,
+  navFooter,
   scene = null,
   children,
 }) {
@@ -94,9 +96,10 @@ export default function AppShell({
             <Brand />
           </div>
           <NavList items={items} current={current} />
-          {secondaryItems.length > 0 && (
+          {(navFooter || secondaryItems.length > 0) && (
             <div className="ui-nav__secondary">
-              <NavList items={secondaryItems} current={current} />
+              {navFooter}
+              {secondaryItems.length > 0 && <NavList items={secondaryItems} current={current} />}
             </div>
           )}
         </nav>

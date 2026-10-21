@@ -114,3 +114,27 @@ class SettingsSerializer(serializers.ModelSerializer):
             "pomodoro_focus_minutes",
             "pomodoro_break_minutes",
         ]
+        # Bounds a typo cannot cross (DECISIONS.md D-037); the model keeps the wider ones.
+        extra_kwargs = {
+            "review_cap": {"min_value": 1, "max_value": 200},
+            "new_card_cap": {"min_value": 0, "max_value": 200},
+            "desired_retention": {
+                "min_value": 0.7,
+                "max_value": 0.97,
+                # The screen shows a percentage; "%%" because Django interpolates the message.
+                "error_messages": {
+                    "min_value": "Use um valor entre 70%% e 97%%.",
+                    "max_value": "Use um valor entre 70%% e 97%%.",
+                },
+            },
+        }
+
+    def validate(self, attrs):
+        # New cards take their slots inside the review cap (D-022), so a larger number does nothing.
+        review_cap = attrs.get("review_cap", self.instance.review_cap)
+        new_card_cap = attrs.get("new_card_cap", self.instance.new_card_cap)
+        if new_card_cap > review_cap:
+            raise serializers.ValidationError(
+                {"new_card_cap": "Use até o limite de revisões por dia, que já inclui os novos."}
+            )
+        return attrs
