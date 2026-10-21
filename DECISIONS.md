@@ -731,3 +731,30 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
   mockups ask for and what "começar e retomar sem esforço" needs.
 - Cost: a long track scrolls sideways on the board. Text on the panorama depends on the fade:
   a new landscape needs a light left side, or its opening lines need a panel.
+
+### D-036: Notebook mode is a screen of its own that records one notebook event
+
+- Date: 2026-10-21. Source: slice S8 of `docs/plan.md`; spec 4.8.2 and Q16 fix which blocks
+  notebook mode shows and that it ends with one practice prompt, but not which prompt, where
+  it opens, or when its event counts.
+- Decision:
+  - Notebook mode is `#/caderno/<subtopic>`, opened from "Modo caderno" in the reading screen's
+    "Apoio ao estudo". It shows Objetivo, Ideia central, Exemplo and Resumo para o caderno on
+    one sheet, in that order whatever their order in the document. A block missing or without
+    text is left out and named in one line under the sheet. Printing keeps only the sheet
+    (`docs/design-system.md` section 6) and wraps long code lines instead of cutting them.
+  - The prompt is one of the questions Practice offers (not archived, with a reference
+    answer): the one answered longest ago, a question never answered first, ties by import
+    order. A subtopic with no such question gets "explain in my words". The reference answer is
+    never sent to this screen; comparing happens in Practice.
+  - Opening the screen starts a `notebook` event on the subtopic (D-017), unless there is
+    nothing to show. "Copiei para o caderno" completes it, so only a finished copy counts as a
+    session day (spec 4.11.2) and, like any other activity, ends a return session (D-026).
+    Leaving without it abandons the event, as in reading.
+  - Notebook mode does not open blocks: it marks nothing read and does not move the subtopic to
+    in progress (spec 4.4.5 ties that to opening a block).
+- Why: rotating the question makes copying a subtopic again a new check of what stayed, not a
+  repeat of P1. Completing on an explicit button keeps a glance at the screen out of the
+  measurement, the same rule reading and practice follow.
+- Cost: the answer written on paper leaves no attempt in the app; it reaches the history only
+  if Diogo also answers in Practice. Reloading the screen abandons its event and opens another.

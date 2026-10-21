@@ -1,0 +1,84 @@
+/* Notebook mode: the copy blocks on one white sheet, at reading size, with clear titles. */
+
+.notebook {
+  color: var(--color-ink);
+}
+
+/* The origin badge at the size the reading screen gives it. */
+.notebook .ui-badge {
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-lead);
+}
+
+/* `ch` resolves at reading size, so the sheet holds about 70 characters a line. */
+.notebook__sheet {
+  display: grid;
+  gap: var(--space-6);
+  max-width: calc(70ch + 2 * var(--space-7));
+  padding: var(--space-6) var(--space-7);
+  font-size: var(--text-reading);
+}
+
+.notebook__section {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.notebook__section + .notebook__section {
+  padding-top: var(--space-6);
+  border-top: var(--border-width) solid var(--color-border);
+}
+
+.notebook__section h2 {
+  font-size: var(--text-block-title);
+  font-weight: var(--weight-bold);
+}
+
+.notebook__prompt .t-meta,
+.notebook__sheet > .t-meta {
+  font-size: var(--text-ui);
+}
+
+.notebook__actions {
+  display: grid;
+  justify-items: end;
+  gap: var(--space-3);
+  padding-top: var(--space-5);
+  border-top: var(--border-width) solid var(--color-border);
+}
+
+.notebook__actions > div {
+  justify-self: stretch;
+}
+
+.notebook__actions > div:focus-visible {
+  outline: none;
+}
+
+.notebook__actions .ui-button--primary {
+  --control-height: 56px;
+  padding-left: var(--space-5);
+  font-size: var(--text-lead);
+}
+
+@media (max-width: 1099px) {
+  .notebook__sheet {
+    padding: var(--space-5);
+  }
+}
+
+/* On paper the sheet is the page: no frame and no width cap. */
+@media print {
+  .notebook__sheet {
+    max-width: none;
+    padding: 0;
+    border: 0;
+  }
+
+  /* A command cut at the page edge is lost on paper; wrapped, it can still be copied. */
+  .notebook__sheet pre {
+    overflow: visible;
+    white-space: pre-wrap;
+  }
+}

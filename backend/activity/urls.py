@@ -10,6 +10,7 @@ router.register("events", views.SessionEventViewSet, basename="event")
 
 urlpatterns = [
     path("subtopics/<int:pk>/reading/", views.ReadingView.as_view()),
+    path("subtopics/<int:pk>/notebook/", views.NotebookView.as_view()),
     path("subtopics/<int:pk>/practice/", views.PracticeView.as_view()),
     path("attempts/", views.AttemptView.as_view()),
     path("reviews/", views.ReviewView.as_view()),

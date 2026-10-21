@@ -397,6 +397,16 @@ function Aside({ blocks, subtopicId }) {
           </a>
         </li>
         <li>
+          <a className="study__support-row" href={`#/caderno/${subtopicId}`}>
+            <Icon name="bookmark" size={30} />
+            <span className="study__support-text">
+              <span className="study__support-title">Modo caderno</span>
+              <span className="t-meta">O essencial para copiar no papel</span>
+            </span>
+            <Icon name="chevron-right" size={24} />
+          </a>
+        </li>
+        <li>
           <ReviewFlag subtopicId={subtopicId} />
         </li>
         {sources.length > 0 && (
@@ -523,8 +533,9 @@ function Figure({ image }) {
 }
 
 // The body as the API cut it: Markdown text, fenced code, `[!ia]` callouts, which carry
-// "complemento sem fonte" when they have no source (spec 4.2.8), and images.
-function Segments({ segments }) {
+// "complemento sem fonte" when they have no source (spec 4.2.8), and images. Notebook mode
+// shows its blocks with it too.
+export function Segments({ segments }) {
   if (segments.length === 0) return <p className="t-meta">Este bloco não tem texto.</p>;
   return (
     <div className="t-reading">
