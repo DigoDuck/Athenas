@@ -735,7 +735,8 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
 ### D-038: The day 28 metric is a read-only command, and the 2 of 4 tie-break needs one extra block
 
 - Date: 2026-10-21. Source: M3 of `docs/plan.md`, built on day 5 so the reading is fixed before
-  any number is seen; the agent took the recommended options.
+  any number is seen. Diogo chose the tie-break below over "skip the extension" and "flag only";
+  the agent took the recommended options for the rest.
 - Context: D-010 fixes the window, the unit and the reading, and D-029 fixes day 1. It does not
   say what "the tie-break leans toward success" changes, when a block counts as decided, or how
   the numbers are read without touching use mode's data.
