@@ -56,3 +56,16 @@ class ManualCardSerializer(serializers.ModelSerializer):
 
 class MarkdownSerializer(serializers.Serializer):
     markdown = serializers.CharField(trim_whitespace=False)
+
+
+class ThemeSerializer(serializers.Serializer):
+    """The "Novo tema" paste: where it goes, which AI wrote it, and its answer (D-040)."""
+
+    area = serializers.CharField(max_length=120)
+    track = serializers.CharField(max_length=120)
+    # Written into each frontmatter line, so one word: no line break can sneak a key in.
+    origem = serializers.RegexField(r"^[\w.-]{1,30}$", max_length=30)
+    markdown = serializers.CharField(trim_whitespace=False)
+
+    def validate_origem(self, value):
+        return value.lower()

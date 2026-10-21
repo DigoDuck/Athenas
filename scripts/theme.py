@@ -45,7 +45,7 @@ def theme_images(folder, theme):
 def check(folder):
     """The theme and the problems that block a push; prints one line per file that passes."""
     from content import images
-    from content.parser import KNOWN_HEADINGS, Target, parse_markdown
+    from content.parser import Target, contract_gaps, parse_markdown
 
     theme = json.loads((folder / "tema.json").read_text(encoding="utf-8"))
     problems = []
@@ -79,21 +79,11 @@ def check(folder):
                 continue
             target = Target(theme["area"], concept["name"], subtopic["name"])
             parsed = parse_markdown(path.read_text(encoding="utf-8"), target)
-            found = parsed.errors + parsed.warnings
-            kinds = [block.kind for block in parsed.blocks]
-            if missing := KNOWN_HEADINGS - set(kinds):
-                found.append(f"missing headings: {', '.join(sorted(missing))}")
-            if "extra" in kinds:
-                found.append("a heading outside the contract, or text before the first ##")
-            if parsed.state != "ready":
-                found.append("draft: needs Ideia central and a question with its reference answer")
-            if parsed.level is None:
-                found.append("frontmatter needs nivel")
+            # The same gaps the "Novo tema" screen lists, so both paths share one contract (D-040).
+            found = parsed.errors + parsed.warnings + contract_gaps(parsed)
             if not parsed.generated_by:
                 # Without it the app shows generated text as Diogo's own (DECISIONS.md D-032).
                 found.append("frontmatter needs origem: claude")
-            if not any(b.kind == "Fontes" and "http" in b.body for b in parsed.blocks):
-                found.append("Fontes has no URL")
             found += [f"image not in tema.json: {n}" for n in parsed.images if n not in declared]
             problems += [f"{subtopic['file']}: {item}" for item in found]
             if not found:

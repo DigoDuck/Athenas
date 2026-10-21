@@ -4,7 +4,7 @@ import re
 import unicodedata
 from dataclasses import dataclass, field
 
-KNOWN_HEADINGS = {
+CONTRACT_ORDER = (
     "Objetivo",
     "Pré-requisitos",
     "Ideia central",
@@ -15,7 +15,8 @@ KNOWN_HEADINGS = {
     "Resumo para o caderno",
     "Fontes",
     "Flashcards",
-}
+)
+KNOWN_HEADINGS = set(CONTRACT_ORDER)
 
 QUESTION_RE = re.compile(r"^###\s+(P\d+):\s*(.+?)\s*$")
 CARD_RE = re.compile(r"^-\s+(C\d+):\s*(.+?)\s*::\s*(.+?)\s*$")
@@ -319,3 +320,97 @@ def _duplicates(labels: list[str]) -> list[str]:
             dupes.append(label)
         seen.add(label)
     return dupes
+
+
+# A pasted AI answer with several documents, for the "Novo tema" screen (DECISIONS.md D-040).
+
+FENCE_OPEN_RE = re.compile(r"^(`{3,}|~{3,})\s*[\w-]*\s*$")
+FRONTMATTER_KEY_RE = re.compile(r"^\s*([\w-]+)\s*:")
+
+
+def split_documents(text: str) -> tuple[list[str], list[str]]:
+    """Cut an answer into subtopic documents, each starting at a frontmatter that names it.
+
+    Chat AIs wrap the answer in a code fence, one around everything or one per document, with
+    chat text around them. Each fence just before a frontmatter is dropped with its closer, and
+    the text outside the documents comes back separately so the screen can show what was left
+    out. Returns (documents, ignored stretches).
+    """
+    lines = text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    starts = [i for i in range(len(lines)) if _names_a_subtopic(lines, i)]
+    if not starts:
+        return [], []
+    # The wrapper fence of each document: the line right before its frontmatter, if a fence.
+    openers = []
+    for start in starts:
+        before = start - 1
+        while before >= 0 and not lines[before].strip():
+            before -= 1
+        openers.append(before if before >= 0 and FENCE_OPEN_RE.match(lines[before]) else None)
+
+    ignored = ["\n".join(lines[: starts[0] if openers[0] is None else openers[0]])]
+    documents = []
+    fence = None
+    for index, start in enumerate(starts):
+        if openers[index] is not None:
+            fence = lines[openers[index]].strip()
+        nxt = len(lines) if index + 1 == len(starts) else starts[index + 1]
+        if index + 1 < len(starts) and openers[index + 1] is not None:
+            nxt = openers[index + 1]
+        span = lines[start:nxt]
+        if fence:
+            # Fences inside a document come in pairs, so an odd count holds the wrapper's closer:
+            # the last bare fence of the wrapper's kind.
+            kind = fence[0] * 3
+            marks = [i for i, line in enumerate(span) if line.lstrip().startswith(kind)]
+            last = span[marks[-1]].strip() if marks else ""
+            if len(marks) % 2 == 1 and last == kind[0] * len(last):
+                ignored.append("\n".join(span[marks[-1] + 1 :]))
+                span = span[: marks[-1]]
+        while span and span[-1].strip() in ("", "---"):
+            span.pop()  # blank lines and the `---` rule chat AIs put between documents
+        documents.append("\n".join(span) + "\n")
+    return documents, [stretch.strip() for stretch in ignored if stretch.strip()]
+
+
+def _names_a_subtopic(lines: list[str], start: int) -> bool:
+    # `---`, flat `key: value` lines naming a `subtema`, and `---`: a `---` rule in a body never is.
+    if lines[start].strip() != "---":
+        return False
+    keys = []
+    for line in lines[start + 1 :]:
+        if line.strip() == "---":
+            return "subtema" in keys
+        if not (match := FRONTMATTER_KEY_RE.match(line)):
+            return False
+        keys.append(match[1])
+    return False
+
+
+def with_origin(text: str, origem: str) -> str:
+    """The document with its frontmatter `origem` set to `origem`, replacing any it had."""
+    lines = text.split("\n")
+    end = next(i for i in range(1, len(lines)) if lines[i].strip() == "---")
+    kept = [
+        line
+        for line in lines[1:end]
+        if not ((key := FRONTMATTER_KEY_RE.match(line)) and key[1] == "origem")
+    ]
+    return "\n".join(["---", *kept, f"origem: {origem}", *lines[end:]])
+
+
+def contract_gaps(parsed: ParsedContent) -> list[str]:
+    """What a complete generated document has and this one lacks; none of it blocks a save."""
+    gaps = []
+    kinds = [block.kind for block in parsed.blocks]
+    if missing := [h for h in CONTRACT_ORDER if h not in kinds]:
+        gaps.append(f"Faltam seções: {', '.join(missing)}")
+    if "extra" in kinds:
+        gaps.append("Há seção fora do contrato, ou texto antes do primeiro ##")
+    if parsed.state != "ready":
+        gaps.append("Rascunho: falta Ideia central ou uma pergunta com resposta de referência")
+    if parsed.level is None:
+        gaps.append("O frontmatter não diz o nivel")
+    if not any(b.kind == "Fontes" and "http" in b.body for b in parsed.blocks):
+        gaps.append("Fontes sem nenhum link")
+    return gaps

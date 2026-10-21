@@ -7,11 +7,20 @@ import fsrs
 from django.db import transaction
 from django.db.models import Min
 from django.utils import timezone
-from organization.models import Settings
+from organization.models import Area, Concept, Settings, Step, Track
+from organization.serializers import StepSerializer, SubtopicSerializer
 
 from . import images
 from .models import Block, Content, Flashcard, Image, PracticeQuestion, ReviewLog
-from .parser import ParsedContent, reading_key
+from .parser import (
+    ParsedContent,
+    Target,
+    contract_gaps,
+    parse_markdown,
+    reading_key,
+    split_documents,
+    with_origin,
+)
 
 
 @transaction.atomic
@@ -94,6 +103,121 @@ def _sync_cards(subtopic, parsed):
             card.state_before_suspension = Flashcard.State.PENDING if rejected else card.state
             card.state = Flashcard.State.SUSPENDED
             card.save()
+
+
+# "Novo tema" (DECISIONS.md D-040): one pasted AI answer becomes concepts and subtopics in a track.
+
+NAME_MAX = 160  # Concept.name and Subtopic.name
+KEPT = (
+    "O subtema já tem outro texto, que fica como está. Para trocar, cole este documento no "
+    "subtema, na Biblioteca."
+)
+
+
+@transaction.atomic
+def import_theme(*, area, track, origem, markdown, save=False) -> dict:
+    """What the answer would create, and with `save` creates it, all or nothing.
+
+    Area and track come from the screen; each document names its concept and subtopic. Only what
+    is missing is created: a subtopic that already has other text keeps it, like
+    `scripts/theme.py push` without `--replace`, so nothing Diogo edited or studied changes here.
+    """
+    documents, ignored = split_documents(markdown)
+    report = {
+        "area_new": not Area.objects.filter(name=area).exists(),
+        "track_new": not Track.objects.filter(name=track).exists(),
+        "documents": [],
+        "warnings": [f"Texto fora dos documentos, ignorado: {_excerpt(t)}" for t in ignored],
+        "errors": [],
+    }
+    if not documents:
+        complete = "TRILHA COMPLETA" in markdown.upper()
+        report["errors"].append(
+            "A IA respondeu que a trilha está completa."
+            if complete
+            else "Nenhum documento encontrado. Cada subtema começa pelo frontmatter: uma linha "
+            "---, as linhas area, conceito e subtema, e outra linha ---. Copie a resposta pelo "
+            "botão de copiar do bloco de código, não selecionando o texto."
+        )
+        return report
+
+    plans, seen = [], set()
+    for text in documents:
+        text = with_origin(text, origem)
+        names = parse_markdown(text).frontmatter
+        conceito, subtema = names.get("conceito", ""), names.get("subtema", "")
+        parsed = parse_markdown(text, Target(area, conceito, subtema))
+        errors = list(parsed.errors)
+        if not conceito or not subtema:
+            errors.append("O frontmatter precisa de conceito e subtema")
+        if len(conceito) > NAME_MAX or len(subtema) > NAME_MAX:
+            errors.append(f"Nome de conceito ou subtema com mais de {NAME_MAX} caracteres")
+        if (conceito, subtema) in seen:
+            errors.append(f"Subtema repetido na resposta: {conceito} / {subtema}")
+        seen.add((conceito, subtema))
+        concept = Concept.objects.filter(area__name=area, name=conceito).first()
+        subtopic = concept and concept.subtopics.filter(name=subtema).first()
+        stored = Content.objects.filter(subtopic=subtopic).first() if subtopic else None
+        action = "create" if subtopic is None else "fill" if stored is None else "keep"
+        warnings = parsed.warnings + contract_gaps(parsed)
+        if stored and stored.raw_markdown == parsed.raw:
+            action = "same"
+        elif action == "keep":
+            warnings.append(KEPT)
+        found = set(Image.objects.filter(name__in=parsed.images).values_list("name", flat=True))
+        warnings += [f"Imagem não encontrada: {n}" for n in parsed.images if n not in found]
+        plans.append((parsed, concept, subtopic, action))
+        report["documents"].append(
+            {
+                "conceito": conceito,
+                "subtema": subtema,
+                "concept_new": concept is None,
+                "action": action,
+                "state": parsed.state,
+                "level": parsed.level,
+                "generated_by": parsed.generated_by,
+                "questions": len(parsed.questions),
+                "cards": len(parsed.cards),
+                "unsourced": sum(c.unsourced for c in parsed.callouts),
+                "warnings": warnings,
+                "errors": errors,
+            }
+        )
+    blocked = report["errors"] or any(d["errors"] for d in report["documents"])
+    if not save or blocked:
+        return report
+
+    area_obj, _ = Area.objects.get_or_create(name=area)
+    track_obj, _ = Track.objects.get_or_create(name=track)
+    pending = 0
+    for parsed, concept, subtopic, action in plans:
+        if action in ("keep", "same"):
+            continue
+        if concept is None:
+            concept, _ = Concept.objects.get_or_create(
+                area=area_obj, name=parsed.frontmatter["conceito"]
+            )
+        if not Step.objects.filter(track=track_obj, concept=concept).exists():
+            _create(StepSerializer, track=track_obj.pk, concept=concept.pk)
+        if subtopic is None:
+            name = parsed.frontmatter["subtema"]
+            subtopic = _create(SubtopicSerializer, concept=concept.pk, name=name)
+        import_content(subtopic, parsed)
+        pending += len(parsed.cards)
+    report |= {"track": track_obj.pk, "pending": pending}
+    return report
+
+
+def _create(serializer_class, **data):
+    # Reuses the serializers' append-at-the-end ordering, with its row lock.
+    serializer = serializer_class(data=data)
+    serializer.is_valid(raise_exception=True)
+    return serializer.save()
+
+
+def _excerpt(text, size=80):
+    line = " ".join(text.split())
+    return f"«{line[:size]}…»" if len(line) > size else f"«{line}»"
 
 
 def save_image(name, data, **credit) -> bool:
