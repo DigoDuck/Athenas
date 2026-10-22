@@ -884,3 +884,62 @@ def test_accented_keys_yaml_escapes_and_hyphen_variants_read_as_written_in_the_t
     assert parsed.frontmatter["subtema"] == "Don't panic"
     assert parsed.frontmatter["conceito"] == "Copy-on-write"
     assert parsed.level == "intermediario"
+
+
+# Found by the tenth review of PR #45.
+
+
+def test_a_card_quoted_inside_an_ia_callout_is_listed():
+    callout = "> [!ia] Este cartão não vem das fontes:\n> - C3: E o cache? :: As camadas.\n"
+
+    gaps = contract_gaps(parse_markdown(document("Camadas", extra=callout)))
+
+    assert any(g.endswith("> - C3: E o cache? :: As camadas.") for g in gaps)
+
+
+def test_documents_nested_in_a_list_without_fences_are_read_from_their_indentation():
+    answer = "".join(
+        f"{n}.  **Subtema {n}**\n" + textwrap.indent(document(name), "   ")
+        for n, name in ((1, "Imagem e container"), (2, "Camadas"))
+    )
+
+    documents, _, _ = split_documents(answer + "Bons estudos!\n")
+
+    assert documents[0] == document("Imagem e container")
+    assert [len(parse_markdown(d).questions) for d in documents] == [1, 1]
+
+
+@pytest.mark.django_db
+def test_a_bold_subtema_title_between_complete_documents_does_not_block(client):
+    fenced = (
+        document("Camadas")
+        .replace("---\narea", f"{FENCE}yaml\n---\narea", 1)
+        .replace("nivel: iniciante\n---\n", f"nivel: iniciante\n---\n{FENCE}\n", 1)
+    )
+    answer = document("Imagem e container") + "\n---\n**Subtema:** Camadas\n" + fenced
+
+    report = send(client, answer, "/api/themes/preview/").json()
+
+    assert [d["errors"] for d in report["documents"]] == [[], []]
+
+
+@pytest.mark.django_db
+def test_a_stored_name_with_a_non_breaking_hyphen_is_the_same_name(client):
+    area = Area.objects.create(name="Programação")
+    concept = Concept.objects.create(area=area, name="Copy‑on‑write")
+    planned = Subtopic.objects.create(concept=concept, name="Camadas")
+
+    send(client, document("Camadas", conceito="Copy‑on‑write"))
+
+    assert Concept.objects.count() == 1
+    assert Content.objects.filter(subtopic=planned).exists()
+
+
+def test_frontmatter_keys_indented_with_a_tab_are_read():
+    text = document("Camadas").replace(
+        "\nnivel: iniciante", "\n\tnivel: avancado\n\torigem: claude"
+    )
+
+    parsed = parse_markdown(text)
+
+    assert (parsed.level, parsed.generated_by) == ("avancado", "claude")

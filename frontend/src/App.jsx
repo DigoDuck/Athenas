@@ -28,7 +28,7 @@ const NAV_ITEMS = Object.entries(PAGES).map(([id, { label, icon }]) => ({
 const SCENES = { inicio: "home", roadmap: "roadmap" };
 
 // "#/estudo/<subtopic id>" is reading and "#/pratica/<subtopic id>" practice; the nav keeps
-// Biblioteca marked.
+// Biblioteca marked. "#/roadmap/<track id>" opens the Roadmap on that track.
 const SUBTOPIC_PAGES = { estudo: Study, pratica: Practice };
 
 function currentRoute() {
@@ -36,7 +36,7 @@ function currentRoute() {
   if (key in SUBTOPIC_PAGES && /^\d+$/.test(id ?? "")) {
     return { page: "biblioteca", Subpage: SUBTOPIC_PAGES[key], subtopic: Number(id), key };
   }
-  return { page: key in PAGES ? key : "inicio" };
+  return { page: key in PAGES ? key : "inicio", id: /^\d+$/.test(id ?? "") ? Number(id) : null };
 }
 
 export default function App() {
@@ -55,7 +55,7 @@ export default function App() {
       {route.Subpage ? (
         <route.Subpage key={`${route.key}/${route.subtopic}`} subtopicId={route.subtopic} />
       ) : (
-        <Component />
+        <Component key={route.id} trackId={route.id} />
       )}
     </AppShell>
   );

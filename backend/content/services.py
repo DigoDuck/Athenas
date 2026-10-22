@@ -7,7 +7,8 @@ from datetime import UTC, datetime, time, timedelta
 
 import fsrs
 from django.db import connection, transaction
-from django.db.models import Min
+from django.db.models import Min, Value
+from django.db.models.functions import Replace
 from django.utils import timezone
 from organization.models import Area, Concept, Settings, Step, Track
 from organization.serializers import StepSerializer, SubtopicSerializer
@@ -195,8 +196,8 @@ def import_theme(*, area, track, origem, markdown, save=False) -> dict:
         if (conceito.lower(), subtema.lower()) in seen:
             errors.append(f"Subtema repetido na resposta: {conceito} / {subtema}")
         seen.add((conceito.lower(), subtema.lower()))
-        concept = area_obj and area_obj.concepts.filter(name__iexact=conceito).first()
-        subtopic = concept and concept.subtopics.filter(name__iexact=subtema).first()
+        concept = area_obj and _named(area_obj.concepts, conceito)
+        subtopic = concept and _named(concept.subtopics, subtema)
         stored = Content.objects.filter(subtopic=subtopic).first() if subtopic else None
         action = "create" if subtopic is None else "fill" if stored is None else "keep"
         warnings = parsed.warnings + contract_gaps(parsed)
@@ -253,13 +254,13 @@ def import_theme(*, area, track, origem, markdown, save=False) -> dict:
     track_obj = track_obj or Track.objects.create(name=track)
     pending = 0
     for parsed, conceito, subtema, action in plans:
-        concept = area_obj.concepts.filter(name__iexact=conceito).first()
+        concept = _named(area_obj.concepts, conceito)
         concept = concept or Concept.objects.create(area=area_obj, name=conceito)
         if not Step.objects.filter(track=track_obj, concept=concept).exists():
             _create(StepSerializer, track=track_obj.pk, concept=concept.pk)
         if action in ("keep", "same"):
             continue
-        subtopic = concept.subtopics.filter(name__iexact=subtema).first()
+        subtopic = _named(concept.subtopics, subtema)
         subtopic = subtopic or _create(SubtopicSerializer, concept=concept.pk, name=subtema)
         import_content(subtopic, parsed)
         pending += len(parsed.cards)
@@ -287,6 +288,12 @@ def _document_errors(parsed, conceito, subtema):
         # Two documents run together when the second frontmatter was not recognized.
         errors.append(f"A seção {kind} aparece mais de uma vez: dois documentos se juntaram?")
     return errors
+
+
+def _named(rows, name):
+    # Ignoring case and the hyphens chat AIs write for "-", which the parser reads as one.
+    plain = Replace(Replace("name", Value("\u2011"), Value("-")), Value("\u2010"), Value("-"))
+    return rows.annotate(plain=plain).filter(plain__iexact=name).first()
 
 
 def _open_frontmatter(lines):

@@ -108,8 +108,9 @@ Não inclua imagens. Escreva em português do Brasil; código, comandos e nomes 
 // Null when there is nothing the AI could fix.
 export function buildCorrection(report) {
   const lines = [
-    // "TRILHA COMPLETA" is an answer, not a mistake.
-    ...(report.complete ? [] : report.errors),
+    // "TRILHA COMPLETA" is an answer, not a mistake; with no document at all, the fix is
+    // usually how the answer was copied, which only Diogo can change.
+    ...(report.complete || !report.documents.length ? [] : report.errors),
     // A subtopic that keeps its own text is Diogo's to change; only a broken split is the AI's.
     // Reusing a concept the request listed is right, so its note is not a problem either.
     ...report.documents.flatMap((d) =>

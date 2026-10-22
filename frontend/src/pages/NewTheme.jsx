@@ -66,6 +66,7 @@ export default function NewTheme() {
   const [reloading, setReloading] = useState(false);
   const copyButton = useRef(null);
   const checkButton = useRef(null);
+  const createdMessage = useRef(null);
   const retryButton = useRef(null);
   // Where the keyboard goes once a save ends: the button it was on leaves with the check.
   const refocus = useRef(null);
@@ -189,7 +190,8 @@ export default function NewTheme() {
         const result = await api.post("/api/themes/", JSON.parse(sent));
         setCreated(result);
         setReport(null);
-        refocus.current = copyButton;
+        // Where Criar was, so the confirmation stays in view; it says what comes next.
+        refocus.current = createdMessage;
         // Text pasted while saving is a new round: keep it.
         const saved = JSON.parse(sent).markdown;
         setForm((current) => ({ ...current, answer: current.answer === saved ? "" : current.answer }));
@@ -394,7 +396,11 @@ export default function NewTheme() {
           <ActionError>
             {actionError && `Não foi possível concluir. A resposta continua aqui. ${actionError}`}
           </ActionError>
-          {created && <Created result={created} stale={error} />}
+          {created && (
+            <div ref={createdMessage} tabIndex={-1}>
+              <Created result={created} stale={error} />
+            </div>
+          )}
           {checked && (
             <Report report={checked} blocked={blocked} toCreate={toCreate.length} joins={joins}>
               {correction && (
@@ -549,7 +555,7 @@ function Created({ result, stale }) {
       <StateMessage
         kind="success"
         title={`${names(result.documents)} entrou na trilha.`}
-        action={<a href="#/roadmap">Abrir o Roadmap</a>}
+        action={<a href={`#/roadmap/${result.track}`}>Abrir o Roadmap</a>}
       >
         {stale && next}
       </StateMessage>
@@ -561,7 +567,7 @@ function Created({ result, stale }) {
       title={`${made.length === 1 ? "1 subtema criado" : `${made.length} subtemas criados`} em ${names(made)}.`}
       action={
         <Inline>
-          <a href="#/roadmap">Abrir o Roadmap</a>
+          <a href={`#/roadmap/${result.track}`}>Abrir o Roadmap</a>
           <a href="#/biblioteca">Abrir a Biblioteca</a>
         </Inline>
       }

@@ -1,6 +1,5 @@
 """Pure parser for the subtopic Markdown contract (spec 4.1 and 4.2). No Django, no database."""
 
-import os
 import re
 import unicodedata
 from dataclasses import dataclass, field
@@ -146,7 +145,8 @@ def parse_markdown(text: str, target: Target | None = None) -> ParsedContent:
         for key in ("area", "conceito", "subtema"):
             found = frontmatter.get(key)
             # Names match ignoring case (D-040), so "docker" is no news for "Docker".
-            if found is not None and found.lower() != getattr(target, key).lower():
+            expected = _contract_name(getattr(target, key))
+            if found is not None and found.lower() != expected.lower():
                 parsed.warnings.append(
                     f"O frontmatter diz {key}: {found}, mas o conteúdo está sendo salvo em "
                     f"{getattr(target, key)}"
@@ -186,7 +186,9 @@ def _split_frontmatter(text: str) -> tuple[dict[str, str], str]:
             # Lowercase keys and plain values, as chat AIs also write `Subtema:`, `**subtema:**`,
             # `nível:` or a non-breaking hyphen in a name.
             data = {
-                _without_accents(k.strip(" *")).lower(): _contract_name(_unquoted(_value(k, v)))
+                _without_accents(k.strip().strip("*").strip()).lower(): _contract_name(
+                    _unquoted(_value(k, v))
+                )
                 for k, sep, v in pairs
                 if sep
             }
@@ -453,26 +455,30 @@ def split_documents(text: str) -> tuple[list[str], list[str], bool]:
         i += 1
 
     texts = []
-    for document, head in zip(documents, heads, strict=True):
-        # A document nested in a list item is read from its own margin.
-        filled = [line[: len(line) - len(line.lstrip())] for line in document if line.strip()]
-        margin = os.path.commonprefix(filled)
-        document = [line.removeprefix(margin) for line in document]
+    for n, (document, head) in enumerate(zip(documents, heads, strict=True)):
         labels = []
         while len(document) > head:
-            last = document[-1]
+            last, plain = document[-1], document[-1].lstrip()
             if (
                 LABEL_RE.match(last)
-                and not contract_heading(last)
-                and not QUESTION_RE.match(last)
+                and not contract_heading(plain)
+                and not QUESTION_RE.match(plain)
                 and " :: " not in last  # a card, even in bold
-                and not FRONTMATTER_KEY_RE.match(last)  # a cut frontmatter, even in bold
+                # Only the answer's end can be cut, and there a bold key may open the next document.
+                and not (n == len(documents) - 1 and FRONTMATTER_KEY_RE.match(last))
             ):
                 labels.insert(0, last)
             elif not (last.strip() in ("", "---", "***", "___") or COMMENT_RE.match(last)):
                 break
             document.pop()  # blank lines, rules and comments chat AIs put between documents
         ignored.append(labels)
+        # A document nested in a list item: its opening `---` and every contract heading share
+        # an indentation, which the parser reads from the margin. A frontmatter indented alone
+        # leaves the body as written.
+        indent = document[0][: len(document[0]) - len(document[0].lstrip())]
+        headings = [line for line in document if contract_heading(line.lstrip())]
+        if indent and headings and all(line.startswith(indent) for line in headings):
+            document = [line.removeprefix(indent) for line in document]
         texts.append("\n".join(document) + "\n")
     stretches = ("\n".join(stretch).strip() for stretch in ignored)
     cut = wrapper is not None or (bool(chat) and not outside)
@@ -636,8 +642,10 @@ def contract_gaps(parsed: ParsedContent) -> list[str]:
             line = raw.strip()
             # A `> [!ia]` callout may sit anywhere; anything else here would vanish from the cards.
             callout = line.startswith("> [!ia]") or (callout and line.startswith(">"))
-            if callout or not line or (CARD_LABEL_RE.match(raw) and not CARD_RE.match(raw)):
-                continue  # a callout, empty, or a label without `::`, which already warns
+            if callout and not CARD_LABEL_RE.match(line.lstrip("> ")):
+                continue  # a quoted card, even in a callout, is never read as one
+            if not line or (CARD_LABEL_RE.match(raw) and not CARD_RE.match(raw)):
+                continue  # empty, or a label without `::`, which already warns
             if CARD_RE.match(raw):
                 # The parser cuts at the first `::`: one in code (`std::vector`, `[::2]`) or a
                 # second spaced one means the front may end in the wrong place.
