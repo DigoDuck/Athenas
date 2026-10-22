@@ -76,9 +76,9 @@ export default function ContentEditor({ subtopic, draft, onDraft, onClose }) {
       await request();
     } catch (e) {
       if (e.status === 409 && e.data?.raw_markdown !== undefined) {
-        // The text stays; saving again is now a deliberate overwrite of the newer version.
+        // The text stays; saving again now is a deliberate overwrite of the newer version. The
+        // stored draft keeps its old base, so closing and coming back later warns again.
         setBase(e.data.raw_markdown);
-        onDraft({ text: markdown, base: e.data.raw_markdown });
       }
       setError(e.message);
     }

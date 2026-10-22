@@ -19,14 +19,25 @@ import ContentEditor from "./ContentEditor.jsx";
 import { ActionError, AddForm, toOptions } from "./forms.jsx";
 import "./library.css";
 
-const DRAFTS = "athenas:conteudo";
+// One key per subtopic, so a second tab never writes over another subtopic's draft.
+const DRAFT = "athenas:conteudo:";
 
 // Storage can be full or blocked; the editor still works, only the drafts live in memory.
 function readDrafts() {
   try {
-    return JSON.parse(localStorage.getItem(DRAFTS)) ?? {};
+    const keys = Object.keys(localStorage).filter((key) => key.startsWith(DRAFT));
+    return Object.fromEntries(keys.map((key) => [key.slice(DRAFT.length), JSON.parse(localStorage.getItem(key))]));
   } catch {
     return {};
+  }
+}
+
+function writeDraft(id, draft) {
+  try {
+    if (draft) localStorage.setItem(DRAFT + id, JSON.stringify(draft));
+    else localStorage.removeItem(DRAFT + id);
+  } catch {
+    // Kept in memory only.
   }
 }
 
@@ -57,13 +68,6 @@ export default function Library() {
   const [contentOf, setContentOf] = useState(null);
   // Unsaved Markdown per subtopic id, kept while the editor is closed and across reloads.
   const [drafts, setDrafts] = useState(readDrafts);
-  useEffect(() => {
-    try {
-      localStorage.setItem(DRAFTS, JSON.stringify(drafts));
-    } catch {
-      // Kept in memory only.
-    }
-  }, [drafts]);
 
   // Runs a write and reloads. Returns the error message, or null when it worked.
   async function run(write) {
@@ -171,7 +175,10 @@ export default function Library() {
                 onContent={setContentOf}
                 onCloseContent={closeContent}
                 drafts={drafts}
-                onDraft={(id, text) => setDrafts((all) => ({ ...all, [id]: text }))}
+                onDraft={(id, draft) => {
+                  writeDraft(id, draft);
+                  setDrafts((all) => ({ ...all, [id]: draft }));
+                }}
                 run={run}
                 remove={remove}
                 actionError={actionError}
