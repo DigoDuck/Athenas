@@ -736,34 +736,46 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
 
 - Date: 2026-10-21. Source: slice S9 of `docs/plan.md` (M2). Spec 3.2 lists the settings and
   spec 4.9 the pomodoro, but neither says where they live, what values are accepted or what
-  happens when a phase ends.
+  happens when a phase ends. D-035, D-036, D-038 and D-039 are held by the other M2 slices
+  opened the same day.
 - Decision:
   - "Configurações" is the secondary item at the foot of the navigation (design system 4) and
     opens `#/configuracoes`: one form with the review cap, the new card cap, the desired
-    retention as a percentage and the two pomodoro durations, saved by one "Salvar" through the
-    existing `PATCH /api/settings/`. "Configurações salvas." appears only after the answer; a
-    refused save marks each field with the API's message and moves the focus to the first one.
+    retention as a whole percentage and the two pomodoro durations, saved by one "Salvar"
+    through the existing `PATCH /api/settings/`. "Configurações salvas." appears only after
+    the answer; a refused save marks each field with the API's message and moves the focus to
+    the first one.
   - The API takes a review cap from 1 to 200, a new card cap from 0 to 200 and never above the
     review cap (new cards take their slots inside it, D-022, so a larger number would do
-    nothing), and a desired retention from 0.70 to 0.97, the range Anki's FSRS guide
-    recommends. The model's
-    wider bounds stay, so no migration. A new card cap of 0 stops new cards; a review cap of 0
-    is refused, since it would empty the queue with no word on the screen. The cap rules
-    themselves (spec 4.6, D-022, D-026) do not change: the queue reads the new value on its
-    next build, so scenario 9 holds, and the return session keeps its 5.
+    nothing), a desired retention from 0.70 to 0.97, a focus from 1 to 180 minutes and a break
+    from 1 to 60, each refused with "Use um valor entre ..." in the field. Above 0.97 the
+    number of reviews grows very fast; below 0.70 more than 30% of the cards would be
+    forgotten by their review. The model's wider bounds stay, so no migration. A new card cap
+    of 0 stops new cards; a review cap of 0 is refused, since it would empty the queue with no
+    word on the screen. The cap rules themselves (spec 4.6, D-022, D-026) do not change: the
+    queue reads the new value on its next build, so scenario 9 holds, and the return session
+    keeps its 5.
   - A new desired retention counts from each card's next rating. Stored due dates are never
     rewritten (D-011), and the queue's order does not depend on it (retrievability does not).
   - The pomodoro sits in the navigation, above Configurações: "Iniciar foco", then the phase
-    and the time left with "Parar". The durations are read at each start, so a change counts
-    from the next focus. When the focus ends its break starts on its own, and when the break
-    ends the timer stops; there is no loop, pause or count of rounds. Each end gives one
-    notice in the bottom right corner, in a live region, that never takes the focus and stays
-    until closed or replaced. No sound and no browser notification.
+    and the time left with "Parar", one button that keeps the focus when its label changes.
+    The durations are read at each start, so a change counts from the next focus. When the
+    focus ends its break starts on its own, and when the break ends the timer stops; there is
+    no loop, pause or count of rounds. Each end gives one notice in the bottom right corner,
+    in a live region, that never takes the focus and stays until closed or replaced: "Fim do
+    foco. Pausa de N min." and "Fim da pausa.", which is also the notice when a sleep skipped
+    the whole break. No sound and no browser notification. A button in the navigation leaves
+    the folded menu open; only a link closes it.
   - The timer is an end time in `localStorage`, so it survives a reload or a closed tab and
     stays right in a background tab. A phase that ended while the app was closed settles with
     no notice: a running break shows as a break, and a timer whose break also passed is gone.
-  - The pomodoro records no `SessionEvent`: it is not a study activity (spec 3.2) and the day 28
-    metric does not read it.
+    Open tabs share it: a start or a stop in one shows in the others, and each tab gives its
+    own notice when a phase ends.
+  - On the screens without a panorama (reading, practice, reviews and the rest) the page gets
+    room at its end while a notice shows, so the last action can be scrolled out from under
+    it.
+  - The pomodoro records no `SessionEvent`: it is not a study activity (spec 3.1, Activity) and
+    the day 28 metric does not read it.
   - Over the panoramas of Início and Roadmap the foot of the navigation sits on the board's
     color, so its text never lies on the photograph (design system 6).
 - Why: spec 4.9 asks for a timer that never blocks studying and never competes with the
@@ -771,5 +783,6 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
   does not take the focus leaves the reading or the answer where it was. Bounds on the caps
   catch a typo (2000 instead of 20) before it fills a day.
 - Cost: with the window under 1200 px the navigation folds behind "Menu", so the time left is
-  hidden until it opens; the notice still shows. Two open tabs each show the notice. A notice
-  in the bottom right corner can cover the end of a line until it is closed.
+  hidden until it opens; the notice still shows. Until it is closed, the notice covers what
+  sits in the bottom right corner of the window: on a study screen that can be scrolled away,
+  on Início and Roadmap it cannot.

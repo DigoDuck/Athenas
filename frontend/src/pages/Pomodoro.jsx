@@ -5,10 +5,8 @@ import { api } from "../api.js";
 import { Button, Icon } from "../ui/index.js";
 import "./pomodoro.css";
 
-// Pomodoro (spec 4.9, DECISIONS.md D-037): optional, in the navigation, away from the content.
-// A focus is followed by its break on its own, then the timer stops. Each end gives one notice
-// in a corner that never takes focus or blocks the page. The timer lives in localStorage as an
-// end time, so it survives a reload and counts right in a background tab.
+// Pomodoro (spec 4.9, DECISIONS.md D-037). An end time in localStorage, not a countdown, so the
+// timer survives a reload and stays right in a throttled background tab.
 
 const KEY = "athenas.pomodoro";
 const MINUTE = 60_000;
@@ -31,8 +29,7 @@ function writeTimer(timer) {
   }
 }
 
-// The timer at `now`: a finished focus turns into its break, counted from the focus's end;
-// a finished break, or a focus whose break also passed, ends the timer.
+// The break counts from the focus's end, not from when a tick noticed it.
 function settle(timer, now) {
   if (!timer || now < timer.endsAt) return timer;
   if (timer.phase === "focus") {
@@ -55,19 +52,29 @@ export default function Pomodoro() {
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState(null);
 
-  // Starting or stopping swaps the button; the new one takes the focus, so it is not lost.
-  const control = useRef(null);
-  const moveFocus = useRef(false);
-
+  const current = useRef(timer);
   useEffect(() => {
-    writeTimer(timer);
-    if (moveFocus.current) control.current?.focus();
-    moveFocus.current = false;
+    current.current = timer;
   }, [timer]);
 
-  // Another tab started or stopped the timer.
+  // Only a change made here is written: echoing one adopted from another tab could undo a
+  // newer one made there.
+  function change(next) {
+    writeTimer(next);
+    setTimer(next);
+  }
+
   useEffect(() => {
-    const onStorage = (e) => e.key === KEY && setTimer(settle(readTimer(), Date.now()));
+    function onStorage(e) {
+      if (e.key !== KEY) return;
+      const at = Date.now();
+      const stored = settle(readTimer(), at);
+      const own = settle(current.current, at);
+      // Another tab settled the phase this tab settles on its next tick: that tick gives the notice.
+      if (stored?.phase === own?.phase && stored?.endsAt === own?.endsAt) return;
+      setNow(at);
+      setTimer(stored);
+    }
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
   }, []);
@@ -79,14 +86,9 @@ export default function Pomodoro() {
       setNow(at);
       const next = settle(timer, at);
       if (next === timer) return;
-      setTimer(next);
-      setNotice(
-        next
-          ? `Fim do foco. Pausa de ${timer.breakMinutes} min.`
-          : timer.phase === "break"
-            ? "Fim da pausa."
-            : "Fim do foco.",
-      );
+      change(next);
+      // Without a next phase the break is over, even when a sleep skipped it whole.
+      setNotice(next ? `Fim do foco. Pausa de ${timer.breakMinutes} min.` : "Fim da pausa.");
     }, 1000);
     return () => clearInterval(id);
   }, [timer]);
@@ -100,8 +102,7 @@ export default function Pomodoro() {
       const at = Date.now();
       setNow(at);
       setNotice(null);
-      moveFocus.current = true;
-      setTimer({
+      change({
         phase: "focus",
         endsAt: at + settings.pomodoro_focus_minutes * MINUTE,
         breakMinutes: settings.pomodoro_break_minutes,
@@ -118,29 +119,24 @@ export default function Pomodoro() {
         <Icon name="clock" />
         Pomodoro
       </h2>
-      {timer ? (
-        <div className="pomodoro__running">
+      <div className="pomodoro__row">
+        {timer && (
           <p className="pomodoro__phase">
             {timer.phase === "focus" ? "Foco" : "Pausa"}
             {/* Read on demand, not announced every second. */}
             <span className="pomodoro__time">{clock(timer.endsAt - now)}</span>
           </p>
-          <Button
-            ref={control}
-            variant="tertiary"
-            onClick={() => {
-              moveFocus.current = true;
-              setTimer(null);
-            }}
-          >
-            Parar
-          </Button>
-        </div>
-      ) : (
-        <Button ref={control} variant="tertiary" loading={starting} loadingLabel="Iniciando…" onClick={start}>
-          Iniciar foco
+        )}
+        {/* One button that changes its label, so the focus stays on it when the timer starts or ends. */}
+        <Button
+          variant="tertiary"
+          loading={timer ? undefined : starting}
+          loadingLabel="Iniciando…"
+          onClick={timer ? () => change(null) : start}
+        >
+          {timer ? "Parar" : "Iniciar foco"}
         </Button>
-      )}
+      </div>
       {error && (
         <p className="pomodoro__error" role="alert">
           {error}

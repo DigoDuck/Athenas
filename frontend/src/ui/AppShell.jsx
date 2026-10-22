@@ -90,8 +90,14 @@ export default function AppShell({
       {/* The column carries the background so it reaches the bottom of long pages;
           the nav inside stays in view while the page scrolls. */}
       <div className="ui-shell__nav-column" data-print="hide">
-        {/* Following a link closes the collapsed menu, so the new page is not pushed down. */}
-        <nav className="ui-nav" id="navegacao-principal" aria-label="Principal" onClick={() => setOpen(false)}>
+        {/* Following a link closes the collapsed menu, so the new page is not pushed down; a button
+            in the footer leaves it open. */}
+        <nav
+          className="ui-nav"
+          id="navegacao-principal"
+          aria-label="Principal"
+          onClick={(e) => e.target.closest("a") && setOpen(false)}
+        >
           <div className="ui-nav__brand">
             <Brand />
           </div>

@@ -4,9 +4,7 @@ import { api } from "../api.js";
 import { Button, Inline, Panel, StateMessage, TextField } from "../ui/index.js";
 import "./settings.css";
 
-// Configurações (spec 3.2, DECISIONS.md D-037): the single Settings row. The fields hold text
-// while typing; retention shows as a percentage and is stored as a fraction. The API checks
-// the bounds and says what is wrong in the field.
+// Configurações (spec 3.2, DECISIONS.md D-037). The API checks the bounds and names the field.
 
 const GROUPS = [
   {
@@ -63,10 +61,11 @@ const toForm = (data) => ({
   desired_retention: String(Math.round(data.desired_retention * 100)),
 });
 
-// An empty or unreadable field goes as "", so the API answers with its own message.
+// Whole percentages only, so the value stored is the one the field shows after the save. An
+// empty or unreadable field goes as "", so the API answers with its own message.
 const toApi = (form) => ({
   ...form,
-  desired_retention: form.desired_retention === "" ? "" : Number(form.desired_retention) / 100,
+  desired_retention: form.desired_retention === "" ? "" : Math.round(Number(form.desired_retention)) / 100,
 });
 
 export default function Settings() {

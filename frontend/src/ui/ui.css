@@ -1052,14 +1052,17 @@ a.ui-list__title:hover {
   border-top: var(--border-width) solid var(--color-border);
 }
 
-/* Over a panorama the foot of the navigation lies on the photograph: it gets the board's color,
-   so its text keeps its contrast (design system 6). */
+/* Ends with its list: running past it would make the navigation scroll. */
+.ui-nav__secondary .ui-nav__list::before {
+  bottom: 0;
+}
+
+/* Over a panorama the foot of the navigation would lie on the photograph (design system 6). */
 .ui-shell[data-scene] .ui-nav__secondary {
-  padding: var(--space-4) var(--space-2) var(--space-2);
+  padding: var(--space-4) 0 var(--space-2);
   border: var(--border-width) solid var(--color-board-edge);
   border-radius: var(--radius-panel);
   background: var(--color-board);
-  overflow: hidden; /* the copper line ends with the panel */
 }
 
 .ui-shell__main {

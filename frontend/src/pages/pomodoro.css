@@ -1,5 +1,4 @@
-/* Pomodoro: a quiet block at the foot of the navigation and one notice in the corner of the
-   window. No pulse, no color change while it runs (design system: Assistente e Pomodoro). */
+/* No pulse and no color change while it runs (design system: Assistente e Pomodoro). */
 .pomodoro {
   display: grid;
   gap: var(--space-2);
@@ -20,7 +19,7 @@
   color: var(--color-text-muted);
 }
 
-.pomodoro__running {
+.pomodoro__row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -47,7 +46,7 @@
   color: var(--color-error);
 }
 
-/* Bottom right, above the page and its foliage but under nothing that needs a click. */
+/* Bottom right, above the page and its foliage. */
 .pomodoro-notice {
   position: fixed;
   right: var(--space-6);
@@ -95,4 +94,9 @@
 .pomodoro-notice__close:focus-visible {
   outline: var(--focus-ring-width) solid var(--focus-ring-color);
   outline-offset: 2px;
+}
+
+/* Room to scroll the end of a study page out from under the notice (spec 4.9: never blocks). */
+body:has(.pomodoro-notice__body) .ui-shell:not([data-scene]) .ui-shell__main {
+  padding-bottom: calc(var(--target-size) + 2 * var(--space-3) + 2 * var(--space-6));
 }
