@@ -318,12 +318,7 @@ def _without_closer(answer: str, opener: str) -> str:
     plain = re.sub(r"`[^`\n]*`", lambda code: "x" * len(code[0]), answer)
     if answer.startswith(closer):
         return answer[len(closer) :]  # touching the answer: `:_**O molde`
-    # Alone before the answer (`: **` with the answer below), unless the answer ends with it
-    # (`: _ guarda o resultado._`, about Python's `_`).
-    alone = re.match(rf"[ \t]+{re.escape(closer)}(?=\s|$)", answer)
-    if alone and not plain.rstrip().endswith(closer):
-        return answer[alone.end() :]
-    depth = 1
+    depth, pair = 1, None
     for run in re.finditer(r"[*_]+", plain):
         if run[0] not in (opener, closer):
             continue
@@ -333,7 +328,16 @@ def _without_closer(answer: str, opener: str) -> str:
         elif before.strip() and not after.isalnum():
             depth -= 1
             if not depth:
-                return answer[: run.start()] + answer[run.end() :]
+                pair = run
+                break
+    # Alone before the answer (`: **` with the answer below), unless on its own line the answer
+    # ends with the closer that pairs (`: _ guarda o resultado._`, about Python's `_`).
+    alone = re.match(rf"[ \t]+{re.escape(closer)}(?=\s|$)", answer)
+    below = alone and not answer[alone.end() :].split("\n", 1)[0].strip()
+    if alone and (below or not pair or plain[pair.end() :].strip()):
+        return answer[alone.end() :]
+    if pair:
+        return answer[: pair.start()] + answer[pair.end() :]
     # Unpaired, so the answer's own markers are literal (`**kwargs`): the closer ends the answer,
     # alone or stacked on its last markers (`__init__**`), or else it is the first one on the
     # label's line that closes a sentence (`Use **kwargs.** Ele`).
@@ -458,6 +462,8 @@ COMMENT_RE = re.compile(r"^\s*<!--.*-->\s*$")
 # The request's last line inside the block: what follows it is chat, and its absence a cut.
 # Spaces only within its own line, so a long run of blank lines is read once.
 END_RE = re.compile(r"^[^\S\n]*<!--[^\S\n]*fim[^\S\n]*-->[^\S\n]*$", re.MULTILINE | re.IGNORECASE)
+# What a skeleton's lines may hold besides placeholders: labels, a reference answer, a link.
+SKELETON_RE = re.compile(r"\b[PC]\d+\b|resposta de refer[êe]ncia|fonte|\[!ia\]|https?://\S*", re.I)
 # A heading or a line that opens in bold, as chat AIs title each document ("**Subtema 2: Camadas**",
 # "**Subtema 2:** Camadas", "📘 **Subtema 2**", "2. **Camadas**").
 LABEL_RE = re.compile(
@@ -466,27 +472,28 @@ LABEL_RE = re.compile(
 FRONTMATTER_MAX = 40  # lines; the contract's frontmatter has five
 
 
-def split_documents(text: str) -> tuple[list[str], list[str], bool]:
+def split_documents(text: str) -> tuple[list[str], list[str], bool, bool]:
     """Cut an answer into subtopic documents, each starting at a frontmatter that names it.
 
     Chat AIs wrap the answer in a code fence, one around everything, one per document or one
     around each frontmatter, with chat text around them. One pass pairs the fences in order, as
     the reading does: a fence opened just before a frontmatter wraps documents, its closer ends
     them, and code fences inside a document stay in it. Returns the documents, the stretches of
-    text outside every document (so the screen can show what was left out), and whether a
-    wrapping fence never closed, the sign of an answer cut short.
+    text outside every document (so the screen can show what was left out), whether a wrapping
+    fence never closed, the sign of an answer cut short, and whether a <!-- fim --> line followed
+    the last document.
     """
     text = text.replace("\ufeff", "").replace("\r\n", "\n").replace("\r", "\n")
     lines = text.split("\n")
     documents: list[list[str]] = []
     heads: list[int] = []  # frontmatter length of each document, which trimming never cuts
-    late: list[bool] = []  # whether a <!-- fim --> line came before each document
     ignored: list[list[str]] = [[]]
     wrapper = None  # the fence wrapping the documents: its character and length
     chat = []  # fences open in the chat, innermost last: one may be a wrapper read late
     inner = None  # a code fence open inside a document
     outside = True
     closed = None  # how many documents a <!-- fim --> line followed, at the last one
+    around = 0  # chat fences open when the last document started, which hold the documents
     seen: dict = {}  # what _heading_ahead learned
     i = 0
     while i < len(lines):
@@ -495,7 +502,7 @@ def split_documents(text: str) -> tuple[list[str], list[str], bool]:
         if inner is None and (end := _frontmatter_end(lines, i)) is not None:
             documents.append(lines[i : end + 1])
             heads.append(end + 1 - i)
-            late.append(closed is not None)
+            around = len(chat)
             outside = False
             i = end + 1
             if wrapper and (closer := _closes(lines, i, wrapper)) is not None:
@@ -503,8 +510,13 @@ def split_documents(text: str) -> tuple[list[str], list[str], bool]:
                 i, wrapper = closer + 1, None
             continue
         # The line ends the documents before it, inside the wrapper or after its closer; one in
-        # a code snippet of the chat does not count.
-        if inner is None and (not outside or not chat) and END_RE.match(line):
+        # a code snippet of the chat, or in the chat before any document, does not count.
+        if (
+            documents
+            and inner is None
+            and (not outside or len(chat) <= around)
+            and END_RE.match(line)
+        ):
             closed = len(documents)
             if not outside:
                 outside = True
@@ -551,7 +563,7 @@ def split_documents(text: str) -> tuple[list[str], list[str], bool]:
         (ignored[-1] if outside else documents[-1]).append(line)
         i += 1
 
-    texts = []
+    read = []
     for n, (document, head) in enumerate(zip(documents, heads, strict=True)):
         labels = []
         while len(document) > head:
@@ -568,27 +580,49 @@ def split_documents(text: str) -> tuple[list[str], list[str], bool]:
             elif not (last.strip() in ("", "---", "***", "___") or COMMENT_RE.match(last)):
                 break
             document.pop()  # blank lines, rules and comments chat AIs put between documents
+        prose = [line for line, in_fence in _outside_fences(document) if not in_fence]
+        headings = [line for line in prose if contract_heading(line.lstrip())]
+        whole = bool(headings) and not _skeleton(document[head:])
+        read.append((document, labels, headings, whole, len(document) > head))
+    real = sum(item[3] for item in read)
+    texts = []
+    for n, (document, labels, headings, whole, body) in enumerate(read):
         ignored.append(labels)
+        cut_here = n == len(read) - 1 and closed is None and not body  # cut after a frontmatter
+        if (closed is not None and n >= closed) or (real and not whole and not cut_here):
+            # After the last <!-- fim --> line, or beside a real document a header or a skeleton
+            # of the format, which the chat shows as an example: never a document. The import
+            # blocks on it as content left out.
+            ignored.append(document)
+            continue
         # A document nested in a list item: its opening `---` and every contract heading share
         # an indentation, which the parser reads from the margin. A frontmatter indented alone
         # leaves the body as written.
         indent = document[0][: len(document[0]) - len(document[0].lstrip())]
-        prose = [line for line, in_fence in _outside_fences(document) if not in_fence]
-        headings = [line for line in prose if contract_heading(line.lstrip())]
-        if (closed is not None and n >= closed) or (
-            not headings and (late[n] or n < len(documents) - 1)
-        ):
-            # After the last <!-- fim --> line, or with no contract heading after one or before
-            # another document: a header or a skeleton the chat shows as an example, never a
-            # document. The import blocks on it as content left out.
-            ignored.append(document)
-            continue
         if indent and headings and all(line.startswith(indent) for line in headings):
             document = _dedented(document, indent)
         texts.append("\n".join(document) + "\n")
     stretches = ("\n".join(stretch).strip() for stretch in ignored)
     cut = wrapper is not None or (bool(chat) and not outside)
-    return texts, [stretch for stretch in stretches if stretch], cut
+    # A real document after the last line: the AI ended each one with it, and the last was cut.
+    ended = closed is not None and not any(item[3] for item in read[closed:])
+    return texts, [stretch for stretch in stretches if stretch], cut, ended
+
+
+def _skeleton(body: list[str]) -> bool:
+    """Whether every section opens with a placeholder (`...`, `- C1: ... :: ...`): a format shown.
+
+    Only the first line counts, so the chat after the last section does not make it a document.
+    """
+    opening = False
+    for line in body:
+        if contract_heading(line.lstrip()):
+            opening = True
+        elif opening and line.strip() and not FENCE_RE.match(line):
+            if re.search(r"\w", SKELETON_RE.sub("", line)):
+                return False
+            opening = False
+    return True
 
 
 def _dedented(lines: list[str], indent: str) -> list[str]:
@@ -613,7 +647,7 @@ def _dedented(lines: list[str], indent: str) -> list[str]:
     return out
 
 
-def _frontmatter_end(lines: list[str], start: int) -> int | None:
+def _frontmatter_end(lines: list[str], start: int, chained: bool = True) -> int | None:
     """The closing `---` of a frontmatter naming a `subtema` that opens at `start`, if one does.
 
     Blank, comment, indented and list lines may sit between the keys, as `_split_frontmatter`
@@ -626,7 +660,11 @@ def _frontmatter_end(lines: list[str], start: int) -> int | None:
         line = lines[end]
         stripped = line.strip()
         if stripped == "---":
-            return end if "subtema" in keys else None
+            if "subtema" not in keys:
+                return None
+            # A closer that opens a whole frontmatter of its own: this one was cut, and the answer
+            # restarted the document after it.
+            return None if chained and _frontmatter_end(lines, end, False) is not None else end
         if match := FRONTMATTER_KEY_RE.match(line):
             keys.add(match[1].lower())
         elif stripped and line[0] not in " \t" and not stripped.startswith(("# ", "- ")):

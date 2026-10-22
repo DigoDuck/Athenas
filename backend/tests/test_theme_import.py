@@ -61,7 +61,7 @@ Quer que eu continue com o próximo conceito?
 
 
 def test_a_wrapped_answer_splits_into_its_documents_and_reports_the_chat_around_them():
-    documents, ignored, _ = split_documents(ANSWER)
+    documents, ignored, *_ = split_documents(ANSWER)
 
     assert documents == [document("Imagem e container"), document("Camadas")]
     assert ignored == [
@@ -76,7 +76,7 @@ def test_one_fence_per_document_keeps_the_code_inside_and_drops_the_text_between
         f"{FENCE}md\n{document('Camadas')}{FENCE}\n"
     )
 
-    documents, ignored, _ = split_documents(answer.replace("\n", "\r\n"))
+    documents, ignored, *_ = split_documents(answer.replace("\n", "\r\n"))
 
     assert documents == [document("Imagem e container"), document("Camadas")]
     assert ignored == ["Agora o segundo:"]
@@ -85,9 +85,9 @@ def test_one_fence_per_document_keeps_the_code_inside_and_drops_the_text_between
 def test_a_rule_in_a_body_or_text_without_frontmatter_is_never_a_new_document():
     rule = document("Imagem e container", extra="\n---\nNota depois de uma linha.\n")
 
-    assert split_documents(rule) == ([rule], [], False)
+    assert split_documents(rule) == ([rule], [], False, False)
     rendered = "## Ideia central\nTexto copiado da tela, sem frontmatter."
-    assert split_documents(rendered) == ([], [rendered], False)
+    assert split_documents(rendered) == ([], [rendered], False, False)
 
 
 def test_the_origin_chosen_on_the_screen_replaces_the_one_the_answer_claims():
@@ -260,7 +260,7 @@ def test_a_fence_around_the_frontmatter_alone_keeps_the_whole_document():
     gemini = document("Camadas").replace("---\n", f"**Subtema 1**\n{FENCE}yaml\n---\n", 1)
     gemini = gemini.replace("nivel: iniciante\n---\n", f"nivel: iniciante\n---\n{FENCE}\n", 1)
 
-    documents, ignored, _ = split_documents(gemini)
+    documents, ignored, *_ = split_documents(gemini)
 
     assert ignored == ["**Subtema 1**"]
     assert len(parse_markdown(documents[0]).cards) == 2
@@ -270,7 +270,7 @@ def test_a_fence_around_the_frontmatter_alone_keeps_the_whole_document():
 @pytest.mark.django_db
 def test_an_answer_cut_after_a_frontmatter_blocks_instead_of_failing():
     header = document("Camadas").split("## Objetivo")[0]
-    cut = ANSWER.split("Quer que")[0].replace(document("Camadas"), header)
+    cut = ANSWER.split("<!-- fim -->")[0].replace(document("Camadas"), header)
 
     report = import_theme(area="Programação", track="Docker", origem="gemini", markdown=cut)
 
@@ -390,15 +390,15 @@ def test_chat_headings_around_the_documents_are_ignored_not_saved():
 
     results = [split_documents(answer) for answer in (after, between, labels)]
 
-    assert [documents for documents, _, _ in results] == [
+    assert [documents for documents, *_ in results] == [
         [document("Imagem e container"), document("Camadas")]
     ] * 3
-    assert [ignored[-1] for _, ignored, _ in results] == [
+    assert [ignored[-1] for _, ignored, *_ in results] == [
         "## Próximos passos\nQuer que eu continue com o próximo conceito?",
         "## Subtema 2: Camadas",
         "### Subtema 2: Camadas",
     ]
-    assert not any(cut for *_, cut in results)
+    assert not any(cut for _, _, cut, _ in results)
 
 
 @pytest.mark.django_db
@@ -416,7 +416,7 @@ def test_chat_naming_a_heading_or_a_subtema_does_not_block_but_a_lost_section_do
 def test_a_code_fence_with_any_language_name_stays_inside_its_document():
     csharp = document("Imagem e container").replace(f"{FENCE}bash", f"{FENCE}c#")
 
-    documents, _, cut = split_documents(f"~~~~markdown\n{csharp}\n{document('Camadas')}~~~~\n")
+    documents, _, cut, _ = split_documents(f"~~~~markdown\n{csharp}\n{document('Camadas')}~~~~\n")
 
     assert documents == [csharp, document("Camadas")] and not cut
 
@@ -497,7 +497,7 @@ def test_inline_backticks_or_a_chat_snippet_after_the_wrapper_never_hold_a_docum
         split_documents(snippet),
     ]
 
-    assert [len(documents) for documents, _, _ in results] == [2, 2]
+    assert [len(documents) for documents, *_ in results] == [2, 2]
     assert results[1][0][1] == document("Camadas")
     assert "Se quiser" in results[1][1][-1]
 
@@ -661,7 +661,7 @@ def test_a_wrapper_read_late_still_closes_before_the_chat_after_it():
     chat = f"# Docker\nAqui estão os subtemas.\n**Subtema 1**\n{document('Imagem e container')}"
 
     for inside in (yaml, chat + document("Camadas")):
-        documents, ignored, cut = split_documents(
+        documents, ignored, cut, _ = split_documents(
             f"~~~~markdown\n{inside}~~~~\n\nQuer o próximo?\n"
         )
 
@@ -800,7 +800,7 @@ def test_a_title_that_opens_in_bold_between_documents_is_chat_but_a_bold_card_is
     card = "**C3:** E o cache? :: As camadas.\n"
 
     for title in titles:
-        documents, ignored, _ = split_documents(
+        documents, ignored, *_ = split_documents(
             f"~~~~markdown\n{document('Imagem e container')}\n---\n\n{title}\n\n"
             f"{document('Camadas')}~~~~\n"
         )
@@ -817,7 +817,7 @@ def test_documents_nested_in_a_list_are_read_from_the_margin():
         for n, name in ((1, "Imagem e container"), (2, "Camadas"))
     )
 
-    documents, _, cut = split_documents(answer)
+    documents, _, cut, _ = split_documents(answer)
 
     assert documents == [document("Imagem e container"), document("Camadas")] and not cut
     assert len(parse_markdown(documents[1]).questions) == 1
@@ -853,7 +853,7 @@ def test_an_indented_frontmatter_alone_leaves_the_body_as_written():
     head, rest = body.split("---\n\n", 1)
     indented = textwrap.indent(head + "---\n", "  ") + "\n" + rest
 
-    documents, _, _ = split_documents(f"~~~~markdown\n{indented}~~~~\n")
+    documents, *_ = split_documents(f"~~~~markdown\n{indented}~~~~\n")
 
     assert code in documents[0]
 
@@ -862,7 +862,7 @@ def test_a_nested_document_keeps_its_sections_after_a_bare_code_fence():
     bare = document("Camadas").replace(f"{FENCE}bash\n", f"{FENCE}\n")
     answer = "1.  **Subtema 1**\n" + textwrap.indent(f"{FENCE}markdown\n{bare}{FENCE}\n", "    ")
 
-    documents, _, cut = split_documents(answer)
+    documents, _, cut, _ = split_documents(answer)
 
     assert documents == [bare] and not cut
 
@@ -906,7 +906,7 @@ def test_documents_nested_in_a_list_without_fences_are_read_from_their_indentati
         for n, name in ((1, "Imagem e container"), (2, "Camadas"))
     )
 
-    documents, _, _ = split_documents(answer + "Bons estudos!\n")
+    documents, *_ = split_documents(answer + "Bons estudos!\n")
 
     assert documents[0] == document("Imagem e container")
     assert [len(parse_markdown(d).questions) for d in documents] == [1, 1]
@@ -1245,7 +1245,7 @@ def test_names_in_brackets_titles_in_underscores_and_a_quoted_stored_name(client
         bool(send(client, document(n), "/api/themes/preview/").json()["documents"][0]["errors"])
         for n in names
     ]
-    documents, ignored, _ = split_documents(titled)
+    documents, ignored, *_ = split_documents(titled)
     action = send(client, quoted, "/api/themes/preview/", area="Inglês").json()["documents"][0]
 
     assert blocked == [True, True, False]
@@ -1335,7 +1335,8 @@ def test_long_runs_and_thousands_of_lines_preview_at_once(client):
     fence_line = document("Camadas", extra="~" * 30000 + "`\n")
     question = document("Camadas").replace(exact, "### P2: a" + "\t" * 30000 + "b?\n" + exact)
     blank = "Claro!" + "\n" * 40000 + ANSWER
-    texts = (card, fences, sections, fence_line, question, blank)
+    headers = document("Camadas", extra="---\nsubtema: x\n---\n" * 5000)
+    texts = (card, fences, sections, fence_line, question, blank, headers)
 
     elapsed, reports = [], []
     for text in texts:
@@ -1349,3 +1350,104 @@ def test_long_runs_and_thousands_of_lines_preview_at_once(client):
     assert all(r["documents"] for r in reports)
     assert [c.label for c in blank_front.cards] == ["C1", "C2"]
     assert "Cartão C3 sem frente ou sem '::' antes do verso, ignorado" in blank_front.warnings
+
+
+# Found by the seventeenth review of PR #45.
+
+
+def test_a_label_closed_alone_keeps_the_answers_own_closing_marker():
+    exact = "Resposta de referência: O molde."
+    answers = {
+        "**Resposta de referência: **\nO valor é **imutável**": "O valor é **imutável**",
+        "**Resposta de referência: ** O valor é **imutável**": "O valor é **imutável**",
+        "**Resposta de referência: **\nO container é **efêmero.**": "O container é **efêmero.**",
+        "*Resposta de referência: *\nSELECT *": "SELECT *",
+        "_Resposta de referência: _\nUse a variável _privada_": "Use a variável _privada_",
+        "__Resposta de referência: __\nDefina __init__": "Defina __init__",
+    }
+
+    stored = [
+        parse_markdown(document("Camadas").replace(exact, label)).questions[0].reference_answer
+        for label in answers
+    ]
+
+    assert stored == list(answers.values())
+
+
+@pytest.mark.django_db
+def test_a_skeleton_or_header_beside_documents_without_the_closing_line_blocks(client):
+    header = "---\narea: Programação\nconceito: Redes\nsubtema: Bridge\n---\n"
+    skeleton = header + "## Objetivo\n...\n## Prática\n### P1: ...\n## Flashcards\n- C1: ... :: ..."
+    forgot = ANSWER.replace("<!-- fim -->\n", "")
+    before = f"O formato:\n{FENCE}markdown\n{skeleton}\n{FENCE}\n" + ANSWER
+    inside = ANSWER.replace("~~~~markdown\n", f"~~~~markdown\n{skeleton}\n")
+    after = forgot.replace("~~~~\n\nQuer", f"~~~~\nA próxima:\n{skeleton}\n\nQuer")
+    chat = "Na próxima rodada eu sigo com este cabeçalho:\n"
+    header_after = forgot.replace("~~~~\n\nQuer", f"~~~~\n{chat}{header}É só pedir!\nQuer")
+    texts = (before, inside, after, header_after)
+
+    reports = [send(client, text, "/api/themes/preview/").json() for text in texts]
+    saves = [send(client, text).status_code for text in texts]
+
+    assert [[d["subtema"] for d in r["documents"]] for r in reports] == [
+        ["Imagem e container", "Camadas"]
+    ] * 4
+    assert all("apague-o do texto colado" in r["errors"][0] for r in reports)
+    assert saves == [400] * 4 and not Concept.objects.exists()
+
+
+@pytest.mark.django_db
+def test_a_closing_line_in_a_code_example_does_not_hide_a_cut(client):
+    example = f"## Exemplo\n{FENCE}markdown\nTermine com:\n<!-- fim -->\n{FENCE}\n"
+    camadas = document("Camadas").replace(
+        f"## Exemplo\n{FENCE}bash\ndocker run hello-world\n{FENCE}\n", example
+    )
+    copied = document("Imagem e container") + "---\n" + camadas.removesuffix(" uma imagem.\n")
+
+    report = send(client, copied, "/api/themes/preview/").json()
+
+    assert "<!-- fim -->" in report["documents"][-1]["warnings"][0]
+
+
+@pytest.mark.django_db
+def test_a_cut_answer_pasted_with_its_continuation_blocks(client):
+    resume = "\n\nClaro! Continuando de onde parei:\n\n~~~~markdown\n"
+    head, tail = ANSWER.rsplit("docker run hello-world\n", 1)
+    in_code = head + "docker ru" + resume + "docker run hello-world\n" + tail
+    head, tail = ANSWER.rsplit("Uma imagem é o molde", 1)
+    in_prose = head + "Uma imagem é o mol" + resume + "Uma imagem é o molde" + tail
+
+    reports = [send(client, text, "/api/themes/preview/").json() for text in (in_code, in_prose)]
+    saves = [send(client, text).status_code for text in (in_code, in_prose)]
+
+    assert all("~~~~markdown" in r["documents"][-1]["errors"][0] for r in reports)
+    assert saves == [400, 400] and not Concept.objects.exists()
+
+
+@pytest.mark.django_db
+def test_a_closing_line_quoted_before_the_block_and_variant_headings_keep_the_documents(client):
+    quoted = "Cada resposta termina com a linha\n\n<!-- fim -->\n\n" + ANSWER.replace(
+        "<!-- fim -->\n", ""
+    )
+    variant = ANSWER.replace("\n## ", "\n## 📌 ")
+
+    report = send(client, quoted, "/api/themes/preview/").json()
+    documents, *_ = split_documents(variant)
+
+    assert [d["subtema"] for d in report["documents"]] == ["Imagem e container", "Camadas"]
+    assert "<!-- fim -->" in report["documents"][-1]["warnings"][0]
+    assert len(documents) == 2
+
+
+@pytest.mark.django_db
+def test_a_frontmatter_cut_and_restarted_blocks(client):
+    cut = "---\narea: Programação\nconceito: Imagens e containers\nsubtema: Cam\n"
+    restarted = document("Imagem e container") + cut + document("Camadas") + "<!-- fim -->\n"
+    alone = cut + document("Camadas") + "<!-- fim -->\n"
+
+    reports = [send(client, text, "/api/themes/preview/").json() for text in (restarted, alone)]
+    saves = [send(client, text).status_code for text in (restarted, alone)]
+
+    assert "frontmatter que não fechou" in reports[0]["documents"][0]["errors"][0]
+    assert "ficou fora dos documentos" in reports[1]["errors"][0]
+    assert saves == [400, 400] and not Subtopic.objects.filter(name="Cam").exists()

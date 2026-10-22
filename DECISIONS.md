@@ -752,35 +752,38 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
     button drops the fences, so that line is how the check knows the answer arrived whole, and its
     absence after the last document warns on that document that the answer may have been cut. The
     line ends the documents before it, inside the block or right after its closing fence (one in a
-    code snippet of the chat does not count), and whatever follows the last one is chat, shown as
-    ignored: neither it nor the line is saved. A document with no contract heading is chat too when
-    another document follows it or when it comes after such a line. So a next round's header or a
-    skeleton of the format, shown as an example around the documents, never becomes a concept: it
-    blocks as content left out. The server cuts it into documents at each frontmatter that names a
-    `subtema` (keys in any case, with or without accents, `nível`, and indented or not; values with
-    or without quotes, `'Don''t panic'` as YAML escapes it; a name that only starts and ends with
-    quoted words, `"Since" e "for"`, keeps them; an apostrophe inside a word, `'Don't panic'`, is
-    not a quote; a non-breaking hyphen in a name, in the answer or in a row that exists, is a
-    hyphen, so the names match), drops a fence wrapped around everything or around each document,
-    and shows the chat text around them as ignored, never saved: a heading or a line that opens in
-    bold and titles the next document ("### Subtema 2", "**Subtema 2:** Camadas", "__Subtema 2__",
-    "📘 **Subtema 2**"; a `__` bold needs a space or a colon inside, so a line that opens with
-    `__init__`, in backticks or not, stays in the document) is chat too, unless it holds a card's
-    ` :: ` or, at the end of the last document, reads as a frontmatter key (`**area:** ...`, maybe
-    the start of a cut document). A document nested in a list item, its opening `---` and every
-    contract heading indented alike, is read from that indentation, but a code block in it loses
-    only the indentation all its lines share, so code written at the margin keeps its own nesting; a
-    frontmatter indented alone leaves the body as written. Only a contract heading, indented or not,
-    means a document goes on, so a chat heading after the wrapper never keeps it open. In a fenced
-    answer, a frontmatter inside a code example in the body does not start a document, and a code
-    fence with any language name (```` ```c# ````) stays one. The split, the parser and the reading
-    share that fence rule, so "```` ```docker ps``` ```` lista" at the start of a line is inline
-    code everywhere, never a block that swallows the sections after it. A wrapper the split did not
-    take as one at its opening (a fenced frontmatter right after it, or chat before the first
-    frontmatter) still ends at its matching fence, so the chat after it is never saved; a code
-    snippet in the chat before the documents neither replaces it nor opens a wrapper of its own. A
-    wrapper that never closes, read at its opening or late, is reported as a possibly truncated
-    answer.
+    code snippet of the chat or of a document, or in the chat before any document, does not count),
+    and whatever follows the last one is chat, shown as ignored: neither it nor the line is saved.
+    Beside a real document, one with no contract heading, or a skeleton whose every section opens
+    with a placeholder (`...`, `- C1: ... :: ...`), is chat too, wherever it sits; a frontmatter
+    alone at the very end, with no `<!-- fim -->` after it, stays a document, since the answer was
+    cut there. So a next round's header or a skeleton of the format, shown as an example around the
+    documents, never becomes a concept: it blocks as content left out. An answer whose documents all
+    use other headings (`## 📌 Objetivo`) keeps them all, each listed with its missing sections. The
+    server cuts it into documents at each frontmatter that names a `subtema` (keys in any case, with
+    or without accents, `nível`, and indented or not; values with or without quotes,
+    `'Don''t panic'` as YAML escapes it; a name that only starts and ends with quoted words,
+    `"Since" e "for"`, keeps them; an apostrophe inside a word, `'Don't panic'`, is not a quote; a
+    non-breaking hyphen in a name, in the answer or in a row that exists, is a hyphen, so the names
+    match), drops a fence wrapped around everything or around each document, and shows the chat text
+    around them as ignored, never saved: a heading or a line that opens in bold and titles the next
+    document ("### Subtema 2", "**Subtema 2:** Camadas", "__Subtema 2__", "📘 **Subtema 2**"; a `__`
+    bold needs a space or a colon inside, so a line that opens with `__init__`, in backticks or not,
+    stays in the document) is chat too, unless it holds a card's ` :: ` or, at the end of the last
+    document, reads as a frontmatter key (`**area:** ...`, maybe the start of a cut document). A
+    document nested in a list item, its opening `---` and every contract heading indented alike, is
+    read from that indentation, but a code block in it loses only the indentation all its lines
+    share, so code written at the margin keeps its own nesting; a frontmatter indented alone leaves
+    the body as written. Only a contract heading, indented or not, means a document goes on, so a
+    chat heading after the wrapper never keeps it open. In a fenced answer, a frontmatter inside a
+    code example in the body does not start a document, and a code fence with any language name
+    (```` ```c# ````) stays one. The split, the parser and the reading share that fence rule,
+    so "```` ```docker ps``` ```` lista" at the start of a line is inline code everywhere, never a
+    block that swallows the sections after it. A wrapper the split did not take as one at its
+    opening (a fenced frontmatter right after it, or chat before the first frontmatter) still ends
+    at its matching fence, so the chat after it is never saved; a code snippet in the chat before
+    the documents neither replaces it nor opens a wrapper of its own. A wrapper that never closes,
+    read at its opening or late, is reported as a possibly truncated answer.
   - Area and track come from the screen; each document's frontmatter names its concept and subtopic.
     Names match what exists ignoring case, so a round never duplicates a row, and the parser no
     longer warns when a frontmatter name differs from its destination only in case, or when the
@@ -817,10 +820,12 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
     a document, or the chat after a fenced one, that ends in a frontmatter that never closed (the
     answer was cut inside the next document: keys with `subtema`, or starting with an unaccented
     `area:` as the request writes them, the last maybe cut in the middle of its name, down to a lone
-    `ar`), and a contract heading, or a `---` with a `subtema` key, left outside every document,
-    whose message asks to check that the answer came whole and, if the stretch is an example in the
-    chat around the documents, to delete it from the paste. A chat line such as "**Subtema:**
-    Volumes" is not.
+    `ar`; a whole frontmatter right after the cut one, the AI restarting that document, does not
+    close it), a `~~~~markdown` line inside a document (a cut answer pasted with the AI's
+    continuation in a new block, since the request's own block never sits inside a document), and a
+    contract heading, or a `---` with a `subtema` key, left outside every document, whose message
+    asks to check that the answer came whole and, if the stretch is an example in the chat around
+    the documents, to delete it from the paste. A chat line such as "**Subtema:** Volumes" is not.
   - Everything else the skill's check refuses (missing headings, extra headings, draft, no `nivel`,
     no link under Fontes, a line in Flashcards that is not a card, quoted chat included unless it
     belongs to a `> [!ia]` callout, and a quoted card even there, no card at all) is listed per
@@ -873,16 +878,17 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
     value keeps its own (`*args e **kwargs`) unless one bold covers all of it, whatever the key
     looks like; the answer after the label keeps its own too (`__init__`, a bold word such as
     `**imutável**`, or Python's `_` alone): the bold's closer is taken only where it pairs with the
-    opening, alone before the answer unless the answer ends with it, at the end of the answer, or at
-    the end of a sentence on the label's line. Also read with the closer in the answer: a bold over
-    the label and first words that run onto a second line, in an answer with a marker of the same
-    kind (`**kwargs`). A contract heading written with a non-breaking hyphen ("Pré‑requisitos", as
-    ChatGPT may write it) is the contract one; such a heading saved before was an extra section, so
-    its read mark is lost the next time that subtopic is saved. A stored `nível:` key, ignored
-    before, sets the level then. A `P<n>` or `C<n>` label longer than the 10 characters the database
-    holds is a parser error, so the content editor answers 400 where it failed with a 500. A card
-    with a blank front (`- C1: :: Verso`) is not read as one and warns like a card without `::`,
-    where it was saved with a blank front.
+    opening, alone before the answer unless, on the label's own line, the answer ends with the
+    closer that pairs with it (`_ guarda o último resultado._`, about Python's `_`), at the end of
+    the answer, or at the end of a sentence on the label's line. Also read with the closer in the
+    answer: a bold over the label and first words that run onto a second line, in an answer with a
+    marker of the same kind (`**kwargs`). A contract heading written with a non-breaking hyphen
+    ("Pré‑requisitos", as ChatGPT may write it) is the contract one; such a heading saved before was
+    an extra section, so its read mark is lost the next time that subtopic is saved. A stored
+    `nível:` key, ignored before, sets the level then. A `P<n>` or `C<n>` label longer than the 10
+    characters the database holds is a parser error, so the content editor answers 400 where it
+    failed with a 500. A card with a blank front (`- C1: :: Verso`) is not read as one and warns
+    like a card without `::`, where it was saved with a blank front.
   - A re-import never suspends a manual card. `import_content` suspended every card whose label left
     the Markdown, and manual cards have no label there, so filling a subtopic or saving it in the
     content editor suspended Diogo's own cards. It now syncs only the cards that came from the
@@ -893,10 +899,10 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
 - Cost: a theme of four concepts takes about five rounds of two pastes each. Links under Fontes are
   not opened by the app: a chat AI without browsing can cite a page it never read, so the Fontes and
   the `[!ia]` callouts are still what Diogo checks before approving a card. Images stay out of this
-  path (no upload screen, D-033). Limits of the split that are accepted, all but two visible in the
-  check before anything is created: chat text after a document the AI did not fence stays in it and
-  shows as a gap under Flashcards, the last section the request asks for (if the AI also moved
-  another section to the end, the chat is saved in that one with no warning, one of the two limits
+  path (no upload screen, D-033). Limits of the split that are accepted, all but three visible in
+  the check before anything is created: chat text after a document the AI did not fence stays in it
+  and shows as a gap under Flashcards, the last section the request asks for (if the AI also moved
+  another section to the end, the chat is saved in that one with no warning, one of the three limits
   the check does not show); a cut in a frontmatter written another way (`Área:` with its accent, or
   `conceito:` first) is not blocked, and only the gap its lines leave under Flashcards and the
   missing `<!-- fim -->` show it; a frontmatter example inside an unfenced document starts a false
@@ -908,10 +914,14 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
   cut frontmatter, since the two look the same; a chat fence that never closes before documents the
   AI did not fence (a decorative "~~~ Resumo ~~~" line) warns that the answer may have been cut; a
   line that opens in bold at the very end of a document is taken for the title of the next one and
-  listed as ignored. The other: when an AI writes `<!-- fim -->` after every document, not only the
+  listed as ignored. The second: when an AI writes `<!-- fim -->` after every document, not only the
   last, a cut in a document that others follow goes unseen, since only the end of the answer is
   checked; a cut last document comes after the last of those lines, so it blocks as content left
-  out, and so does a whole one whose line the AI forgot, until the line is added. A contract heading
-  in the chat after the block (more cards offered under "## Flashcards") blocks as content left out;
-  deleting it from the paste fixes the round. A `> [!IA]` callout in capitals is not read as one, as
-  everywhere else in the app.
+  out, and so does a whole one whose line the AI forgot, until the line is added; a cut right after
+  the next document's block opens leaves only that opening, shown as ignored. The third: a cut
+  answer joined by hand to its continuation, with the chat and the new block deleted, is read as
+  written, so a line the continuation repeats is saved twice. An answer that mixes documents with
+  the contract's headings and documents with other ones blocks the latter as content left out, with
+  the message that also suggests an example. A contract heading in the chat after the block (more
+  cards offered under "## Flashcards") blocks as content left out; deleting it from the paste fixes
+  the round. A `> [!IA]` callout in capitals is not read as one, as everywhere else in the app.

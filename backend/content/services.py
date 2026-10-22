@@ -16,7 +16,6 @@ from organization.serializers import StepSerializer, SubtopicSerializer
 from . import images
 from .models import Block, Content, Flashcard, Image, PracticeQuestion, ReviewLog
 from .parser import (
-    END_RE,
     FRONTMATTER_KEY_RE,
     ParsedContent,
     Target,
@@ -117,6 +116,8 @@ def _sync_cards(subtopic, parsed):
 NAME_MAX = 160  # Concept.name and Subtopic.name
 FRONTMATTER_KEYS = {"area", "conceito", "subtema", "nivel", "origem"}
 THEME_LOCK = 4045  # any constant: the advisory lock key for saving a round
+# The line that opens the request's answer block (themeRequest.js), which a document never holds.
+CONTINUED_RE = re.compile(r"^[ \t]*~{4,}[ \t]*(?:markdown|md)[ \t]*$", re.M | re.I)
 KEPT = (
     "O subtema já tem outro texto, que fica como está. Para trocar, cole este documento no "
     "subtema, na Biblioteca."
@@ -141,7 +142,7 @@ def import_theme(*, area, track, origem, markdown, save=False) -> dict:
         # One round at a time: a second save of the same answer waits, then finds it done.
         with connection.cursor() as cursor:
             cursor.execute("SELECT pg_advisory_xact_lock(%s)", [THEME_LOCK])
-    documents, ignored, cut = split_documents(markdown)
+    documents, ignored, cut, ended = split_documents(markdown)
     area_obj = Area.objects.filter(name__iexact=area).first()
     track_obj = Track.objects.filter(name__iexact=track).first()
     report = {
@@ -244,18 +245,12 @@ def import_theme(*, area, track, origem, markdown, save=False) -> dict:
             }
         )
     # The chat's copy button drops the fences, so the request's last line is how a cut shows.
-    ends = list(END_RE.finditer(markdown))
     if cut:
         report["documents"][-1]["warnings"].append(
             "O bloco de código da resposta não fechou: ela pode ter sido cortada. Confira o fim "
             "deste documento."
         )
-    elif not ends or any(
-        # A document with contract text after the last line: the AI ended each one with it.
-        contract_heading(line.lstrip())
-        for document in split_documents(markdown[ends[-1].end() :])[0]
-        for line in document.split("\n")
-    ):
+    elif not ended:
         report["documents"][-1]["warnings"].append(
             "A resposta não termina com a linha <!-- fim --> do pedido: ela pode ter sido cortada. "
             "Confira o fim deste documento."
@@ -311,6 +306,12 @@ def _document_errors(parsed, conceito, subtema):
         errors.append("Documento sem texto depois do frontmatter: a resposta foi cortada?")
     if _open_frontmatter(parsed.raw.split("\n")):
         errors.append("O documento termina num frontmatter que não fechou: a resposta foi cortada?")
+    if CONTINUED_RE.search(parsed.raw):
+        # The request's own wrapper inside a document: a cut answer pasted with its continuation.
+        errors.append(
+            "Uma linha ~~~~markdown dentro do documento: a resposta parece cortada e continuada "
+            "num bloco novo. Peça a resposta inteira de novo, ou apague a conversa e a emenda."
+        )
     kinds = [block.kind for block in parsed.blocks if block.kind != "extra"]
     for kind in (kind for kind, count in Counter(kinds).items() if count > 1):
         # Two documents run together when the second frontmatter was not recognized.
