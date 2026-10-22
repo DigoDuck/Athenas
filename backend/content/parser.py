@@ -38,8 +38,9 @@ REFERENCE_RE = re.compile(
     re.MULTILINE,
 )
 # A line in Prática that looks like a question but is not `### P<n>:`, so the parser would merge it
-# into the previous answer: `**P2:**`, `### P2.`, `### P1 –`, or any heading before an answer.
-QUESTION_LIKE_RE = re.compile(r"^\W*P\d+\s*[:.)–-]")
+# into the previous answer: `**P2:**`, `### P2.`, `### P2 sem dois-pontos`, or any heading before
+# an answer.
+QUESTION_LIKE_RE = re.compile(r"^\W*P\d+\s*[:.)–-]|^#+\s*P\d+\b")
 HEADING_RE = re.compile(r"^#{3,6}\s")
 # Stored without accents, like `Subtopic.Level` ("intermediário" -> "intermediario").
 LEVELS = {"iniciante", "intermediario", "avancado", "especialista"}

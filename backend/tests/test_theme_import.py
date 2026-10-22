@@ -583,7 +583,7 @@ def test_a_question_merged_into_the_answer_before_it_is_listed_but_answer_headin
     exact = "Resposta de referência: O molde.\n"
     merged = exact + "**Pergunta 2:** E um container?\nResposta de referência: A execução.\n"
     steps = "Resposta de referência: Em dois passos.\n#### Passo 1\nBaixar.\n#### Passo 2\nRodar.\n"
-    unanswered = exact + "### P2. E um container?\n"
+    unanswered = exact + "### P2 E um container?\n"
 
     gaps = [
         contract_gaps(parse_markdown(document("Camadas").replace(exact, t)))
@@ -592,7 +592,7 @@ def test_a_question_merged_into_the_answer_before_it_is_listed_but_answer_headin
 
     assert any("Duas respostas de referência em P1" in g for g in gaps[0])
     assert not [g for g in gaps[1] if "Pergunta" in g or "Duas" in g]
-    assert any("Pergunta fora do formato ### P1: ...: ### P2." in g for g in gaps[2])
+    assert any("Pergunta fora do formato ### P1: ...: ### P2 E" in g for g in gaps[2])
 
 
 def test_inline_triple_backticks_do_not_hide_the_sections_after_them():
