@@ -744,7 +744,8 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
     request lists the concepts the track already has, so the next round continues it, and the
     area's concepts from other tracks, so the AI does not reuse one by accident. An AI that finds
     the theme covered answers "TRILHA COMPLETA", which the screen shows as the end of the track.
-    Nothing calls an AI from the app (D-030).
+    It counts on a line of its own, in bold or with a period, with chat around it. Nothing calls
+    an AI from the app (D-030).
   - The answer comes back in one code block fenced with `~~~~`, so the code inside it survives and
     the chat's copy button gives the raw Markdown. The server cuts it into documents at each
     frontmatter that names a `subtema` (keys in any case, values with or without quotes), drops a
@@ -760,8 +761,10 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
     editor included). Saving creates only what is missing (area, track, concept, step at the end of
     the track, subtopic at the end of the concept) and imports each document through the same
     `import_content`, so every card enters pending (spec 4.3). It is all or nothing: one blocked
-    document blocks the round. A concept that exists in the area under another track is reused and
-    joins this track too, with a warning.
+    document blocks the round, except one that keeps the app's text, which is never imported. A
+    concept that exists in the area under another track is reused and joins this track too, with a
+    warning. Saving takes a database lock, so the same answer saved twice at once (two tabs) is
+    created once.
   - A subtopic that already has text keeps it, as `scripts/theme.py push` does without
     `--replace`: changing studied text is done in the Biblioteca, one subtopic at a time. A
     document identical to what the app holds is reported as such. Either way the concept still
@@ -775,22 +778,28 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
     `subtema`, a subtopic repeated in the answer, a name over 160 characters. Also blocking, since
     each means the split or the AI went wrong: a name still in the request's `<...>` template, a
     document with no text after its frontmatter, a contract section that appears twice (two
-    documents run together), and a contract heading or a `subtema` key left outside every
-    document.
+    documents run together), and a contract heading, or a `---` with a `subtema` key, left outside
+    every document. A chat line such as "**Subtema:** Volumes" is not.
   - Everything else the skill's check refuses (missing headings, extra headings, draft, no `nivel`,
     no link under Fontes, a line in Flashcards that is not a card, no card at all) is listed per
-    document and does not block. So is what the parser would read wrong without a word: a question
-    line that is not `### P<n>:`, a card indented or inside a quote, and a card with more than one
-    `::`. All of it is listed, since spec 4.2.1 allows saving incomplete content and Diogo sees the
-    check before creating. `scripts/theme.py check` reads the same list from the parser
-    (`contract_gaps`), so both paths keep one contract.
-  - "Copiar pedido de correção" turns the listed problems into a message for the AI, leaving out
-    subtopics that keep their own text.
+    document and does not block. So is what the parser would read wrong without a word: a heading or
+    a question line in Prática that is not `### P<n>:`, a card indented or inside a quote, and a
+    card whose first `::` sits inside a word (`std::vector`). All of it is listed, since spec 4.2.1
+    allows saving incomplete content and Diogo sees the check before creating. `scripts/theme.py
+    check` reads the same list from the parser (`contract_gaps`), so both paths keep one contract.
+  - A check answers for the exact text, area, track and AI it was sent: any edit, or a late
+    answer for older text, takes the create button away until the next check. "Copiar pedido de
+    correção" turns the listed problems into a message for the AI, leaving out subtopics that keep
+    their own text, and the message can be opened and copied by hand.
   - The form stays in the browser's storage for the next round; the pasted answer stays until its
     round is created.
-  - The parser reads "Resposta de referência:" ignoring case and the bold or italic markers
-    around it, as chat AIs write it, so the answer is stored without them and stays hidden in the
-    reading until an attempt (spec 4.8.3), in the content editor too. A bold frontmatter key loses
+  - The parser still reads "Resposta de referência:" anywhere in a line, and now also at the start
+    of a line in any case and between bold or italic markers, as chat AIs write it, so the answer
+    is stored without them and stays hidden in the reading until an attempt (spec 4.8.3), in the
+    content editor too. A lowercase mention inside a sentence is never the label. Content saved
+    before this with such a variant at the start of a line, which the old parser did not read,
+    now hides that line in the reading but has no stored answer until it is saved again; none is
+    expected, since `scripts/theme.py` wrote the exact label. A bold frontmatter key loses
     its markers; a value keeps its own (`*args e **kwargs`). "TRILHA COMPLETA" counts in bold or
     with a period.
   - A re-import never suspends a manual card. `import_content` suspended every card whose label

@@ -42,7 +42,8 @@ function loadDraft() {
     const saved = JSON.parse(localStorage.getItem(DRAFT_KEY)) ?? {};
     // Only the known text fields: an old or hand-edited draft never breaks the screen.
     const known = Object.entries(saved).filter(([k, v]) => k in EMPTY && typeof v === "string");
-    return { ...EMPTY, ...Object.fromEntries(known) };
+    const draft = { ...EMPTY, ...Object.fromEntries(known) };
+    return LEVELS.some(([value]) => value === draft.level) ? draft : { ...draft, level: EMPTY.level };
   } catch {
     return EMPTY;
   }
@@ -69,7 +70,7 @@ export default function NewTheme() {
     }
   }, [form]);
 
-  if (error || !data) {
+  if (!data) {
     return (
       <Stack gap={6}>
         <h1>Novo tema</h1>
@@ -111,6 +112,7 @@ export default function NewTheme() {
     setForm((current) => ({ ...current, [key]: value }));
     setCopied(null);
     setActionError(null);
+    setMissing(null);
     // The check belongs to the exact text and destination it saw.
     if (key !== "theme" && key !== "goal" && key !== "level") {
       setReport(null);
@@ -123,7 +125,7 @@ export default function NewTheme() {
       await navigator.clipboard.writeText(text);
       setCopied(what);
     } catch {
-      setCopied("falhou");
+      setCopied(`falhou:${what}`);
     }
   }
 
@@ -156,23 +158,32 @@ export default function NewTheme() {
     setBusy(null);
   }
 
+  // A check answers for the exact body it was sent: a late answer for older text never counts.
+  const sent = JSON.stringify(body());
+  const checked = report && report.sent === sent ? report : null;
+
   const check = () =>
-    act("check", async () => setReport(await api.post("/api/themes/preview/", body())));
+    act("check", async () => {
+      const result = await api.post("/api/themes/preview/", JSON.parse(sent));
+      setReport({ ...result, sent });
+    });
 
   const save = () =>
     act("save", async () => {
-      const result = await api.post("/api/themes/", body());
+      const result = await api.post("/api/themes/", JSON.parse(sent));
       setCreated(result);
       setReport(null);
-      setForm((current) => ({ ...current, answer: "" }));
+      // Text pasted while saving is a new round: keep it.
+      const saved = JSON.parse(sent).markdown;
+      setForm((current) => ({ ...current, answer: current.answer === saved ? "" : current.answer }));
       await reload();
     });
 
-  const blocked = report && (report.errors.length > 0 || report.documents.some((d) => d.errors.length));
-  const toCreate = report ? report.documents.filter((d) => d.action === "create" || d.action === "fill") : [];
+  const blocked = checked && (checked.errors.length > 0 || checked.documents.some(stops));
+  const toCreate = checked ? checked.documents.filter((d) => d.action === "create" || d.action === "fill") : [];
   // A concept that already exists elsewhere still joins this track, even with nothing new to write.
-  const joins = report ? report.documents.some((d) => d.joins_track) : false;
-  const correction = report && buildCorrection(report);
+  const joins = checked ? checked.documents.some((d) => d.joins_track) : false;
+  const correction = checked && buildCorrection(checked);
   const ready = fields.area && fields.track && fields.origin;
 
   return (
@@ -183,6 +194,9 @@ export default function NewTheme() {
           O Athenas monta o pedido, você cola na IA que preferir e traz a resposta de volta. Um
           conceito por rodada; os cartões chegam pendentes, para você aprovar depois de estudar.
         </p>
+        <ActionError>
+          {error && `Não foi possível atualizar áreas e trilhas. ${error}`}
+        </ActionError>
       </Stack>
 
       <Panel aria-labelledby="pedido">
@@ -215,6 +229,7 @@ export default function NewTheme() {
             <TextField
               label="Área"
               required
+              maxLength={120}
               list="novo-tema-areas"
               value={form.area}
               help={fields.area && !area ? "Área nova." : undefined}
@@ -223,6 +238,7 @@ export default function NewTheme() {
             <TextField
               label="Trilha"
               required
+              maxLength={120}
               list="novo-tema-trilhas"
               value={form.track}
               help={fields.track && !track ? "Trilha nova." : undefined}
@@ -237,6 +253,7 @@ export default function NewTheme() {
             <TextField
               label="IA usada"
               required
+              maxLength={30}
               list="novo-tema-ias"
               value={form.origin}
               placeholder="gemini"
@@ -293,7 +310,7 @@ export default function NewTheme() {
           />
           <Inline>
             <Button
-              variant={report && !blocked ? "secondary" : "primary"}
+              variant={checked && !blocked ? "secondary" : "primary"}
               icon="file-text"
               loading={busy === "check"}
               loadingLabel="Conferindo…"
@@ -302,7 +319,7 @@ export default function NewTheme() {
             >
               Conferir
             </Button>
-            {report && !blocked && (toCreate.length > 0 || joins) && (
+            {checked && !blocked && (toCreate.length > 0 || joins) && (
               <Button icon="check" loading={busy === "save"} loadingLabel="Criando…" onClick={save}>
                 {toCreate.length === 0
                   ? "Pôr na trilha"
@@ -319,19 +336,25 @@ export default function NewTheme() {
             {actionError && `Não foi possível concluir. A resposta continua aqui. ${actionError}`}
           </ActionError>
           {created && <Created result={created} />}
-          {report && (
-            <Report report={report} blocked={blocked} toCreate={toCreate.length} joins={joins}>
+          {checked && (
+            <Report report={checked} blocked={blocked} toCreate={toCreate.length} joins={joins}>
               {correction && (
-                <Inline>
-                  <Button
-                    variant="secondary"
-                    icon="copy"
-                    onClick={() => copy(correction, "correção")}
-                  >
-                    Copiar pedido de correção
-                  </Button>
-                  <CopyStatus copied={copied} what="correção" />
-                </Inline>
+                <>
+                  <Inline>
+                    <Button
+                      variant="secondary"
+                      icon="copy"
+                      onClick={() => copy(correction, "correção")}
+                    >
+                      Copiar pedido de correção
+                    </Button>
+                    <CopyStatus copied={copied} what="correção" />
+                  </Inline>
+                  <details className="new-theme__request">
+                    <summary>Ver o pedido de correção</summary>
+                    <pre tabIndex={0}>{correction}</pre>
+                  </details>
+                </>
               )}
             </Report>
           )}
@@ -349,7 +372,7 @@ function CopyStatus({ copied, what }) {
       </p>
     );
   }
-  if (copied === "falhou") {
+  if (copied === `falhou:${what}`) {
     return (
       <p className="ui-field__error" role="alert">
         O navegador não deixou copiar. Abra o texto e copie à mão.
@@ -376,7 +399,7 @@ function Report({ report, blocked, toCreate, joins, children }) {
         )
       )}
       {documents.length > 0 && (
-        <p className="t-meta">
+        <p className="t-meta" role="status">
           {blocked
             ? "Corrija os erros marcados antes de criar; nada é criado pela metade."
             : toCreate === 0
@@ -405,12 +428,16 @@ function Report({ report, blocked, toCreate, joins, children }) {
                   {d.conceito || "Sem conceito"} / {d.subtema || "sem subtema"}
                 </span>
                 <span className="t-meta">{rowMeta(d)}</span>
-                <Problems items={d.errors} error />
+                <Problems items={d.errors} error={stops(d)} />
                 <Problems items={d.warnings} />
               </div>
               <div className="ui-list__badges">
                 {d.generated_by && <GeneratedByBadge by={d.generated_by} />}
-                {d.state === "ready" ? (
+                {stops(d) ? (
+                  <Badge tone="error" icon="alert-circle">
+                    Impede criar
+                  </Badge>
+                ) : d.state === "ready" ? (
                   <Badge tone="success" icon="check-circle">
                     Pronto
                   </Badge>
@@ -437,12 +464,18 @@ function rowMeta(d) {
   return parts.join(" · ");
 }
 
+// A document that keeps the app's text is never imported, so only the others can block.
+const stops = (d) => d.errors.length > 0 && d.action !== "keep" && d.action !== "same";
+
 function Problems({ items, error = false }) {
   if (!items.length) return null;
   return (
     <ul className={`new-theme__problems${error ? " new-theme__problems--error" : ""}`}>
       {items.map((p) => (
-        <li key={p}>{p}</li>
+        <li key={p}>
+          {error && <strong>Impede criar: </strong>}
+          {p}
+        </li>
       ))}
     </ul>
   );

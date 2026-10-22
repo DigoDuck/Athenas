@@ -43,3 +43,11 @@
 .new-theme__problems--error {
   color: var(--color-error);
 }
+
+/* Chat text, links and long names from an answer wrap instead of widening the page. */
+.new-theme__problems,
+.new-theme .ui-list__title,
+.new-theme .ui-callout__content,
+.new-theme .ui-state__title {
+  overflow-wrap: anywhere;
+}

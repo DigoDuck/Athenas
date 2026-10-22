@@ -25,10 +25,17 @@ SOURCE_RE = re.compile(r"Fonte:\s*(https?://\S+)")
 # One line on its own pointing at a stored image, `![legenda](/api/images/<nome>/)`, with the
 # optional `"título"` the reading screen also takes as the caption (D-033).
 IMAGE_RE = re.compile(r'^!\[([^\]]*)\]\(/api/images/([a-z0-9][a-z0-9-]*)/?(?:\s+"([^"]*)")?\)$')
-# The label of spec 4.1, also as chat AIs write it: `**Resposta de referência:**`, `Referência`.
-REFERENCE_RE = re.compile(r"[*_]*resposta de refer[êe]ncia[*_]*:[*_]*", re.IGNORECASE)
-# A line that names a question but is not `### P<n>:`, so the parser would not see it.
-QUESTION_LIKE_RE = re.compile(r"^\W*P\d+\b")
+# The label of spec 4.1 anywhere, as the parser always read it, or at the start of a line as chat
+# AIs also write it: `**Resposta de referência:**`, `Resposta de Referência:`. Never a lowercase
+# mention in a sentence ("compare com a resposta de referência: ...").
+REFERENCE_RE = re.compile(
+    r"^[ \t]*(?P<m>[*_]+)?(?i:resposta de refer[êe]ncia)(?:(?P=m):|:(?P=m)|:)"
+    r"|Resposta de referência:",
+    re.MULTILINE,
+)
+# A line in Prática that looks like a question but is not `### P<n>:`, so the parser would merge it
+# into the previous answer: another heading, `**P2:**`, `### P2.`, `### P1 –`.
+QUESTION_LIKE_RE = re.compile(r"^\s*#{3,6}\s|^\W*P\d+\s*[:.)–-]")
 # Stored without accents, like `Subtopic.Level` ("intermediário" -> "intermediario").
 LEVELS = {"iniciante", "intermediario", "avancado", "especialista"}
 # Fits `Content.generated_by`.
@@ -235,8 +242,9 @@ def _parse_questions(body: str) -> list[Question]:
 
 def _reference_answer(lines: list[str]) -> str | None:
     # Everything after the marker, up to the next question; text before it is ignored.
-    parts = REFERENCE_RE.split("\n".join(lines), maxsplit=1)
-    return (parts[1].strip() or None) if len(parts) > 1 else None
+    text = "\n".join(lines)
+    marker = REFERENCE_RE.search(text)
+    return (text[marker.end() :].strip() or None) if marker else None
 
 
 def _parse_cards(body: str) -> tuple[list[Card], list[str]]:
@@ -343,8 +351,8 @@ def _duplicates(labels: list[str]) -> list[str]:
 
 # A pasted AI answer with several documents, for the "Novo tema" screen (DECISIONS.md D-040).
 
-# Any info string, as the reading takes it: ```c#, ```c++, ```python title="x".
-FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})\s*(.*?)\s*$")
+# Any info string without a backtick (CommonMark): ```c#, ```c++, never "```ls``` lista".
+FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})\s*([^`]*?)\s*$")
 # A frontmatter key as chat AIs write it, sometimes indented or in bold (`**subtema:**`).
 FRONTMATTER_KEY_RE = re.compile(r"^\s*\**([\w-]+)\**\s*:")
 COMMENT_RE = re.compile(r"^\s*<!--.*-->\s*$")
@@ -452,15 +460,25 @@ def _opens_documents(lines: list[str], start: int) -> bool:
 
 
 def _heading_ahead(lines: list[str], start: int) -> bool:
-    """A contract heading before the next frontmatter: the fence at `start - 1` opens code.
+    """Whether the document goes on after the code the fence at `start - 1` would open.
 
-    Inside a ``` wrapper, a bare ``` may open an example as well as close the wrapper. A chat
-    heading after the wrapper ("## Próximos passos") does not keep it open.
+    Inside a ``` wrapper, a bare ``` may open an example as well as close the wrapper. Code it
+    opens ends at the next bare fence, and then a contract heading must follow before the next
+    frontmatter, outside any later code block: a chat heading ("## Próximos passos") or one in a
+    chat snippet after the wrapper does not keep it open.
     """
+    inner, fence = True, None  # in the code the fence would open; in a later code block
     for at in range(start, len(lines)):
-        if _frontmatter_end(lines, at) is not None:
+        if fence is None and _frontmatter_end(lines, at) is not None:
             return False
-        if contract_heading(lines[at]):
+        found = FENCE_RE.match(lines[at])
+        if found and inner:
+            if found[2]:
+                return False  # a fence with a language opens code, it cannot end it
+            inner = False
+        elif found:
+            fence = None if fence else found[1]
+        elif not inner and fence is None and contract_heading(lines[at]):
             return True
     return False
 
@@ -523,8 +541,10 @@ def contract_gaps(parsed: ParsedContent) -> list[str]:
             if not line or (CARD_LABEL_RE.match(raw) and not CARD_RE.match(raw)):
                 continue  # empty, or a label without `::`, which already warns
             if CARD_RE.match(raw):
-                if raw.count("::") > 1:
-                    gaps.append(f"Cartão com mais de um '::', cortado no primeiro: {line[:80]}")
+                # A first `::` inside a word is code (`std::vector`), not the separator.
+                before, _, after = raw.partition("::")
+                if before[-1:].isalnum() and after[:1].isalnum():
+                    gaps.append(f"Cartão com '::' de código na frente, cortado ali: {line[:80]}")
             # A `> [!ia]` callout may sit anywhere; anything else here would vanish from the cards.
             elif line[0] != ">" or CARD_LABEL_RE.match(line.lstrip("> ")):
                 stray.append(line)

@@ -3,6 +3,9 @@
 Written by the agent; `tests/acceptance/` stays Diogo's.
 """
 
+import threading
+from concurrent.futures import ThreadPoolExecutor
+
 import pytest
 from content.models import Content, Flashcard, ReviewLog
 from content.parser import (
@@ -13,6 +16,7 @@ from content.parser import (
     without_reference_answers,
 )
 from content.services import create_manual_card, import_theme, rate_card
+from django.db import connection
 from organization.models import Area, Concept, Step, Subtopic, Track
 
 FENCE = "```"
@@ -348,7 +352,13 @@ def test_a_concept_from_another_track_is_named_before_it_receives_subtopics(clie
 
 @pytest.mark.django_db
 def test_trilha_completa_alone_finishes_the_track_even_in_bold_or_with_a_period(client):
-    answers = ("~~~~\nTRILHA COMPLETA\n~~~~", "**TRILHA COMPLETA**", "Trilha completa.")
+    answers = (
+        "~~~~\nTRILHA COMPLETA\n~~~~",
+        "**TRILHA COMPLETA**",
+        "Trilha completa.",
+        "Claro!\n\n~~~~markdown\nTRILHA COMPLETA\n~~~~",
+        "TRILHA COMPLETA\n\nO tema já está coberto pelos conceitos da trilha.",
+    )
     done = [send(client, a, "/api/themes/preview/").json() for a in answers]
     sentence = send(client, "Ainda não é a trilha completa.", "/api/themes/preview/").json()
 
@@ -436,8 +446,99 @@ def test_questions_and_cards_the_parser_would_miss_show_as_gaps():
         "Pergunta fora do formato": base.replace("### P1:", "**P1:**"),
         "Linha em Flashcards fora do formato": base.replace("- C2:", "  - C2:"),
         "Linha em Flashcards fora": base + "> - C3: Dentro de um destaque? :: Sim.\n",
-        "mais de um '::'": base.replace("Imagem ou container", "O que `std::vector` guarda,"),
+        "Pergunta fora": base.replace("### P1:", "### Pergunta 1:"),
+        "'::' de código": base.replace("Imagem ou container", "O que `std::vector` guarda,"),
     }
+    fine = base.replace("### P1:", "P1 e P2 cobrem o básico.\n### P1:").replace(
+        "- C2: De onde nasce um container? :: De uma imagem.",
+        "- C2: Como imprimir em C++? :: std::cout << x;",
+    )
 
     for gap, text in variants.items():
         assert any(gap in found for found in contract_gaps(parse_markdown(text))), gap
+    assert not [g for g in contract_gaps(parse_markdown(fine)) if "Pergunta" in g or "::" in g]
+
+
+# Found by the third review of PR #45.
+
+
+def test_a_mention_of_the_answer_in_a_sentence_is_not_its_label():
+    practice = (
+        "### P1: O que roda primeiro?\n"
+        "Compare depois com a resposta de referência: ela é curta.\n"
+        "Resposta de referência:__init__ roda primeiro.\n"
+    )
+    exact = "### P1: O que é uma imagem?\nResposta de referência: O molde.\n"
+
+    parsed = parse_markdown(document("Camadas").replace(exact, practice))
+
+    assert parsed.questions[0].reference_answer == "__init__ roda primeiro."
+    assert without_reference_answers(practice) == (
+        "### P1: O que roda primeiro?\nCompare depois com a resposta de referência: ela é curta."
+    )
+
+
+def test_inline_backticks_or_a_chat_snippet_after_the_wrapper_never_hold_a_document():
+    inline = document("Imagem e container").replace(
+        "## Confusões comuns", "```docker ps``` lista os containers.\n## Confusões comuns"
+    )
+    snippet = (
+        f"{FENCE}markdown\n{document('Imagem e container')}\n{document('Camadas')}{FENCE}\n\n"
+        f"Se quiser, acrescento uma pergunta:\n\n{FENCE}markdown\n## Prática\n### P2: E o cache?\n"
+        f"{FENCE}\n"
+    )
+
+    results = [
+        split_documents(f"~~~~markdown\n{inline}\n{document('Camadas')}~~~~\n"),
+        split_documents(snippet),
+    ]
+
+    assert [len(documents) for documents, _, _ in results] == [2, 2]
+    assert results[1][0][1] == document("Camadas")
+    assert "Se quiser" in results[1][1][-1]
+
+
+@pytest.mark.django_db
+def test_a_chat_line_naming_the_subtema_does_not_block_but_a_cut_frontmatter_does(client):
+    named = ANSWER.replace("Quer que eu", "**Subtema:** Bind mounts\nQuer que eu")
+    cut = ANSWER.replace(
+        "Quer que eu continue com o próximo conceito?", "---\nconceito: X\nsubtema: Y"
+    )
+
+    reports = [send(client, a, "/api/themes/preview/").json() for a in (named, cut)]
+
+    assert reports[0]["errors"] == []
+    assert "Um trecho com títulos ficou fora" in reports[1]["errors"][0]
+
+
+@pytest.mark.django_db
+def test_errors_in_a_subtopic_that_keeps_its_text_do_not_block_the_new_ones(client):
+    send(client, ANSWER)
+    repeated = document("Camadas").replace("- C2:", "- C1:")
+
+    response = send(client, repeated + "\n" + document("Volumes"))
+
+    assert response.status_code == 201
+    assert [d["action"] for d in response.json()["documents"]] == ["keep", "create"]
+    assert Subtopic.objects.filter(name="Volumes").exists()
+
+
+@pytest.mark.django_db(transaction=True)
+def test_the_same_answer_saved_twice_at_once_is_created_once():
+    start = threading.Barrier(4)
+
+    def save(_):
+        start.wait()
+        try:
+            return import_theme(
+                area="Programação", track="Docker", origem="gemini", markdown=ANSWER, save=True
+            )
+        finally:
+            connection.close()
+
+    with ThreadPoolExecutor(4) as pool:
+        reports = list(pool.map(save, range(4)))
+
+    actions = sorted(d["action"] for report in reports for d in report["documents"])
+    assert actions == ["create"] * 2 + ["same"] * 6
+    assert Subtopic.objects.count() == 2

@@ -4,7 +4,7 @@ from collections import defaultdict
 from datetime import UTC, datetime, time, timedelta
 
 import fsrs
-from django.db import transaction
+from django.db import connection, transaction
 from django.db.models import Min
 from django.utils import timezone
 from organization.models import Area, Concept, Settings, Step, Track
@@ -111,6 +111,7 @@ def _sync_cards(subtopic, parsed):
 # "Novo tema" (DECISIONS.md D-040): one pasted AI answer becomes concepts and subtopics in a track.
 
 NAME_MAX = 160  # Concept.name and Subtopic.name
+THEME_LOCK = 4045  # any constant: the advisory lock key for saving a round
 KEPT = (
     "O subtema já tem outro texto, que fica como está. Para trocar, cole este documento no "
     "subtema, na Biblioteca."
@@ -131,6 +132,10 @@ def import_theme(*, area, track, origem, markdown, save=False) -> dict:
     created: a subtopic that already has other text keeps it, like `scripts/theme.py push`
     without `--replace`, so nothing Diogo edited or studied changes here.
     """
+    if save:
+        # One round at a time: a second save of the same answer waits, then finds it done.
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT pg_advisory_xact_lock(%s)", [THEME_LOCK])
     documents, ignored, cut = split_documents(markdown)
     area_obj = Area.objects.filter(name__iexact=area).first()
     track_obj = Track.objects.filter(name__iexact=track).first()
@@ -143,23 +148,24 @@ def import_theme(*, area, track, origem, markdown, save=False) -> dict:
         "errors": [],
     }
     if not documents:
-        bare = [line.strip() for line in markdown.split("\n")]
-        # Chat AIs add bold or a period: "**TRILHA COMPLETA**", "Trilha completa."
-        report["complete"] = [
-            line.strip("*_.! ").upper()
-            for line in bare
-            if line and not line.startswith(("```", "~~~"))
-        ] == ["TRILHA COMPLETA"]
+        # Chat AIs add bold, a period or a sentence around it: "Claro!\n\n**TRILHA COMPLETA**".
+        report["complete"] = any(
+            line.strip("*_.!#` \t").upper() == "TRILHA COMPLETA" for line in markdown.split("\n")
+        )
         report["errors"].append(
             "A IA respondeu que a trilha está completa." if report["complete"] else NO_DOCUMENT
         )
         return report
     for stretch in ignored:
-        # A contract heading or a `subtema` key outside every document is content the split lost.
-        lost = any(
-            contract_heading(line)
-            or ((key := FRONTMATTER_KEY_RE.match(line)) and key[1].lower() == "subtema")
-            for line in stretch.split("\n")
+        # A contract heading, or a `---` with a `subtema` key, outside every document is content
+        # the split lost; a chat line such as "**Subtema:** Volumes" is not.
+        lines = stretch.split("\n")
+        lost = any(contract_heading(line) for line in lines) or (
+            any(line.strip() == "---" for line in lines)
+            and any(
+                (k := FRONTMATTER_KEY_RE.match(line)) and k[1].lower() == "subtema"
+                for line in lines
+            )
         )
         report["errors" if lost else "warnings"].append(
             f"Um trecho com títulos ficou fora dos documentos: {_excerpt(stretch)}. Confira se a "
@@ -221,7 +227,10 @@ def import_theme(*, area, track, origem, markdown, save=False) -> dict:
             "O bloco de código da resposta não fechou: ela pode ter sido cortada. Confira o fim "
             "deste documento."
         )
-    blocked = report["errors"] or any(d["errors"] for d in report["documents"])
+    # A document that keeps the app's text is never imported, so its errors cannot block.
+    blocked = report["errors"] or any(
+        d["errors"] for d in report["documents"] if d["action"] not in ("keep", "same")
+    )
     if not save or blocked:
         return report
 
