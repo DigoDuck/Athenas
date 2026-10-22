@@ -20,6 +20,7 @@ KNOWN_HEADINGS = set(CONTRACT_ORDER)
 
 QUESTION_RE = re.compile(r"^###\s+(P\d+):\s*(.+?)\s*$")
 CARD_RE = re.compile(r"^-\s+(C\d+):\s*(.+?)\s*::\s*(.+?)\s*$")
+LABEL_MAX = 10  # PracticeQuestion.label and Flashcard.label
 CARD_LABEL_RE = re.compile(r"^-\s+(C\d+):")
 SOURCE_RE = re.compile(r"Fonte:\s*(https?://\S+)")
 # A code fence with any info string but a backtick (CommonMark): ```c#, ```c++, never
@@ -136,6 +137,9 @@ def parse_markdown(text: str, target: Target | None = None) -> ParsedContent:
         parsed.errors.append(f"Rótulo duplicado: {label}")
     for label in _duplicates([c.label for c in parsed.cards]):
         parsed.errors.append(f"Rótulo duplicado: {label}")
+    for item in (*parsed.questions, *parsed.cards):
+        if len(item.label) > LABEL_MAX:
+            parsed.errors.append(f"Rótulo com mais de {LABEL_MAX} caracteres: {item.label}")
 
     if target is not None:
         for key in ("area", "conceito", "subtema"):
@@ -193,10 +197,12 @@ def _value(key: str, value: str) -> str:
 
 def _unquoted(value: str) -> str:
     # YAML quotes a value with a colon in it, and chat AIs often quote every value; never a name
-    # that only starts and ends with quoted words (`"Since" e "for"`).
+    # that only starts and ends with quoted words (`"Since" e "for"`). An apostrophe inside a
+    # word (`'Don't panic'`) is not a quote.
     quote = value[:1]
-    if len(value) > 1 and quote in "\"'" and value[-1] == quote and quote not in value[1:-1]:
-        return value[1:-1].strip()
+    if len(value) > 1 and quote in "\"'" and value[-1] == quote:
+        if not re.search(rf"(?<!\w){quote}|{quote}(?!\w)", value[1:-1]):
+            return value[1:-1].strip()
     return value
 
 
@@ -370,8 +376,9 @@ def _duplicates(labels: list[str]) -> list[str]:
 # A frontmatter key as chat AIs write it, sometimes indented or in bold (`**subtema:**`).
 FRONTMATTER_KEY_RE = re.compile(r"^\s*\**([\w-]+)\**\s*:")
 COMMENT_RE = re.compile(r"^\s*<!--.*-->\s*$")
-# A heading or a line in bold alone, as chat AIs title each document ("**Subtema 2: Camadas**").
-LABEL_RE = re.compile(r"^\s*(#{1,6}\s|\*\*[^*].*\*\*\s*$)")
+# A heading or a line that opens in bold, as chat AIs title each document ("**Subtema 2: Camadas**",
+# "**Subtema 2:** Camadas", "📘 **Subtema 2**", "2. **Camadas**").
+LABEL_RE = re.compile(r"^\s*(#{1,6}\s|(?:\d+[.)]\s+|[^\w\s*>|-]+\s*)?\*\*[^*].*\*\*)")
 FRONTMATTER_MAX = 40  # lines; the contract's frontmatter has five
 
 
@@ -393,13 +400,16 @@ def split_documents(text: str) -> tuple[list[str], list[str], bool]:
     wrapper = None  # the fence wrapping the documents: its character and length
     chat = []  # fences open in the chat, innermost last: one may be a wrapper read late
     inner = None  # a code fence open inside a document
+    indent = ""  # the current document's own indentation
     outside = True
     i = 0
     while i < len(lines):
         line = lines[i]
         fence = FENCE_RE.match(line)
         if inner is None and (end := _frontmatter_end(lines, i)) is not None:
-            documents.append(lines[i : end + 1])
+            # A document nested in a list item: the parser reads it from the margin.
+            indent = lines[i][: len(lines[i]) - len(lines[i].lstrip())]
+            documents.append([ln.removeprefix(indent) for ln in lines[i : end + 1]])
             heads.append(end + 1 - i)
             outside = False
             i = end + 1
@@ -435,7 +445,9 @@ def split_documents(text: str) -> tuple[list[str], list[str], bool]:
             inner = fence[1][:3]
         elif fence:
             chat.pop() if _closes_chat(fence, chat) else chat.append((fence[1][0], len(fence[1])))
-        (ignored[-1] if outside else documents[-1]).append(line)
+        (ignored[-1] if outside else documents[-1]).append(
+            line if outside else line.removeprefix(indent)
+        )
         i += 1
 
     texts = []
@@ -443,7 +455,12 @@ def split_documents(text: str) -> tuple[list[str], list[str], bool]:
         labels = []
         while len(document) > head:
             last = document[-1]
-            if LABEL_RE.match(last) and not contract_heading(last) and not QUESTION_RE.match(last):
+            if (
+                LABEL_RE.match(last)
+                and not contract_heading(last)
+                and not QUESTION_RE.match(last)
+                and " :: " not in last  # a card, even in bold
+            ):
                 labels.insert(0, last)
             elif not (last.strip() in ("", "---", "***", "___") or COMMENT_RE.match(last)):
                 break

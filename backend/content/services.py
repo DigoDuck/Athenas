@@ -157,7 +157,7 @@ def import_theme(*, area, track, origem, markdown, save=False) -> dict:
             # Bold, a period, an emoji go; a colon, a question or a list marker make it a title.
             re.sub(r"[^\w\s:?|-]", "", line).strip().upper() == "TRILHA COMPLETA"
             for line in markdown.split("\n")
-            if not line.lstrip().startswith("#")
+            if not re.match(r"\s*(#|[*+]\s)", line)
         )
         report["errors"].append(
             "A IA respondeu que a trilha está completa." if report["complete"] else NO_DOCUMENT
@@ -167,11 +167,15 @@ def import_theme(*, area, track, origem, markdown, save=False) -> dict:
         # A contract heading, or a `---` with a `subtema` key, outside every document is content
         # the split lost; a chat line such as "**Subtema:** Volumes" is not.
         lines = stretch.split("\n")
-        lost = any(contract_heading(line) for line in lines) or (
-            any(line.strip() == "---" for line in lines)
-            and any(
-                (k := FRONTMATTER_KEY_RE.match(line)) and k[1].lower() == "subtema"
-                for line in lines
+        lost = (
+            any(contract_heading(line) for line in lines)
+            or _open_frontmatter(lines)
+            or (
+                any(line.strip() == "---" for line in lines)
+                and any(
+                    (k := FRONTMATTER_KEY_RE.match(line)) and k[1].lower() == "subtema"
+                    for line in lines
+                )
             )
         )
         report["errors" if lost else "warnings"].append(
@@ -276,21 +280,32 @@ def _document_errors(parsed, conceito, subtema):
         )
     if not parsed.blocks:
         errors.append("Documento sem texto depois do frontmatter: a resposta foi cortada?")
-    # The next document's frontmatter, cut before its closing `---`, lands at the end of this one.
-    tail = list(
-        itertools.takewhile(lambda ln: ln.strip() != "---", reversed(parsed.raw.split("\n")))
-    )
-    keys = [FRONTMATTER_KEY_RE.match(line) for line in tail if line.strip()]
-    names = [k[1].lower() for k in reversed(keys) if k]
-    # Cut before `subtema` too: then the tail is only frontmatter keys, `area` first as asked.
-    opens = names[:1] == ["area"] and set(names) <= FRONTMATTER_KEYS
-    if keys and all(keys) and ("subtema" in names or opens):
+    if _open_frontmatter(parsed.raw.split("\n")):
         errors.append("O documento termina num frontmatter que não fechou: a resposta foi cortada?")
     kinds = [block.kind for block in parsed.blocks if block.kind != "extra"]
     for kind in dict.fromkeys(k for k in kinds if kinds.count(k) > 1):
         # Two documents run together when the second frontmatter was not recognized.
         errors.append(f"A seção {kind} aparece mais de uma vez: dois documentos se juntaram?")
     return errors
+
+
+def _open_frontmatter(lines):
+    """Whether the lines end in the next document's frontmatter, cut before its closing `---`.
+
+    Its keys follow the last rule: one is `subtema`, or all are frontmatter keys with `area` first
+    as the request asks, the last one maybe cut in the middle of its name.
+    """
+    tail = list(itertools.takewhile(lambda ln: ln.strip() != "---", reversed(lines)))
+    filled = [line for line in reversed(tail) if line.strip()]
+    if len(tail) == len(lines) or not filled:
+        return False  # no rule, or nothing after it
+    if len(filled) > 1 and re.fullmatch(r"\s*\**[\w-]+", filled[-1]):
+        filled.pop()
+    keys = [FRONTMATTER_KEY_RE.match(line) for line in filled]
+    if not all(keys):
+        return False
+    names = [k[1].lower() for k in keys]
+    return "subtema" in names or (names[0] == "area" and set(names) <= FRONTMATTER_KEYS)
 
 
 def _create(serializer_class, **data):

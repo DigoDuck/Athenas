@@ -745,15 +745,18 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
     area's concepts from other tracks, so the AI does not reuse one by accident. An AI that finds
     the theme covered answers "TRILHA COMPLETA", which the screen shows as the end of the track.
     It counts on a line of its own, in bold, with a period or an emoji, with chat around it, never
-    as a heading or a title ("## Trilha completa", "**Trilha completa:**", "- Trilha completa" or
-    "Trilha completa?" open a plan). Nothing calls an AI from the app (D-030).
+    as a heading or a title ("## Trilha completa", "**Trilha completa:**", "- Trilha completa",
+    "* Trilha completa" or "Trilha completa?" open a plan). Nothing calls an AI from the app (D-030).
   - The answer comes back in one code block fenced with `~~~~`, so the code inside it survives and
     the chat's copy button gives the raw Markdown. The server cuts it into documents at each
     frontmatter that names a `subtema` (keys in any case, values with or without quotes; a name
-    that only starts and ends with quoted words, `"Since" e "for"`, keeps them), drops a
+    that only starts and ends with quoted words, `"Since" e "for"`, keeps them; an apostrophe
+    inside a word, `'Don't panic'`, is not a quote), drops a
     fence wrapped around everything or around each document, and shows the chat text around them
-    as ignored, never saved: a heading or a bold line that titles the next document ("### Subtema
-    2", "**Subtema 2**") is chat too. Only a contract heading means a document goes on, so a chat
+    as ignored, never saved: a heading or a line that opens in bold and titles the next document
+    ("### Subtema 2", "**Subtema 2:** Camadas", "📘 **Subtema 2**") is chat too, unless it holds a
+    card's ` :: `. A document nested in a list item, its fence indented, is read from its own
+    margin. Only a contract heading means a document goes on, so a chat
     heading after the wrapper never keeps it open. A frontmatter inside a code example in the body
     does not start a document, and a code fence with any language name (```` ```c# ````) stays
     one. The split, the parser and the reading share that fence rule, so "```` ```docker ps``` ````
@@ -785,11 +788,14 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
     letters, digits, dots or hyphens ("Gemini Notebook" becomes `gemini-notebook`), so it cannot
     add a frontmatter line.
   - Blocking, as in the content editor: duplicate labels, a document without `conceito` or
-    `subtema`, a subtopic repeated in the answer, a name over 160 characters. Also blocking, since
+    `subtema`, a subtopic repeated in the answer, a name over 160 characters, a `P<n>` or `C<n>`
+    label over the 10 characters the database holds (which failed with a 500 before, in the
+    content editor too). Also blocking, since
     each means the split or the AI went wrong: a name still in the request's `<...>` template, a
     document with no text after its frontmatter, a contract section that appears twice (two
-    documents run together), a document that ends in a frontmatter that never closed (the answer was
-    cut inside the next document, even before its `subtema` line), and a contract heading, or a
+    documents run together), a document, or the chat after a fenced one, that ends in a
+    frontmatter that never closed (the answer was cut inside the next document, even before its
+    `subtema` line or in the middle of a key), and a contract heading, or a
     `---` with a `subtema` key, left outside every document. A chat line such as "**Subtema:**
     Volumes" is not.
   - Everything else the skill's check refuses (missing headings, extra headings, draft, no `nivel`,
@@ -849,5 +855,6 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
   block, with all ten sections listed as missing; a chat opening with a `---` rule and a
   "**Subtema:**" line blocks as a possibly cut frontmatter, since the two look the same; a chat
   fence that never closes before documents the AI did not fence (a decorative "~~~ Resumo ~~~"
-  line) warns that the answer may have been cut. A `> [!IA]` callout in capitals is not read as
-  one, as everywhere else in the app.
+  line) warns that the answer may have been cut; a line that opens in bold at the very end of a
+  document is taken for the title of the next one and listed as ignored. A `> [!IA]` callout in
+  capitals is not read as one, as everywhere else in the app.

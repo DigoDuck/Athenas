@@ -3,6 +3,7 @@
 Written by the agent; `tests/acceptance/` stays Diogo's.
 """
 
+import textwrap
 import threading
 from concurrent.futures import ThreadPoolExecutor
 
@@ -762,3 +763,70 @@ def test_an_emoji_inside_the_bold_answer_label_is_read_and_hidden():
 
     assert parsed.questions[0].reference_answer == "O molde."
     assert without_reference_answers(practice) == "### P1: O que é uma imagem?"
+
+
+# Found by the eighth review of PR #45.
+
+
+@pytest.mark.django_db
+def test_an_answer_cut_inside_a_frontmatter_blocks_however_it_was_fenced(client):
+    first = f"{FENCE}markdown\n{document('Imagem e container')}{FENCE}\n\n"
+    fenced = first + f"{FENCE}markdown\n---\narea: Programação\nconceito: Imagens e containers"
+    mid_key = document("Camadas") + "\n---\narea: Programação\nconc"
+
+    fenced_report = send(client, fenced, "/api/themes/preview/").json()
+    mid_key_report = send(client, mid_key, "/api/themes/preview/").json()
+
+    assert any("fora dos documentos" in e for e in fenced_report["errors"])
+    assert any("não fechou" in e for e in mid_key_report["documents"][0]["errors"])
+
+
+def test_an_apostrophe_inside_a_single_quoted_name_is_not_a_quote():
+    parsed = parse_markdown(document("'Don't panic'")).frontmatter["subtema"]
+
+    assert parsed == "Don't panic"
+
+
+def test_a_title_that_opens_in_bold_between_documents_is_chat_but_a_bold_card_is_not():
+    titles = (
+        "**Subtema 2:** Camadas",
+        "**Subtema 2**: Camadas",
+        "📘 **Subtema 2**",
+        "2. **Camadas**",
+    )
+    card = "**C3:** E o cache? :: As camadas.\n"
+
+    for title in titles:
+        documents, ignored, _ = split_documents(
+            f"~~~~markdown\n{document('Imagem e container')}\n---\n\n{title}\n\n"
+            f"{document('Camadas')}~~~~\n"
+        )
+
+        assert documents == [document("Imagem e container"), document("Camadas")], title
+        assert title in ignored
+    assert split_documents(document("Camadas", extra=card))[0] == [document("Camadas", extra=card)]
+
+
+def test_documents_nested_in_a_list_are_read_from_the_margin():
+    answer = "".join(
+        f"{n}.  **Subtema {n}**\n"
+        + textwrap.indent(f"{FENCE}markdown\n{document(name)}{FENCE}\n", "    ")
+        for n, name in ((1, "Imagem e container"), (2, "Camadas"))
+    )
+
+    documents, _, cut = split_documents(answer)
+
+    assert documents == [document("Imagem e container"), document("Camadas")] and not cut
+    assert len(parse_markdown(documents[1]).questions) == 1
+
+
+@pytest.mark.django_db
+def test_a_starred_plan_item_or_a_long_label_is_not_taken_for_something_else(client):
+    plan = send(client, "* Trilha completa\n* Volumes\n", "/api/themes/preview/").json()
+    long_label = document("Camadas").replace("- C2:", "- C12345678901:")
+
+    response = send(client, long_label)
+
+    assert not plan["complete"]
+    assert response.status_code == 400
+    assert "Rótulo com mais de 10 caracteres: C12345678901" in str(response.json())
