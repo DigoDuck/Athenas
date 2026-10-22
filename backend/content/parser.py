@@ -122,7 +122,8 @@ def parse_markdown(text: str, target: Target | None = None) -> ParsedContent:
     if target is not None:
         for key in ("area", "conceito", "subtema"):
             found = frontmatter.get(key)
-            if found is not None and found != getattr(target, key):
+            # Names match ignoring case (D-040), so "docker" is no news for "Docker".
+            if found is not None and found.lower() != getattr(target, key).lower():
                 parsed.warnings.append(
                     f"O frontmatter diz {key}: {found}, mas o conteúdo está sendo salvo em "
                     f"{getattr(target, key)}"
@@ -159,9 +160,17 @@ def _split_frontmatter(text: str) -> tuple[dict[str, str], str]:
     for end, line in enumerate(lines[1:], start=1):
         if line.strip() == "---":
             pairs = (item.partition(":") for item in lines[1:end])
-            data = {k.strip(): v.strip() for k, sep, v in pairs if sep}
+            # Lowercase keys and plain values, as chat AIs also write `Subtema:` or `**subtema:**`.
+            data = {k.strip(" *").lower(): _unquoted(v.strip(" *")) for k, sep, v in pairs if sep}
             return data, "\n".join(lines[end + 1 :])
     return {}, text
+
+
+def _unquoted(value: str) -> str:
+    # YAML quotes a value with a colon in it, and chat AIs often quote every value.
+    if len(value) > 1 and value[0] == value[-1] and value[0] in "\"'":
+        return value[1:-1].strip()
+    return value
 
 
 def _outside_fences(lines):
@@ -324,67 +333,134 @@ def _duplicates(labels: list[str]) -> list[str]:
 
 # A pasted AI answer with several documents, for the "Novo tema" screen (DECISIONS.md D-040).
 
-FENCE_OPEN_RE = re.compile(r"^(`{3,}|~{3,})\s*[\w-]*\s*$")
-FRONTMATTER_KEY_RE = re.compile(r"^\s*([\w-]+)\s*:")
+FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})\s*([\w-]*)\s*$")
+# A frontmatter key as chat AIs write it, sometimes indented or in bold (`**subtema:**`).
+FRONTMATTER_KEY_RE = re.compile(r"^\s*\**([\w-]+)\**\s*:")
+COMMENT_RE = re.compile(r"^\s*<!--.*-->\s*$")
+FRONTMATTER_MAX = 40  # lines; the contract's frontmatter has five
 
 
-def split_documents(text: str) -> tuple[list[str], list[str]]:
+def split_documents(text: str) -> tuple[list[str], list[str], bool]:
     """Cut an answer into subtopic documents, each starting at a frontmatter that names it.
 
-    Chat AIs wrap the answer in a code fence, one around everything or one per document, with
-    chat text around them. Each fence just before a frontmatter is dropped with its closer, and
-    the text outside the documents comes back separately so the screen can show what was left
-    out. Returns (documents, ignored stretches).
+    Chat AIs wrap the answer in a code fence, one around everything, one per document or one
+    around each frontmatter, with chat text around them. One pass pairs the fences in order, as
+    the reading does: a fence opened just before a frontmatter wraps documents, its closer ends
+    them, and code fences inside a document stay in it. Returns the documents, the stretches of
+    text outside every document (so the screen can show what was left out), and whether a
+    wrapping fence never closed, the sign of an answer cut short.
     """
-    lines = text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
-    starts = [i for i in range(len(lines)) if _names_a_subtopic(lines, i)]
-    if not starts:
-        return [], []
-    # The wrapper fence of each document: the line right before its frontmatter, if a fence.
-    openers = []
-    for start in starts:
-        before = start - 1
-        while before >= 0 and not lines[before].strip():
-            before -= 1
-        openers.append(before if before >= 0 and FENCE_OPEN_RE.match(lines[before]) else None)
+    text = text.replace("\ufeff", "").replace("\r\n", "\n").replace("\r", "\n")
+    lines = text.split("\n")
+    documents: list[list[str]] = []
+    heads: list[int] = []  # frontmatter length of each document, which trimming never cuts
+    ignored: list[list[str]] = [[]]
+    wrapper = None  # the fence wrapping the documents: its character and length
+    inner = None  # a code fence open inside a document
+    outside = True
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        fence = FENCE_RE.match(line)
+        if inner is None and (end := _frontmatter_end(lines, i)) is not None:
+            documents.append(lines[i : end + 1])
+            heads.append(end + 1 - i)
+            outside = False
+            i = end + 1
+            if wrapper and (closer := _closes(lines, i, wrapper)) is not None:
+                # A fence around the frontmatter alone (Gemini writes ```yaml): not a wrapper.
+                i, wrapper = closer + 1, None
+            continue
+        if fence and inner is not None:
+            inner = None if fence[1][:3] == inner else inner
+        elif fence and wrapper is None and _opens_documents(lines, i + 1):
+            wrapper, outside = (fence[1][0], len(fence[1])), True
+            ignored.append([])
+            i += 1
+            continue
+        elif fence and wrapper and _is_closer(fence, wrapper) and not _heading_ahead(lines, i + 1):
+            wrapper, outside = None, True
+            ignored.append([])
+            i += 1
+            continue
+        elif fence and not outside:
+            inner = fence[1][:3]
+        (ignored[-1] if outside else documents[-1]).append(line)
+        i += 1
 
-    ignored = ["\n".join(lines[: starts[0] if openers[0] is None else openers[0]])]
-    documents = []
-    fence = None
-    for index, start in enumerate(starts):
-        if openers[index] is not None:
-            fence = lines[openers[index]].strip()
-        nxt = len(lines) if index + 1 == len(starts) else starts[index + 1]
-        if index + 1 < len(starts) and openers[index + 1] is not None:
-            nxt = openers[index + 1]
-        span = lines[start:nxt]
-        if fence:
-            # Fences inside a document come in pairs, so an odd count holds the wrapper's closer:
-            # the last bare fence of the wrapper's kind.
-            kind = fence[0] * 3
-            marks = [i for i, line in enumerate(span) if line.lstrip().startswith(kind)]
-            last = span[marks[-1]].strip() if marks else ""
-            if len(marks) % 2 == 1 and last == kind[0] * len(last):
-                ignored.append("\n".join(span[marks[-1] + 1 :]))
-                span = span[: marks[-1]]
-        while span and span[-1].strip() in ("", "---"):
-            span.pop()  # blank lines and the `---` rule chat AIs put between documents
-        documents.append("\n".join(span) + "\n")
-    return documents, [stretch.strip() for stretch in ignored if stretch.strip()]
+    texts = []
+    for document, head in zip(documents, heads, strict=True):
+        while len(document) > head and (
+            document[-1].strip() in ("", "---") or COMMENT_RE.match(document[-1])
+        ):
+            document.pop()  # blank lines, `---` rules and comments chat AIs put between documents
+        texts.append("\n".join(document) + "\n")
+    stretches = ("\n".join(stretch).strip() for stretch in ignored)
+    return texts, [stretch for stretch in stretches if stretch], wrapper is not None
 
 
-def _names_a_subtopic(lines: list[str], start: int) -> bool:
-    # `---`, flat `key: value` lines naming a `subtema`, and `---`: a `---` rule in a body never is.
-    if lines[start].strip() != "---":
-        return False
-    keys = []
-    for line in lines[start + 1 :]:
-        if line.strip() == "---":
-            return "subtema" in keys
-        if not (match := FRONTMATTER_KEY_RE.match(line)):
+def _frontmatter_end(lines: list[str], start: int) -> int | None:
+    """The closing `---` of a frontmatter naming a `subtema` that opens at `start`, if one does.
+
+    Blank, comment and indented lines may sit between the keys, as `_split_frontmatter` reads
+    them; anything else means a `---` rule, not a frontmatter.
+    """
+    if start >= len(lines) or lines[start].strip() != "---":
+        return None
+    keys = set()
+    for end in range(start + 1, min(start + FRONTMATTER_MAX, len(lines))):
+        line = lines[end]
+        stripped = line.strip()
+        if stripped == "---":
+            return end if "subtema" in keys else None
+        if match := FRONTMATTER_KEY_RE.match(line):
+            keys.add(match[1].lower())
+        elif stripped and line[0] not in " \t" and not stripped.startswith("# "):
+            return None
+    return None
+
+
+def _opens_documents(lines: list[str], start: int) -> bool:
+    # A frontmatter within the next three filled lines, as when a chat writes "### Subtema 2"
+    # between the fence and the frontmatter.
+    for _ in range(3):
+        start = _next_filled(lines, start)
+        if _frontmatter_end(lines, start) is not None:
+            return True
+        if start >= len(lines) or FENCE_RE.match(lines[start]) or lines[start].startswith("## "):
             return False
-        keys.append(match[1])
+        start += 1
     return False
+
+
+def _heading_ahead(lines: list[str], start: int) -> bool:
+    """A `##` before the next frontmatter: the fence at `start - 1` opens code, it closes nothing.
+
+    Inside a ``` wrapper, a bare ``` may open an example as well as close the wrapper.
+    """
+    for at in range(start, len(lines)):
+        if _frontmatter_end(lines, at) is not None:
+            return False
+        if lines[at].startswith("## "):
+            return True
+    return False
+
+
+def _next_filled(lines: list[str], start: int) -> int:
+    while start < len(lines) and not lines[start].strip():
+        start += 1
+    return start
+
+
+def _is_closer(fence, wrapper) -> bool:
+    return not fence[2] and fence[1][0] == wrapper[0] and len(fence[1]) >= wrapper[1]
+
+
+def _closes(lines, start, wrapper) -> int | None:
+    """The index of a closer of `wrapper` at `start`, past blank lines, if there is one."""
+    at = _next_filled(lines, start)
+    fence = FENCE_RE.match(lines[at]) if at < len(lines) else None
+    return at if fence and _is_closer(fence, wrapper) else None
 
 
 def with_origin(text: str, origem: str) -> str:
@@ -394,7 +470,7 @@ def with_origin(text: str, origem: str) -> str:
     kept = [
         line
         for line in lines[1:end]
-        if not ((key := FRONTMATTER_KEY_RE.match(line)) and key[1] == "origem")
+        if not ((key := FRONTMATTER_KEY_RE.match(line)) and key[1].lower() == "origem")
     ]
     return "\n".join(["---", *kept, f"origem: {origem}", *lines[end:]])
 
@@ -413,4 +489,15 @@ def contract_gaps(parsed: ParsedContent) -> list[str]:
         gaps.append("O frontmatter não diz o nivel")
     if not any(b.kind == "Fontes" and "http" in b.body for b in parsed.blocks):
         gaps.append("Fontes sem nenhum link")
+    for block in (b for b in parsed.blocks if b.kind == "Flashcards"):
+        lines = [line.strip() for line in block.body.split("\n") if line.strip()]
+        # Lines with a label but no `::` already warn, and a `> [!ia]` callout may sit anywhere;
+        # anything else here would vanish from the cards.
+        stray = [
+            ln for ln in lines if not (ln[0] == ">" or CARD_RE.match(ln) or CARD_LABEL_RE.match(ln))
+        ]
+        if stray:
+            gaps.append(f"Linha em Flashcards fora do formato - C1: ... :: ...: {stray[0][:80]}")
+    if "Flashcards" in kinds and not parsed.cards:
+        gaps.append("Nenhum cartão em Flashcards")
     return gaps

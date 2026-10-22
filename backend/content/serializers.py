@@ -1,5 +1,6 @@
 import base64
 import binascii
+import re
 
 from rest_framework import serializers
 
@@ -63,9 +64,14 @@ class ThemeSerializer(serializers.Serializer):
 
     area = serializers.CharField(max_length=120)
     track = serializers.CharField(max_length=120)
-    # Written into each frontmatter line, so one word: no line break can sneak a key in.
-    origem = serializers.RegexField(r"^[\w.-]{1,30}$", max_length=30)
+    origem = serializers.CharField(max_length=60)
     markdown = serializers.CharField(trim_whitespace=False)
 
     def validate_origem(self, value):
-        return value.lower()
+        # Written into each frontmatter line, so one word: no line break can sneak a key in.
+        value = re.sub(r"\s+", "-", value.lower())
+        if not re.fullmatch(r"[\w.-]{1,30}", value):
+            raise serializers.ValidationError(
+                "IA usada: até 30 letras, números, ponto ou hífen, como gemini ou chatgpt."
+            )
+        return value

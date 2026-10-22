@@ -22,10 +22,14 @@ const HEADINGS = [
   "Flashcards",
 ];
 
-export function buildRequest({ theme, goal, area, level, origin, concepts }) {
+export function buildRequest({ theme, goal, area, level, origin, concepts, taken }) {
   const done = concepts.length
     ? concepts.map((name, i) => `${i + 1}. ${name}`).join("\n")
     : "Nenhum. Este é o primeiro.";
+  // Same name, same concept: the app files the subtopics under the one that exists (D-040).
+  const others = taken.length
+    ? `\n\nOutros conceitos que já existem na área ${area}, de outras trilhas: ${taken.join("; ")}. Não use esses nomes, a não ser que seja exatamente o mesmo conceito.`
+    : "";
   return `Você vai preparar material de estudo para o Athenas, meu app pessoal de estudos. Um leitor automático lê a sua resposta, então siga o formato à risca.
 
 Tema: ${theme}
@@ -34,7 +38,7 @@ Objetivo: ${goal || "uma base prática, a partir do zero"}
 Nível: ${level}
 
 Conceitos que a trilha já tem, em ordem de estudo:
-${done}
+${done}${others}
 
 # O que fazer
 
@@ -44,7 +48,7 @@ Divida o conceito em 2 a 4 subtemas, cada um para uma sessão de 20 a 40 minutos
 
 # Formato da resposta
 
-Responda com um único bloco de código que abre com a linha ~~~~markdown e fecha com a linha ~~~~, sem nada antes nem depois dele. Dentro do bloco, os documentos um depois do outro. Cada documento começa com este cabeçalho, trocando só o que está entre < e >:
+Responda com um único bloco de código que abre com a linha ~~~~markdown e fecha com a linha ~~~~, sem nada antes nem depois dele. Dentro do bloco, os documentos um depois do outro. Cada documento começa com este cabeçalho, substituindo cada <...> inteiro pelo nome real, sem os sinais < e >:
 
 ---
 area: ${area}
@@ -59,42 +63,59 @@ Depois do cabeçalho vêm estes dez títulos, nesta ordem, escritos exatamente a
 ${HEADINGS.map((h) => `## ${h}`).join("\n")}
 
 O que vai em cada título:
+
 - Objetivo: uma frase com o que vou conseguir fazer depois do subtema.
 - Pré-requisitos: o que preciso saber antes, em uma ou duas linhas.
 - Ideia central: duas a quatro frases que se sustentam sozinhas.
 - Explicação: de 300 a 700 palavras, com as suas palavras.
 - Exemplo: concreto. Código para programação; frases em contexto para inglês.
 - Confusões comuns: de dois a quatro enganos, cada um com a correção.
-- Prática: de duas a quatro perguntas, e ao menos uma pede para aplicar, não só lembrar. Cada pergunta no formato abaixo, com a resposta na linha seguinte:
-### P1: <pergunta>
-Resposta de referência: <resposta>
+- Prática: de duas a quatro perguntas, e ao menos uma pede para aplicar, não só lembrar.
 - Resumo para o caderno: de quatro a oito linhas curtas, para eu copiar à mão.
-- Fontes: um link por linha, no formato - https://...
-- Flashcards: de três a seis cartões, um fato por cartão, uma linha cada, sem :: dentro do texto, no formato:
-- C1: <frente> :: <verso>
+- Fontes: um link por linha.
+- Flashcards: de três a seis cartões, um fato por cartão, uma linha cada, sem :: dentro do texto.
+
+Em Prática, cada pergunta tem um número e a resposta na linha seguinte, assim:
+
+### P1: Qual problema o encapsulamento resolve?
+Resposta de referência: Impede que outro código mude o estado interno do objeto sem passar pelos métodos dele.
+
+Em Flashcards, cada cartão começa com hífen e um número, com a frente e o verso separados por ::, assim:
+
+- C1: O que o encapsulamento esconde? :: O estado interno do objeto.
+
+Em Fontes, cada link começa com hífen, assim:
+
+- https://docs.python.org/pt-br/3/tutorial/classes.html
+
+Esses três exemplos mostram só o formato; escreva perguntas, cartões e links do tema.
 
 # Fontes e confiança
 
 Em Fontes, ponha só links de páginas que você abriu nesta conversa ou de documentação oficial que você tem certeza de que existe. Se houver fontes anexadas a esta conversa (como num caderno do Gemini Notebook), escreva a partir delas.
 
 Toda afirmação que as suas fontes não sustentam vai num destaque assim, com o link quando houver:
-> [!ia] <a afirmação>
-> Fonte: <link>
+
+> [!ia] A afirmação.
+> Fonte: https://...
 
 Não inclua imagens. Escreva em português do Brasil; código, comandos e nomes técnicos ficam como são.`;
 }
 
 // Sent back to the AI when the check finds problems, so fixing one is a copy and a paste.
+// Null when there is nothing the AI could fix.
 export function buildCorrection(report) {
   const lines = [
-    ...report.errors,
+    // "TRILHA COMPLETA" is an answer, not a mistake.
+    ...(report.complete ? [] : report.errors),
     // A subtopic that keeps its own text is Diogo's to change, not the AI's.
     ...report.documents
       .filter((d) => d.action !== "keep" && d.action !== "same")
       .flatMap((d) =>
-      [...d.errors, ...d.warnings].map((p) => `${d.subtema || "Documento sem subtema"}: ${p}`),
-    ),
+        [...d.errors, ...d.warnings].map((p) => `${d.subtema || "Documento sem subtema"}: ${p}`),
+      ),
   ];
+  if (!lines.length) return null;
   return `O leitor do Athenas encontrou estes problemas na sua resposta:
 
 ${lines.map((line) => `- ${line}`).join("\n")}

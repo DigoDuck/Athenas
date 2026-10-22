@@ -24,7 +24,8 @@ import "./newTheme.css";
 // answer back, the parser checks it, and one round creates one concept's subtopics with their
 // cards pending. Calling an AI from the app stays out of v1 (D-030).
 
-// The form and the pasted answer survive closing the browser, like the practice draft.
+// The form survives closing the browser for the next round, and the pasted answer until its round
+// is created, like the practice draft.
 const DRAFT_KEY = "athenas:novo-tema";
 const EMPTY = { theme: "", goal: "", area: "", track: "", level: "iniciante", origin: "", answer: "" };
 const AIS = ["claude", "gemini", "chatgpt"];
@@ -38,14 +39,19 @@ const ACTIONS = {
 
 function loadDraft() {
   try {
-    return { ...EMPTY, ...JSON.parse(localStorage.getItem(DRAFT_KEY)) };
+    const saved = JSON.parse(localStorage.getItem(DRAFT_KEY)) ?? {};
+    // Only the known text fields: an old or hand-edited draft never breaks the screen.
+    const known = Object.entries(saved).filter(([k, v]) => k in EMPTY && typeof v === "string");
+    return { ...EMPTY, ...Object.fromEntries(known) };
   } catch {
     return EMPTY;
   }
 }
 
+const sameName = (a, b) => a.toLowerCase() === b.trim().toLowerCase();
+
 export default function NewTheme() {
-  const { data, error, reload } = useCollections(["/api/areas/", "/api/tracks/"]);
+  const { data, error, reload } = useCollections(["/api/areas/", "/api/tracks/", "/api/concepts/"]);
   const [form, setForm] = useState(loadDraft);
   // The check of the exact text in the field: saving needs one, so nothing is created unseen.
   const [report, setReport] = useState(null);
@@ -56,7 +62,11 @@ export default function NewTheme() {
   const [missing, setMissing] = useState(null);
 
   useEffect(() => {
-    localStorage.setItem(DRAFT_KEY, JSON.stringify(form));
+    try {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify(form));
+    } catch {
+      // Storage full or blocked: the screen still works, the draft just does not survive.
+    }
   }, [form]);
 
   if (error || !data) {
@@ -77,18 +87,24 @@ export default function NewTheme() {
       </Stack>
     );
   }
-  const [areas, tracks] = data;
-  const track = tracks.find((t) => t.name === form.track.trim());
+  const [areas, tracks, allConcepts] = data;
+  // The backend matches names ignoring case, so the screen does too.
+  const area = areas.find((a) => sameName(a.name, form.area));
+  const track = tracks.find((t) => sameName(t.name, form.track));
   const concepts = track ? track.steps.map((s) => s.concept_name) : [];
+  const taken = area
+    ? allConcepts.filter((c) => c.area === area.id && !concepts.includes(c.name)).map((c) => c.name)
+    : [];
   const fields = {
     theme: form.theme.trim(),
     goal: form.goal.trim(),
     area: form.area.trim(),
     track: form.track.trim(),
     level: form.level,
-    origin: form.origin.trim().toLowerCase(),
+    // One word, as the backend stores it: "Gemini Notebook" becomes "gemini-notebook".
+    origin: form.origin.trim().toLowerCase().replace(/\s+/g, "-"),
   };
-  const request = buildRequest({ ...fields, concepts });
+  const request = buildRequest({ ...fields, concepts, taken });
   const answer = form.answer;
 
   function edit(key, value) {
@@ -135,7 +151,7 @@ export default function NewTheme() {
     try {
       await request();
     } catch (e) {
-      setActionError(e.message);
+      setActionError(e.message || "O app recusou a resposta. Confira de novo para ver o motivo.");
     }
     setBusy(null);
   }
@@ -154,8 +170,7 @@ export default function NewTheme() {
 
   const blocked = report && (report.errors.length > 0 || report.documents.some((d) => d.errors.length));
   const toCreate = report ? report.documents.filter((d) => d.action === "create" || d.action === "fill") : [];
-  const needsFix =
-    report && (blocked || report.documents.some((d) => d.action !== "keep" && d.warnings.length));
+  const correction = report && buildCorrection(report);
   const ready = fields.area && fields.track && fields.origin;
 
   return (
@@ -200,7 +215,7 @@ export default function NewTheme() {
               required
               list="novo-tema-areas"
               value={form.area}
-              help={fields.area && !areas.some((a) => a.name === fields.area) ? "Área nova." : undefined}
+              help={fields.area && !area ? "Área nova." : undefined}
               onChange={(e) => edit("area", e.target.value)}
             />
             <TextField
@@ -280,7 +295,7 @@ export default function NewTheme() {
               icon="file-text"
               loading={busy === "check"}
               loadingLabel="Conferindo…"
-              disabled={!answer.trim() || !ready}
+              disabled={!answer.trim() || !ready || busy === "save"}
               onClick={check}
             >
               Conferir
@@ -300,12 +315,12 @@ export default function NewTheme() {
           {created && <Created result={created} />}
           {report && (
             <Report report={report} blocked={blocked} toCreate={toCreate.length}>
-              {needsFix && (
+              {correction && (
                 <Inline>
                   <Button
                     variant="secondary"
                     icon="copy"
-                    onClick={() => copy(buildCorrection(report), "correção")}
+                    onClick={() => copy(correction, "correção")}
                   >
                     Copiar pedido de correção
                   </Button>
@@ -343,10 +358,16 @@ function Report({ report, blocked, toCreate, children }) {
   return (
     <Stack as="section" gap={4} aria-labelledby="conferencia">
       <h3 id="conferencia">Conferência</h3>
-      {errors.length > 0 && (
-        <StateMessage kind="error" title="Nada foi criado.">
-          {errors.join(" ")}
+      {report.complete ? (
+        <StateMessage kind="success" title="A trilha está completa.">
+          A IA disse que os conceitos da trilha já cobrem o tema. Nada foi criado.
         </StateMessage>
+      ) : (
+        errors.length > 0 && (
+          <StateMessage kind="error" title="Nada foi criado.">
+            {errors.join(" ")}
+          </StateMessage>
+        )
       )}
       {documents.length > 0 && (
         <p className="t-meta">

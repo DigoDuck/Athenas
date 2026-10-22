@@ -81,7 +81,8 @@ def _sync_questions(subtopic, parsed):
 
 
 def _sync_cards(subtopic, parsed):
-    existing = {c.label: c for c in subtopic.flashcards.all()}
+    # Manual cards have no label in the Markdown, so a re-import must never suspend them.
+    existing = {c.label: c for c in subtopic.flashcards.filter(origin=Flashcard.Origin.MARKDOWN)}
     for item in parsed.cards:
         card = existing.get(item.label)
         if card is None:
@@ -112,34 +113,51 @@ KEPT = (
     "O subtema já tem outro texto, que fica como está. Para trocar, cole este documento no "
     "subtema, na Biblioteca."
 )
+NO_DOCUMENT = (
+    "Nenhum documento encontrado. Cada subtema começa pelo frontmatter: uma linha ---, as linhas "
+    "area, conceito e subtema, e outra linha ---. Copie a resposta pelo botão de copiar do bloco "
+    "de código, não selecionando o texto."
+)
 
 
 @transaction.atomic
 def import_theme(*, area, track, origem, markdown, save=False) -> dict:
     """What the answer would create, and with `save` creates it, all or nothing.
 
-    Area and track come from the screen; each document names its concept and subtopic. Only what
-    is missing is created: a subtopic that already has other text keeps it, like
-    `scripts/theme.py push` without `--replace`, so nothing Diogo edited or studied changes here.
+    Area and track come from the screen; each document names its concept and subtopic. Names
+    match what exists ignoring case, so a round never duplicates a row. Only what is missing is
+    created: a subtopic that already has other text keeps it, like `scripts/theme.py push`
+    without `--replace`, so nothing Diogo edited or studied changes here.
     """
-    documents, ignored = split_documents(markdown)
+    documents, ignored, cut = split_documents(markdown)
+    area_obj = Area.objects.filter(name__iexact=area).first()
+    track_obj = Track.objects.filter(name__iexact=track).first()
     report = {
-        "area_new": not Area.objects.filter(name=area).exists(),
-        "track_new": not Track.objects.filter(name=track).exists(),
+        "area_new": area_obj is None,
+        "track_new": track_obj is None,
+        "complete": False,
         "documents": [],
-        "warnings": [f"Texto fora dos documentos, ignorado: {_excerpt(t)}" for t in ignored],
+        "warnings": [],
         "errors": [],
     }
     if not documents:
-        complete = "TRILHA COMPLETA" in markdown.upper()
+        bare = [line.strip() for line in markdown.split("\n")]
+        report["complete"] = [
+            line for line in bare if line and not line.startswith(("```", "~~~"))
+        ] == ["TRILHA COMPLETA"]
         report["errors"].append(
-            "A IA respondeu que a trilha está completa."
-            if complete
-            else "Nenhum documento encontrado. Cada subtema começa pelo frontmatter: uma linha "
-            "---, as linhas area, conceito e subtema, e outra linha ---. Copie a resposta pelo "
-            "botão de copiar do bloco de código, não selecionando o texto."
+            "A IA respondeu que a trilha está completa." if report["complete"] else NO_DOCUMENT
         )
         return report
+    for stretch in ignored:
+        # Headings or a frontmatter outside every document are content the split lost.
+        lost = any(line.startswith("## ") or "subtema:" in line for line in stretch.split("\n"))
+        report["errors" if lost else "warnings"].append(
+            f"Um trecho com títulos ficou fora dos documentos: {_excerpt(stretch)}. Confira se a "
+            "resposta veio inteira, no formato pedido."
+            if lost
+            else f"Texto fora dos documentos, ignorado: {_excerpt(stretch)}"
+        )
 
     plans, seen = [], set()
     for text in documents:
@@ -147,16 +165,12 @@ def import_theme(*, area, track, origem, markdown, save=False) -> dict:
         names = parse_markdown(text).frontmatter
         conceito, subtema = names.get("conceito", ""), names.get("subtema", "")
         parsed = parse_markdown(text, Target(area, conceito, subtema))
-        errors = list(parsed.errors)
-        if not conceito or not subtema:
-            errors.append("O frontmatter precisa de conceito e subtema")
-        if len(conceito) > NAME_MAX or len(subtema) > NAME_MAX:
-            errors.append(f"Nome de conceito ou subtema com mais de {NAME_MAX} caracteres")
-        if (conceito, subtema) in seen:
+        errors = list(parsed.errors) + _document_errors(parsed, conceito, subtema)
+        if (conceito.lower(), subtema.lower()) in seen:
             errors.append(f"Subtema repetido na resposta: {conceito} / {subtema}")
-        seen.add((conceito, subtema))
-        concept = Concept.objects.filter(area__name=area, name=conceito).first()
-        subtopic = concept and concept.subtopics.filter(name=subtema).first()
+        seen.add((conceito.lower(), subtema.lower()))
+        concept = area_obj and area_obj.concepts.filter(name__iexact=conceito).first()
+        subtopic = concept and concept.subtopics.filter(name__iexact=subtema).first()
         stored = Content.objects.filter(subtopic=subtopic).first() if subtopic else None
         action = "create" if subtopic is None else "fill" if stored is None else "keep"
         warnings = parsed.warnings + contract_gaps(parsed)
@@ -164,9 +178,16 @@ def import_theme(*, area, track, origem, markdown, save=False) -> dict:
             action = "same"
         elif action == "keep":
             warnings.append(KEPT)
+        if concept and not concept.steps.filter(track=track_obj).exists():
+            others = ", ".join(concept.steps.values_list("track__name", flat=True))
+            warnings.append(
+                f"O conceito {concept.name} já existe nesta área"
+                + (f", na trilha {others}" if others else "")
+                + ": os subtemas entram nele, e ele entra também nesta trilha."
+            )
         found = set(Image.objects.filter(name__in=parsed.images).values_list("name", flat=True))
         warnings += [f"Imagem não encontrada: {n}" for n in parsed.images if n not in found]
-        plans.append((parsed, concept, subtopic, action))
+        plans.append((parsed, conceito, subtema, action))
         report["documents"].append(
             {
                 "conceito": conceito,
@@ -183,29 +204,51 @@ def import_theme(*, area, track, origem, markdown, save=False) -> dict:
                 "errors": errors,
             }
         )
+    if cut:
+        report["documents"][-1]["warnings"].append(
+            "O bloco de código da resposta não fechou: ela pode ter sido cortada. Confira o fim "
+            "deste documento."
+        )
     blocked = report["errors"] or any(d["errors"] for d in report["documents"])
     if not save or blocked:
         return report
 
-    area_obj, _ = Area.objects.get_or_create(name=area)
-    track_obj, _ = Track.objects.get_or_create(name=track)
+    area_obj = area_obj or Area.objects.create(name=area)
+    track_obj = track_obj or Track.objects.create(name=track)
     pending = 0
-    for parsed, concept, subtopic, action in plans:
-        if action in ("keep", "same"):
-            continue
-        if concept is None:
-            concept, _ = Concept.objects.get_or_create(
-                area=area_obj, name=parsed.frontmatter["conceito"]
-            )
+    for parsed, conceito, subtema, action in plans:
+        concept = area_obj.concepts.filter(name__iexact=conceito).first()
+        concept = concept or Concept.objects.create(area=area_obj, name=conceito)
         if not Step.objects.filter(track=track_obj, concept=concept).exists():
             _create(StepSerializer, track=track_obj.pk, concept=concept.pk)
-        if subtopic is None:
-            name = parsed.frontmatter["subtema"]
-            subtopic = _create(SubtopicSerializer, concept=concept.pk, name=name)
+        if action in ("keep", "same"):
+            continue
+        subtopic = concept.subtopics.filter(name__iexact=subtema).first()
+        subtopic = subtopic or _create(SubtopicSerializer, concept=concept.pk, name=subtema)
         import_content(subtopic, parsed)
         pending += len(parsed.cards)
     report |= {"track": track_obj.pk, "pending": pending}
     return report
+
+
+def _document_errors(parsed, conceito, subtema):
+    errors = []
+    if not conceito or not subtema:
+        errors.append("O frontmatter precisa de conceito e subtema")
+    if len(conceito) > NAME_MAX or len(subtema) > NAME_MAX:
+        errors.append(f"Nome de conceito ou subtema com mais de {NAME_MAX} caracteres")
+    if any(name.startswith("<") and name.endswith(">") for name in (conceito, subtema)):
+        errors.append(
+            "Nome entre < e >: é o modelo do pedido, não um nome. Troque pelo nome real, ou "
+            "apague o trecho se a IA só repetiu o modelo."
+        )
+    if not parsed.blocks:
+        errors.append("Documento sem texto depois do frontmatter: a resposta foi cortada?")
+    kinds = [block.kind for block in parsed.blocks if block.kind != "extra"]
+    for kind in dict.fromkeys(k for k in kinds if kinds.count(k) > 1):
+        # Two documents run together when the second frontmatter was not recognized.
+        errors.append(f"A seção {kind} aparece mais de uma vez: dois documentos se juntaram?")
+    return errors
 
 
 def _create(serializer_class, **data):
