@@ -115,6 +115,8 @@ say so in the summary.
 `push` only creates what is missing and skips content that is already identical, so running this
 skill again on the same theme resumes after a stop (a usage limit, a closed terminal). To fix a
 document, edit its file, keep the existing `P` and `C` labels (they carry Diogo's attempts and
-review history, spec 4.2.6) and push with `--replace`. Images go up only when the app lacks
-them; `--replace` sends them again, credit included. Adding an image line to a block Diogo has
+review history, spec 4.2.6) and push with `--replace <file>`, naming only the files you changed
+(paths as in `tema.json`). Diogo may have edited other subtopics in the app; push leaves them
+alone and saves the app's copy of a replaced file beside it as `<file>.app.md`. Images go up only
+when the app lacks them; `--replace <image file>` sends one again, credit included. Adding an image line to a block Diogo has
 read keeps it read (D-033).
