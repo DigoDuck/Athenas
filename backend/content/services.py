@@ -13,9 +13,11 @@ from organization.serializers import StepSerializer, SubtopicSerializer
 from . import images
 from .models import Block, Content, Flashcard, Image, PracticeQuestion, ReviewLog
 from .parser import (
+    FRONTMATTER_KEY_RE,
     ParsedContent,
     Target,
     contract_gaps,
+    contract_heading,
     parse_markdown,
     reading_key,
     split_documents,
@@ -142,16 +144,23 @@ def import_theme(*, area, track, origem, markdown, save=False) -> dict:
     }
     if not documents:
         bare = [line.strip() for line in markdown.split("\n")]
+        # Chat AIs add bold or a period: "**TRILHA COMPLETA**", "Trilha completa."
         report["complete"] = [
-            line for line in bare if line and not line.startswith(("```", "~~~"))
+            line.strip("*_.! ").upper()
+            for line in bare
+            if line and not line.startswith(("```", "~~~"))
         ] == ["TRILHA COMPLETA"]
         report["errors"].append(
             "A IA respondeu que a trilha está completa." if report["complete"] else NO_DOCUMENT
         )
         return report
     for stretch in ignored:
-        # Headings or a frontmatter outside every document are content the split lost.
-        lost = any(line.startswith("## ") or "subtema:" in line for line in stretch.split("\n"))
+        # A contract heading or a `subtema` key outside every document is content the split lost.
+        lost = any(
+            contract_heading(line)
+            or ((key := FRONTMATTER_KEY_RE.match(line)) and key[1].lower() == "subtema")
+            for line in stretch.split("\n")
+        )
         report["errors" if lost else "warnings"].append(
             f"Um trecho com títulos ficou fora dos documentos: {_excerpt(stretch)}. Confira se a "
             "resposta veio inteira, no formato pedido."
@@ -178,7 +187,8 @@ def import_theme(*, area, track, origem, markdown, save=False) -> dict:
             action = "same"
         elif action == "keep":
             warnings.append(KEPT)
-        if concept and not concept.steps.filter(track=track_obj).exists():
+        joins_track = concept and not concept.steps.filter(track=track_obj).exists()
+        if joins_track:
             others = ", ".join(concept.steps.values_list("track__name", flat=True))
             warnings.append(
                 f"O conceito {concept.name} já existe nesta área"
@@ -193,6 +203,8 @@ def import_theme(*, area, track, origem, markdown, save=False) -> dict:
                 "conceito": conceito,
                 "subtema": subtema,
                 "concept_new": concept is None,
+                # An existing concept this round adds to the track, even with no new subtopic.
+                "joins_track": bool(joins_track),
                 "action": action,
                 "state": parsed.state,
                 "level": parsed.level,

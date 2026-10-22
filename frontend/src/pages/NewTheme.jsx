@@ -170,6 +170,8 @@ export default function NewTheme() {
 
   const blocked = report && (report.errors.length > 0 || report.documents.some((d) => d.errors.length));
   const toCreate = report ? report.documents.filter((d) => d.action === "create" || d.action === "fill") : [];
+  // A concept that already exists elsewhere still joins this track, even with nothing new to write.
+  const joins = report ? report.documents.some((d) => d.joins_track) : false;
   const correction = report && buildCorrection(report);
   const ready = fields.area && fields.track && fields.origin;
 
@@ -300,9 +302,13 @@ export default function NewTheme() {
             >
               Conferir
             </Button>
-            {report && !blocked && toCreate.length > 0 && (
+            {report && !blocked && (toCreate.length > 0 || joins) && (
               <Button icon="check" loading={busy === "save"} loadingLabel="Criando…" onClick={save}>
-                {toCreate.length === 1 ? "Criar 1 subtema" : `Criar ${toCreate.length} subtemas`}
+                {toCreate.length === 0
+                  ? "Pôr na trilha"
+                  : toCreate.length === 1
+                    ? "Criar 1 subtema"
+                    : `Criar ${toCreate.length} subtemas`}
               </Button>
             )}
           </Inline>
@@ -314,7 +320,7 @@ export default function NewTheme() {
           </ActionError>
           {created && <Created result={created} />}
           {report && (
-            <Report report={report} blocked={blocked} toCreate={toCreate.length}>
+            <Report report={report} blocked={blocked} toCreate={toCreate.length} joins={joins}>
               {correction && (
                 <Inline>
                   <Button
@@ -353,7 +359,7 @@ function CopyStatus({ copied, what }) {
   return null;
 }
 
-function Report({ report, blocked, toCreate, children }) {
+function Report({ report, blocked, toCreate, joins, children }) {
   const { documents, errors, warnings } = report;
   return (
     <Stack as="section" gap={4} aria-labelledby="conferencia">
@@ -374,7 +380,9 @@ function Report({ report, blocked, toCreate, children }) {
           {blocked
             ? "Corrija os erros marcados antes de criar; nada é criado pela metade."
             : toCreate === 0
-              ? "Nada novo nesta resposta: todos os subtemas já estão no app."
+              ? joins
+                ? "Os subtemas já estão no app. Falta só pôr o conceito nesta trilha."
+                : "Nada novo nesta resposta: todos os subtemas já estão no app."
               : `${report.area_new ? "Área nova. " : ""}${report.track_new ? "Trilha nova. " : ""}Os avisos não impedem criar: o conteúdo incompleto entra como rascunho.`}
         </p>
       )}
@@ -442,11 +450,20 @@ function Problems({ items, error = false }) {
 
 function Created({ result }) {
   const made = result.documents.filter((d) => d.action === "create" || d.action === "fill");
-  const concepts = [...new Set(made.map((d) => d.conceito))];
+  const names = (docs) => [...new Set(docs.map((d) => d.conceito))].join(", ");
+  if (!made.length) {
+    return (
+      <StateMessage
+        kind="success"
+        title={`${names(result.documents)} entrou na trilha.`}
+        action={<a href="#/roadmap">Abrir o Roadmap</a>}
+      />
+    );
+  }
   return (
     <StateMessage
       kind="success"
-      title={`${made.length === 1 ? "1 subtema criado" : `${made.length} subtemas criados`} em ${concepts.join(", ")}.`}
+      title={`${made.length === 1 ? "1 subtema criado" : `${made.length} subtemas criados`} em ${names(made)}.`}
       action={
         <Inline>
           <a href="#/roadmap">Abrir o Roadmap</a>

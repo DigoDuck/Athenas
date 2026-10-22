@@ -5,7 +5,13 @@ Written by the agent; `tests/acceptance/` stays Diogo's.
 
 import pytest
 from content.models import Content, Flashcard, ReviewLog
-from content.parser import contract_gaps, parse_markdown, split_documents, with_origin
+from content.parser import (
+    contract_gaps,
+    parse_markdown,
+    split_documents,
+    with_origin,
+    without_reference_answers,
+)
 from content.services import create_manual_card, import_theme, rate_card
 from organization.models import Area, Concept, Step, Subtopic, Track
 
@@ -225,7 +231,7 @@ def test_gaps_in_the_contract_warn_without_blocking(client):
 
 def test_a_frontmatter_with_blank_comment_or_list_lines_still_starts_its_document():
     loose = document("Camadas").replace(
-        "nivel: iniciante\n", "\n# gerado pela IA\nnivel: iniciante\ntags:\n  - docker\n"
+        "nivel: iniciante\n", "\n# gerado pela IA\nnivel: iniciante\ntags:\n  - docker\n- redes\n"
     )
 
     documents, *_ = split_documents(document("Imagem e container") + loose)
@@ -293,9 +299,12 @@ def test_a_fill_import_never_suspends_diogos_manual_cards(client):
 @pytest.mark.django_db
 def test_a_kept_or_identical_document_still_puts_its_concept_in_the_track(client):
     send(client, ANSWER, track="Outra")
+    preview = send(client, ANSWER, "/api/themes/preview/").json()
 
     response = send(client, ANSWER)
 
+    # The screen offers the save for this alone, so the concept can join the track.
+    assert [d["joins_track"] for d in preview["documents"]] == [True, True]
     assert [d["action"] for d in response.json()["documents"]] == ["same", "same"]
     assert [s.concept.name for s in Track.objects.get(name="Docker").steps.all()] == [
         "Imagens e containers"
@@ -338,11 +347,12 @@ def test_a_concept_from_another_track_is_named_before_it_receives_subtopics(clie
 
 
 @pytest.mark.django_db
-def test_only_a_bare_trilha_completa_counts_as_a_finished_track(client):
-    done = send(client, "~~~~\nTRILHA COMPLETA\n~~~~", "/api/themes/preview/").json()
+def test_trilha_completa_alone_finishes_the_track_even_in_bold_or_with_a_period(client):
+    answers = ("~~~~\nTRILHA COMPLETA\n~~~~", "**TRILHA COMPLETA**", "Trilha completa.")
+    done = [send(client, a, "/api/themes/preview/").json() for a in answers]
     sentence = send(client, "Ainda não é a trilha completa.", "/api/themes/preview/").json()
 
-    assert done["complete"] and not sentence["complete"]
+    assert all(d["complete"] for d in done) and not sentence["complete"]
     assert "Nenhum documento" in sentence["errors"][0]
 
 
@@ -351,3 +361,83 @@ def test_an_ai_name_with_spaces_becomes_one_word(client):
     send(client, document("Camadas"), origem="Gemini Notebook")
 
     assert Content.objects.get().generated_by == "gemini-notebook"
+
+
+# Found by the second review of PR #45.
+
+
+def test_chat_headings_around_the_documents_are_ignored_not_saved():
+    after = ANSWER.replace("Quer que eu", "## Próximos passos\nQuer que eu")
+    between = (
+        f"{FENCE}markdown\n{document('Imagem e container')}{FENCE}\n\n## Subtema 2: Camadas\n\n"
+        f"{FENCE}markdown\n{document('Camadas')}{FENCE}\n"
+    )
+    labels = document("Imagem e container") + "\n### Subtema 2: Camadas\n\n" + document("Camadas")
+
+    results = [split_documents(answer) for answer in (after, between, labels)]
+
+    assert [documents for documents, _, _ in results] == [
+        [document("Imagem e container"), document("Camadas")]
+    ] * 3
+    assert [ignored[-1] for _, ignored, _ in results] == [
+        "## Próximos passos\nQuer que eu continue com o próximo conceito?",
+        "## Subtema 2: Camadas",
+        "### Subtema 2: Camadas",
+    ]
+    assert not any(cut for *_, cut in results)
+
+
+@pytest.mark.django_db
+def test_chat_naming_a_heading_or_a_subtema_does_not_block_but_a_lost_section_does(client):
+    preamble = "## Conceito 3: Redes\n\n" + ANSWER
+    closing = ANSWER + "\nNa próxima rodada sugiro o subtema: Volumes nomeados.\n"
+    lost = "## Objetivo\nRodar um container.\n\n" + document("Camadas")
+
+    reports = [send(client, a, "/api/themes/preview/").json() for a in (preamble, closing, lost)]
+
+    assert [r["errors"] for r in reports[:2]] == [[], []]
+    assert "Um trecho com títulos ficou fora" in reports[2]["errors"][0]
+
+
+def test_a_code_fence_with_any_language_name_stays_inside_its_document():
+    csharp = document("Imagem e container").replace(f"{FENCE}bash", f"{FENCE}c#")
+
+    documents, _, cut = split_documents(f"~~~~markdown\n{csharp}\n{document('Camadas')}~~~~\n")
+
+    assert documents == [csharp, document("Camadas")] and not cut
+
+
+def test_a_star_in_a_name_is_kept_and_a_bold_key_loses_only_its_markers():
+    star = document("*args e **kwargs")
+    bold = document("Camadas").replace("subtema: Camadas", "**subtema:** Camadas")
+
+    assert parse_markdown(star).frontmatter["subtema"] == "*args e **kwargs"
+    assert parse_markdown(bold).frontmatter["subtema"] == "Camadas"
+
+
+def test_a_bold_or_capitalized_answer_label_is_read_and_hidden_before_an_attempt():
+    practice = (
+        "### P1: O que é uma imagem?\n**Resposta de referência:** O molde.\n"
+        "### P2: E um container?\nResposta de Referência: A execução.\n"
+    )
+    exact = "### P1: O que é uma imagem?\nResposta de referência: O molde.\n"
+
+    parsed = parse_markdown(document("Camadas").replace(exact, practice))
+
+    assert [q.reference_answer for q in parsed.questions] == ["O molde.", "A execução."]
+    assert without_reference_answers(practice) == (
+        "### P1: O que é uma imagem?\n### P2: E um container?"
+    )
+
+
+def test_questions_and_cards_the_parser_would_miss_show_as_gaps():
+    base = document("Camadas")
+    variants = {
+        "Pergunta fora do formato": base.replace("### P1:", "**P1:**"),
+        "Linha em Flashcards fora do formato": base.replace("- C2:", "  - C2:"),
+        "Linha em Flashcards fora": base + "> - C3: Dentro de um destaque? :: Sim.\n",
+        "mais de um '::'": base.replace("Imagem ou container", "O que `std::vector` guarda,"),
+    }
+
+    for gap, text in variants.items():
+        assert any(gap in found for found in contract_gaps(parse_markdown(text))), gap

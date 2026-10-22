@@ -749,21 +749,23 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
     the chat's copy button gives the raw Markdown. The server cuts it into documents at each
     frontmatter that names a `subtema` (keys in any case, values with or without quotes), drops a
     fence wrapped around everything or around each document, and shows the chat text around them
-    as ignored, never saved. A frontmatter inside a code example in the body does not start a
-    document. A wrapper that never closes is reported as a possibly truncated answer.
-  - Area and track come from the screen; each document's frontmatter names its concept and
-    subtopic. Names match what exists ignoring case, so a round never duplicates a row, and the
-    parser no longer warns when a frontmatter name differs from its destination only in case (the
-    content editor included). Saving
-    creates only what is missing (area, track, concept, step at the end of the track, subtopic at
-    the end of the concept) and imports each document through the same `import_content`, so every
-    card enters pending (spec 4.3). It is all or nothing: one blocked document blocks the round.
-    A concept that exists in the area under another track is reused and joins this track too,
-    with a warning.
+    as ignored, never saved: a heading or a bold line that titles the next document ("### Subtema
+    2", "**Subtema 2**") is chat too. Only a contract heading means a document goes on, so a chat
+    heading after the wrapper never keeps it open. A frontmatter inside a code example in the body
+    does not start a document, and a code fence with any language name (```` ```c# ````) stays
+    one. A wrapper that never closes is reported as a possibly truncated answer.
+  - Area and track come from the screen; each document's frontmatter names its concept and subtopic.
+    Names match what exists ignoring case, so a round never duplicates a row, and the parser no
+    longer warns when a frontmatter name differs from its destination only in case (the content
+    editor included). Saving creates only what is missing (area, track, concept, step at the end of
+    the track, subtopic at the end of the concept) and imports each document through the same
+    `import_content`, so every card enters pending (spec 4.3). It is all or nothing: one blocked
+    document blocks the round. A concept that exists in the area under another track is reused and
+    joins this track too, with a warning.
   - A subtopic that already has text keeps it, as `scripts/theme.py push` does without
     `--replace`: changing studied text is done in the Biblioteca, one subtopic at a time. A
     document identical to what the app holds is reported as such. Either way the concept still
-    joins the track.
+    joins the track, and a round with nothing new to write offers "Pôr na trilha" for that alone.
   - The origin is the AI named on the screen, written into each document's `origem` and
     replacing whatever the answer claims, because Diogo knows which chat he pasted from and a
     missing key would pass generated text as his (D-032). It is one lowercase word of up to 30
@@ -773,16 +775,24 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
     `subtema`, a subtopic repeated in the answer, a name over 160 characters. Also blocking, since
     each means the split or the AI went wrong: a name still in the request's `<...>` template, a
     document with no text after its frontmatter, a contract section that appears twice (two
-    documents run together), and headings or a frontmatter left outside every document.
-  - Everything else the skill's check refuses (missing headings, extra headings, draft, no
-    `nivel`, no link under Fontes, a line in Flashcards that is not a card, no card at all) is
-    listed per document and does not block, since spec 4.2.1 allows saving incomplete content and
-    Diogo sees the check before creating. `scripts/theme.py check` reads the same list from the
-    parser (`contract_gaps`), so both paths keep one contract.
+    documents run together), and a contract heading or a `subtema` key left outside every
+    document.
+  - Everything else the skill's check refuses (missing headings, extra headings, draft, no `nivel`,
+    no link under Fontes, a line in Flashcards that is not a card, no card at all) is listed per
+    document and does not block. So is what the parser would read wrong without a word: a question
+    line that is not `### P<n>:`, a card indented or inside a quote, and a card with more than one
+    `::`. All of it is listed, since spec 4.2.1 allows saving incomplete content and Diogo sees the
+    check before creating. `scripts/theme.py check` reads the same list from the parser
+    (`contract_gaps`), so both paths keep one contract.
   - "Copiar pedido de correção" turns the listed problems into a message for the AI, leaving out
     subtopics that keep their own text.
   - The form stays in the browser's storage for the next round; the pasted answer stays until its
     round is created.
+  - The parser reads "Resposta de referência:" ignoring case and the bold or italic markers
+    around it, as chat AIs write it, so the answer is stored without them and stays hidden in the
+    reading until an attempt (spec 4.8.3), in the content editor too. A bold frontmatter key loses
+    its markers; a value keeps its own (`*args e **kwargs`). "TRILHA COMPLETA" counts in bold or
+    with a period.
   - A re-import never suspends a manual card. `import_content` suspended every card whose label
     left the Markdown, and manual cards have no label there, so filling a subtopic or saving it in
     the content editor suspended Diogo's own cards. It now syncs only the cards that came from
@@ -793,7 +803,9 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
 - Cost: a theme of four concepts takes about five rounds of two pastes each. Links under Fontes
   are not opened by the app: a chat AI without browsing can cite a page it never read, so the
   Fontes and the `[!ia]` callouts are still what Diogo checks before approving a card. Images
-  stay out of this path (no upload screen, D-033). Two limits of the split are accepted: chat
-  text after the last document, when the AI did not fence it, stays in that document and shows
-  up only as a gap in its check; and a frontmatter example inside an unfenced document can still
-  start a false document, which the check lists on its own before anything is created.
+  stay out of this path (no upload screen, D-033). Limits of the split that are accepted, each
+  visible in the check before anything is created: chat text after a document the AI did not
+  fence stays in it and shows as a gap; a frontmatter example inside an unfenced document starts
+  a false document, listed on its own; a body fenced apart from its frontmatter lands as one code
+  block, with all ten sections listed as missing. A `> [!IA]` callout in capitals is not read as
+  one, as everywhere else in the app.

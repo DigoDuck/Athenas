@@ -25,7 +25,10 @@ SOURCE_RE = re.compile(r"Fonte:\s*(https?://\S+)")
 # One line on its own pointing at a stored image, `![legenda](/api/images/<nome>/)`, with the
 # optional `"título"` the reading screen also takes as the caption (D-033).
 IMAGE_RE = re.compile(r'^!\[([^\]]*)\]\(/api/images/([a-z0-9][a-z0-9-]*)/?(?:\s+"([^"]*)")?\)$')
-REFERENCE_PREFIX = "Resposta de referência:"
+# The label of spec 4.1, also as chat AIs write it: `**Resposta de referência:**`, `Referência`.
+REFERENCE_RE = re.compile(r"[*_]*resposta de refer[êe]ncia[*_]*:[*_]*", re.IGNORECASE)
+# A line that names a question but is not `### P<n>:`, so the parser would not see it.
+QUESTION_LIKE_RE = re.compile(r"^\W*P\d+\b")
 # Stored without accents, like `Subtopic.Level` ("intermediário" -> "intermediario").
 LEVELS = {"iniciante", "intermediario", "avancado", "especialista"}
 # Fits `Content.generated_by`.
@@ -161,9 +164,16 @@ def _split_frontmatter(text: str) -> tuple[dict[str, str], str]:
         if line.strip() == "---":
             pairs = (item.partition(":") for item in lines[1:end])
             # Lowercase keys and plain values, as chat AIs also write `Subtema:` or `**subtema:**`.
-            data = {k.strip(" *").lower(): _unquoted(v.strip(" *")) for k, sep, v in pairs if sep}
+            data = {k.strip(" *").lower(): _unquoted(_value(k, v)) for k, sep, v in pairs if sep}
             return data, "\n".join(lines[end + 1 :])
     return {}, text
+
+
+def _value(key: str, value: str) -> str:
+    # `**subtema:** Nome` leaves the bold marker on the value; `*args e **kwargs` is a name.
+    if "*" in key:
+        return value.strip().removeprefix("**").removesuffix("**").strip()
+    return value.strip()
 
 
 def _unquoted(value: str) -> str:
@@ -225,8 +235,8 @@ def _parse_questions(body: str) -> list[Question]:
 
 def _reference_answer(lines: list[str]) -> str | None:
     # Everything after the marker, up to the next question; text before it is ignored.
-    _, sep, rest = "\n".join(lines).partition(REFERENCE_PREFIX)
-    return (rest.strip() or None) if sep else None
+    parts = REFERENCE_RE.split("\n".join(lines), maxsplit=1)
+    return (parts[1].strip() or None) if len(parts) > 1 else None
 
 
 def _parse_cards(body: str) -> tuple[list[Card], list[str]]:
@@ -306,9 +316,9 @@ def without_reference_answers(body: str) -> str:
             in_question, hiding = True, False
         elif hiding:
             continue
-        elif in_question and REFERENCE_PREFIX in line:
+        elif in_question and (marker := REFERENCE_RE.search(line)):
             hiding = True
-            if before := line.partition(REFERENCE_PREFIX)[0].rstrip():
+            if before := line[: marker.start()].rstrip():
                 kept.append(before)
             if fence:
                 kept.append(fence)
@@ -333,10 +343,13 @@ def _duplicates(labels: list[str]) -> list[str]:
 
 # A pasted AI answer with several documents, for the "Novo tema" screen (DECISIONS.md D-040).
 
-FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})\s*([\w-]*)\s*$")
+# Any info string, as the reading takes it: ```c#, ```c++, ```python title="x".
+FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})\s*(.*?)\s*$")
 # A frontmatter key as chat AIs write it, sometimes indented or in bold (`**subtema:**`).
 FRONTMATTER_KEY_RE = re.compile(r"^\s*\**([\w-]+)\**\s*:")
 COMMENT_RE = re.compile(r"^\s*<!--.*-->\s*$")
+# A heading or a line in bold alone, as chat AIs title each document ("**Subtema 2: Camadas**").
+LABEL_RE = re.compile(r"^\s*(#{1,6}\s|\*\*[^*].*\*\*\s*$)")
 FRONTMATTER_MAX = 40  # lines; the contract's frontmatter has five
 
 
@@ -390,10 +403,15 @@ def split_documents(text: str) -> tuple[list[str], list[str], bool]:
 
     texts = []
     for document, head in zip(documents, heads, strict=True):
-        while len(document) > head and (
-            document[-1].strip() in ("", "---") or COMMENT_RE.match(document[-1])
-        ):
-            document.pop()  # blank lines, `---` rules and comments chat AIs put between documents
+        labels = []
+        while len(document) > head:
+            last = document[-1]
+            if LABEL_RE.match(last) and not contract_heading(last) and not QUESTION_RE.match(last):
+                labels.insert(0, last)
+            elif not (last.strip() in ("", "---", "***", "___") or COMMENT_RE.match(last)):
+                break
+            document.pop()  # blank lines, rules and comments chat AIs put between documents
+        ignored.append(labels)
         texts.append("\n".join(document) + "\n")
     stretches = ("\n".join(stretch).strip() for stretch in ignored)
     return texts, [stretch for stretch in stretches if stretch], wrapper is not None
@@ -402,8 +420,8 @@ def split_documents(text: str) -> tuple[list[str], list[str], bool]:
 def _frontmatter_end(lines: list[str], start: int) -> int | None:
     """The closing `---` of a frontmatter naming a `subtema` that opens at `start`, if one does.
 
-    Blank, comment and indented lines may sit between the keys, as `_split_frontmatter` reads
-    them; anything else means a `---` rule, not a frontmatter.
+    Blank, comment, indented and list lines may sit between the keys, as `_split_frontmatter`
+    reads them; anything else means a `---` rule, not a frontmatter.
     """
     if start >= len(lines) or lines[start].strip() != "---":
         return None
@@ -415,7 +433,7 @@ def _frontmatter_end(lines: list[str], start: int) -> int | None:
             return end if "subtema" in keys else None
         if match := FRONTMATTER_KEY_RE.match(line):
             keys.add(match[1].lower())
-        elif stripped and line[0] not in " \t" and not stripped.startswith("# "):
+        elif stripped and line[0] not in " \t" and not stripped.startswith(("# ", "- ")):
             return None
     return None
 
@@ -427,23 +445,28 @@ def _opens_documents(lines: list[str], start: int) -> bool:
         start = _next_filled(lines, start)
         if _frontmatter_end(lines, start) is not None:
             return True
-        if start >= len(lines) or FENCE_RE.match(lines[start]) or lines[start].startswith("## "):
+        if start >= len(lines) or FENCE_RE.match(lines[start]) or contract_heading(lines[start]):
             return False
         start += 1
     return False
 
 
 def _heading_ahead(lines: list[str], start: int) -> bool:
-    """A `##` before the next frontmatter: the fence at `start - 1` opens code, it closes nothing.
+    """A contract heading before the next frontmatter: the fence at `start - 1` opens code.
 
-    Inside a ``` wrapper, a bare ``` may open an example as well as close the wrapper.
+    Inside a ``` wrapper, a bare ``` may open an example as well as close the wrapper. A chat
+    heading after the wrapper ("## Próximos passos") does not keep it open.
     """
     for at in range(start, len(lines)):
         if _frontmatter_end(lines, at) is not None:
             return False
-        if lines[at].startswith("## "):
+        if contract_heading(lines[at]):
             return True
     return False
+
+
+def contract_heading(line: str) -> bool:
+    return line.startswith("## ") and line[3:].strip() in KNOWN_HEADINGS
 
 
 def _next_filled(lines: list[str], start: int) -> int:
@@ -489,13 +512,22 @@ def contract_gaps(parsed: ParsedContent) -> list[str]:
         gaps.append("O frontmatter não diz o nivel")
     if not any(b.kind == "Fontes" and "http" in b.body for b in parsed.blocks):
         gaps.append("Fontes sem nenhum link")
+    for block in (b for b in parsed.blocks if b.kind == "Prática"):
+        lines = (ln for ln, in_fence in _outside_fences(block.body.split("\n")) if not in_fence)
+        if odd := [ln for ln in lines if QUESTION_LIKE_RE.match(ln) and not QUESTION_RE.match(ln)]:
+            gaps.append(f"Pergunta fora do formato ### P1: ...: {odd[0].strip()[:80]}")
     for block in (b for b in parsed.blocks if b.kind == "Flashcards"):
-        lines = [line.strip() for line in block.body.split("\n") if line.strip()]
-        # Lines with a label but no `::` already warn, and a `> [!ia]` callout may sit anywhere;
-        # anything else here would vanish from the cards.
-        stray = [
-            ln for ln in lines if not (ln[0] == ">" or CARD_RE.match(ln) or CARD_LABEL_RE.match(ln))
-        ]
+        stray = []
+        for raw in block.body.split("\n"):
+            line = raw.strip()
+            if not line or (CARD_LABEL_RE.match(raw) and not CARD_RE.match(raw)):
+                continue  # empty, or a label without `::`, which already warns
+            if CARD_RE.match(raw):
+                if raw.count("::") > 1:
+                    gaps.append(f"Cartão com mais de um '::', cortado no primeiro: {line[:80]}")
+            # A `> [!ia]` callout may sit anywhere; anything else here would vanish from the cards.
+            elif line[0] != ">" or CARD_LABEL_RE.match(line.lstrip("> ")):
+                stray.append(line)
         if stray:
             gaps.append(f"Linha em Flashcards fora do formato - C1: ... :: ...: {stray[0][:80]}")
     if "Flashcards" in kinds and not parsed.cards:
