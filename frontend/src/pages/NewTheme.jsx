@@ -155,7 +155,8 @@ export default function NewTheme() {
     } catch (e) {
       setActionError(e.message || "O app recusou a resposta. Confira de novo para ver o motivo.");
     }
-    setBusy(null);
+    // A check that ends during a save must not free the buttons the save holds.
+    setBusy((current) => (current === kind ? null : current));
   }
 
   // A check answers for the exact body it was sent: a late answer for older text never counts.
@@ -179,7 +180,7 @@ export default function NewTheme() {
       await reload();
     });
 
-  const blocked = checked && (checked.errors.length > 0 || checked.documents.some(stops));
+  const blocked = checked && (checked.errors.length > 0 || checked.documents.some((d) => d.errors.length > 0));
   const toCreate = checked ? checked.documents.filter((d) => d.action === "create" || d.action === "fill") : [];
   // A concept that already exists elsewhere still joins this track, even with nothing new to write.
   const joins = checked ? checked.documents.some((d) => d.joins_track) : false;
@@ -335,7 +336,7 @@ export default function NewTheme() {
           <ActionError>
             {actionError && `Não foi possível concluir. A resposta continua aqui. ${actionError}`}
           </ActionError>
-          {created && <Created result={created} />}
+          {created && <Created result={created} stale={error} reload={reload} />}
           {checked && (
             <Report report={checked} blocked={blocked} toCreate={toCreate.length} joins={joins}>
               {correction && (
@@ -428,12 +429,12 @@ function Report({ report, blocked, toCreate, joins, children }) {
                   {d.conceito || "Sem conceito"} / {d.subtema || "sem subtema"}
                 </span>
                 <span className="t-meta">{rowMeta(d)}</span>
-                <Problems items={d.errors} error={stops(d)} />
+                <Problems items={d.errors} error />
                 <Problems items={d.warnings} />
               </div>
               <div className="ui-list__badges">
                 {d.generated_by && <GeneratedByBadge by={d.generated_by} />}
-                {stops(d) ? (
+                {d.errors.length > 0 ? (
                   <Badge tone="error" icon="alert-circle">
                     Impede criar
                   </Badge>
@@ -464,9 +465,6 @@ function rowMeta(d) {
   return parts.join(" · ");
 }
 
-// A document that keeps the app's text is never imported, so only the others can block.
-const stops = (d) => d.errors.length > 0 && d.action !== "keep" && d.action !== "same";
-
 function Problems({ items, error = false }) {
   if (!items.length) return null;
   return (
@@ -481,16 +479,32 @@ function Problems({ items, error = false }) {
   );
 }
 
-function Created({ result }) {
+function Created({ result, stale, reload }) {
   const made = result.documents.filter((d) => d.action === "create" || d.action === "fill");
   const names = (docs) => [...new Set(docs.map((d) => d.conceito))].join(", ");
+  // Without the reload the next request would list an outdated track.
+  const next = stale
+    ? "A lista da trilha não atualizou: atualize antes de copiar o pedido de novo."
+    : "Para o próximo conceito, copie o pedido de novo: ele já lista o que a trilha tem.";
+  const update = stale && (
+    <Button variant="secondary" onClick={reload}>
+      Atualizar a lista
+    </Button>
+  );
   if (!made.length) {
     return (
       <StateMessage
         kind="success"
         title={`${names(result.documents)} entrou na trilha.`}
-        action={<a href="#/roadmap">Abrir o Roadmap</a>}
-      />
+        action={
+          <Inline>
+            {update}
+            <a href="#/roadmap">Abrir o Roadmap</a>
+          </Inline>
+        }
+      >
+        {stale && next}
+      </StateMessage>
     );
   }
   return (
@@ -499,6 +513,7 @@ function Created({ result }) {
       title={`${made.length === 1 ? "1 subtema criado" : `${made.length} subtemas criados`} em ${names(made)}.`}
       action={
         <Inline>
+          {update}
           <a href="#/roadmap">Abrir o Roadmap</a>
           <a href="#/biblioteca">Abrir a Biblioteca</a>
         </Inline>
@@ -507,8 +522,7 @@ function Created({ result }) {
       {result.pending === 1
         ? "1 cartão espera a sua aprovação"
         : `${result.pending} cartões esperam a sua aprovação`}
-      , na Biblioteca, depois que você estudar cada subtema. Para o próximo conceito, copie o pedido
-      de novo: ele já lista o que a trilha tem.
+      , na Biblioteca, depois que você estudar cada subtema. {next}
     </StateMessage>
   );
 }

@@ -108,12 +108,12 @@ export function buildCorrection(report) {
   const lines = [
     // "TRILHA COMPLETA" is an answer, not a mistake.
     ...(report.complete ? [] : report.errors),
-    // A subtopic that keeps its own text is Diogo's to change, not the AI's.
-    ...report.documents
-      .filter((d) => d.action !== "keep" && d.action !== "same")
-      .flatMap((d) =>
-        [...d.errors, ...d.warnings].map((p) => `${d.subtema || "Documento sem subtema"}: ${p}`),
+    // A subtopic that keeps its own text is Diogo's to change; only a broken split is the AI's.
+    ...report.documents.flatMap((d) =>
+      [...d.errors, ...(d.action === "keep" || d.action === "same" ? [] : d.warnings)].map(
+        (p) => `${d.subtema || "Documento sem subtema"}: ${p}`,
       ),
+    ),
   ];
   if (!lines.length) return null;
   return `O leitor do Athenas encontrou estes problemas na sua resposta:

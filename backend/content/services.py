@@ -150,7 +150,7 @@ def import_theme(*, area, track, origem, markdown, save=False) -> dict:
     if not documents:
         # Chat AIs add bold, a period or a sentence around it: "Claro!\n\n**TRILHA COMPLETA**".
         report["complete"] = any(
-            line.strip("*_.!#` \t").upper() == "TRILHA COMPLETA" for line in markdown.split("\n")
+            line.strip("*_.!` \t").upper() == "TRILHA COMPLETA" for line in markdown.split("\n")
         )
         report["errors"].append(
             "A IA respondeu que a trilha está completa." if report["complete"] else NO_DOCUMENT
@@ -180,7 +180,7 @@ def import_theme(*, area, track, origem, markdown, save=False) -> dict:
         names = parse_markdown(text).frontmatter
         conceito, subtema = names.get("conceito", ""), names.get("subtema", "")
         parsed = parse_markdown(text, Target(area, conceito, subtema))
-        errors = list(parsed.errors) + _document_errors(parsed, conceito, subtema)
+        errors = _document_errors(parsed, conceito, subtema)
         if (conceito.lower(), subtema.lower()) in seen:
             errors.append(f"Subtema repetido na resposta: {conceito} / {subtema}")
         seen.add((conceito.lower(), subtema.lower()))
@@ -189,6 +189,11 @@ def import_theme(*, area, track, origem, markdown, save=False) -> dict:
         stored = Content.objects.filter(subtopic=subtopic).first() if subtopic else None
         action = "create" if subtopic is None else "fill" if stored is None else "keep"
         warnings = parsed.warnings + contract_gaps(parsed)
+        if action == "keep" or (stored and stored.raw_markdown == parsed.raw):
+            # Never imported, so problems in its own text cannot block; a broken split still does.
+            warnings = parsed.errors + warnings
+        else:
+            errors = parsed.errors + errors
         if stored and stored.raw_markdown == parsed.raw:
             action = "same"
         elif action == "keep":
@@ -227,10 +232,7 @@ def import_theme(*, area, track, origem, markdown, save=False) -> dict:
             "O bloco de código da resposta não fechou: ela pode ter sido cortada. Confira o fim "
             "deste documento."
         )
-    # A document that keeps the app's text is never imported, so its errors cannot block.
-    blocked = report["errors"] or any(
-        d["errors"] for d in report["documents"] if d["action"] not in ("keep", "same")
-    )
+    blocked = report["errors"] or any(d["errors"] for d in report["documents"])
     if not save or blocked:
         return report
 

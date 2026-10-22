@@ -744,8 +744,8 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
     request lists the concepts the track already has, so the next round continues it, and the
     area's concepts from other tracks, so the AI does not reuse one by accident. An AI that finds
     the theme covered answers "TRILHA COMPLETA", which the screen shows as the end of the track.
-    It counts on a line of its own, in bold or with a period, with chat around it. Nothing calls
-    an AI from the app (D-030).
+    It counts on a line of its own, in bold or with a period, with chat around it, never as a
+    heading ("## Trilha completa" titles a plan). Nothing calls an AI from the app (D-030).
   - The answer comes back in one code block fenced with `~~~~`, so the code inside it survives and
     the chat's copy button gives the raw Markdown. The server cuts it into documents at each
     frontmatter that names a `subtema` (keys in any case, values with or without quotes), drops a
@@ -754,14 +754,18 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
     2", "**Subtema 2**") is chat too. Only a contract heading means a document goes on, so a chat
     heading after the wrapper never keeps it open. A frontmatter inside a code example in the body
     does not start a document, and a code fence with any language name (```` ```c# ````) stays
-    one. A wrapper that never closes is reported as a possibly truncated answer.
+    one. The split, the parser and the reading share that fence rule, so "```` ```docker ps``` ````
+    lista" at the start of a line is inline code everywhere, never a block that swallows the
+    sections after it. A wrapper that never closes is reported as a possibly truncated answer.
   - Area and track come from the screen; each document's frontmatter names its concept and subtopic.
     Names match what exists ignoring case, so a round never duplicates a row, and the parser no
     longer warns when a frontmatter name differs from its destination only in case (the content
     editor included). Saving creates only what is missing (area, track, concept, step at the end of
     the track, subtopic at the end of the concept) and imports each document through the same
     `import_content`, so every card enters pending (spec 4.3). It is all or nothing: one blocked
-    document blocks the round, except one that keeps the app's text, which is never imported. A
+    document blocks the round. A document that keeps the app's text is never imported, so the
+    problems in its own text are only listed; a broken split in it (a section twice, no text, a
+    repeated subtopic) still blocks, since a new subtopic may have run into it and been lost. A
     concept that exists in the area under another track is reused and joins this track too, with a
     warning. Saving takes a database lock, so the same answer saved twice at once (two tabs) is
     created once.
@@ -782,26 +786,31 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
     every document. A chat line such as "**Subtema:** Volumes" is not.
   - Everything else the skill's check refuses (missing headings, extra headings, draft, no `nivel`,
     no link under Fontes, a line in Flashcards that is not a card, no card at all) is listed per
-    document and does not block. So is what the parser would read wrong without a word: a heading or
-    a question line in Prática that is not `### P<n>:`, a card indented or inside a quote, and a
-    card whose first `::` sits inside a word (`std::vector`). All of it is listed, since spec 4.2.1
+    document and does not block. So is what the parser would read wrong without a word: a question
+    line in Prática that is not `### P<n>:` (a heading before an answer, or a `P<n>` line anywhere;
+    an answer may have its own sub-headings), two reference answers under one question, which means
+    a question in another format ran into it, a card indented or inside a quote, and a card with a
+    `::` other than the spaced separator (`std::vector`, `[::2]`, a second ` :: `), where the parser
+    would end the front; `:: std::cout` in the back is fine. All of it is listed, since spec 4.2.1
     allows saving incomplete content and Diogo sees the check before creating. `scripts/theme.py
     check` reads the same list from the parser (`contract_gaps`), so both paths keep one contract.
   - A check answers for the exact text, area, track and AI it was sent: any edit, or a late
     answer for older text, takes the create button away until the next check. "Copiar pedido de
-    correção" turns the listed problems into a message for the AI, leaving out subtopics that keep
-    their own text, and the message can be opened and copied by hand.
+    correção" turns the listed problems into a message for the AI, leaving out the text problems of
+    a subtopic that keeps its own text (a broken split there goes in), and the message can be
+    opened and copied by hand. If the lists fail to reload after a save, the screen says so next to
+    the result and offers to reload, since the next request would list an outdated track.
   - The form stays in the browser's storage for the next round; the pasted answer stays until its
     round is created.
   - The parser still reads "Resposta de referência:" anywhere in a line, and now also at the start
-    of a line in any case and between bold or italic markers, as chat AIs write it, so the answer
+    of a line, after a list or quote marker or not, in any case and between bold or italic
+    markers, as chat AIs write it, so the answer
     is stored without them and stays hidden in the reading until an attempt (spec 4.8.3), in the
     content editor too. A lowercase mention inside a sentence is never the label. Content saved
     before this with such a variant at the start of a line, which the old parser did not read,
     now hides that line in the reading but has no stored answer until it is saved again; none is
     expected, since `scripts/theme.py` wrote the exact label. A bold frontmatter key loses
-    its markers; a value keeps its own (`*args e **kwargs`). "TRILHA COMPLETA" counts in bold or
-    with a period.
+    its markers; a value keeps its own (`*args e **kwargs`).
   - A re-import never suspends a manual card. `import_content` suspended every card whose label
     left the Markdown, and manual cards have no label there, so filling a subtopic or saving it in
     the content editor suspended Diogo's own cards. It now syncs only the cards that came from
@@ -816,5 +825,6 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
   visible in the check before anything is created: chat text after a document the AI did not
   fence stays in it and shows as a gap; a frontmatter example inside an unfenced document starts
   a false document, listed on its own; a body fenced apart from its frontmatter lands as one code
-  block, with all ten sections listed as missing. A `> [!IA]` callout in capitals is not read as
-  one, as everywhere else in the app.
+  block, with all ten sections listed as missing; a chat opening with a `---` rule and a
+  "**Subtema:**" line blocks as a possibly cut frontmatter, since the two look the same. A
+  `> [!IA]` callout in capitals is not read as one, as everywhere else in the app.

@@ -447,7 +447,7 @@ def test_questions_and_cards_the_parser_would_miss_show_as_gaps():
         "Linha em Flashcards fora do formato": base.replace("- C2:", "  - C2:"),
         "Linha em Flashcards fora": base + "> - C3: Dentro de um destaque? :: Sim.\n",
         "Pergunta fora": base.replace("### P1:", "### Pergunta 1:"),
-        "'::' de código": base.replace("Imagem ou container", "O que `std::vector` guarda,"),
+        "fora do separador": base.replace("Imagem ou container", "O que `std::vector` guarda,"),
     }
     fine = base.replace("### P1:", "P1 e P2 cobrem o básico.\n### P1:").replace(
         "- C2: De onde nasce um container? :: De uma imagem.",
@@ -542,3 +542,86 @@ def test_the_same_answer_saved_twice_at_once_is_created_once():
     actions = sorted(d["action"] for report in reports for d in report["documents"])
     assert actions == ["create"] * 2 + ["same"] * 6
     assert Subtopic.objects.count() == 2
+
+
+# Found by the fourth review of PR #45.
+
+
+def test_a_card_cut_at_a_double_colon_in_code_is_listed():
+    base = document("Camadas")
+    cut = [
+        base.replace("Imagem ou container executa?", "O que `lista[::2]` devolve?"),
+        base.replace("Imagem ou container executa?", "O que o operador `::` faz em C++?"),
+        base.replace(":: O container.", ":: O container. :: Sempre."),
+    ]
+
+    for text in cut:
+        assert any("fora do separador" in g for g in contract_gaps(parse_markdown(text))), text
+
+
+def test_an_answer_label_after_a_list_or_quote_marker_is_read_and_hidden():
+    practice = (
+        "### P1: O que é uma imagem?\n> **Resposta de Referência:** O molde.\n"
+        "### P2: E um container?\n- **Resposta de referência:** A execução.\n"
+        "### P3: E o cache?\n1. Resposta de referência: As camadas.\n"
+    )
+    exact = "### P1: O que é uma imagem?\nResposta de referência: O molde.\n"
+
+    parsed = parse_markdown(document("Camadas").replace(exact, practice))
+
+    assert [q.reference_answer for q in parsed.questions] == [
+        "O molde.",
+        "A execução.",
+        "As camadas.",
+    ]
+    assert without_reference_answers(practice) == (
+        "### P1: O que é uma imagem?\n### P2: E um container?\n### P3: E o cache?"
+    )
+
+
+def test_a_question_merged_into_the_answer_before_it_is_listed_but_answer_headings_are_not():
+    exact = "Resposta de referência: O molde.\n"
+    merged = exact + "**Pergunta 2:** E um container?\nResposta de referência: A execução.\n"
+    steps = "Resposta de referência: Em dois passos.\n#### Passo 1\nBaixar.\n#### Passo 2\nRodar.\n"
+    unanswered = exact + "### P2. E um container?\n"
+
+    gaps = [
+        contract_gaps(parse_markdown(document("Camadas").replace(exact, t)))
+        for t in (merged, steps, unanswered)
+    ]
+
+    assert any("Duas respostas de referência em P1" in g for g in gaps[0])
+    assert not [g for g in gaps[1] if "Pergunta" in g or "Duas" in g]
+    assert any("Pergunta fora do formato ### P1: ...: ### P2." in g for g in gaps[2])
+
+
+def test_inline_triple_backticks_do_not_hide_the_sections_after_them():
+    text = document("Camadas").replace(
+        "## Confusões comuns", "```docker ps``` lista os containers.\n## Confusões comuns"
+    )
+
+    parsed = parse_markdown(text)
+
+    assert (len(parsed.questions), len(parsed.cards), parsed.state) == (1, 2, "ready")
+
+
+@pytest.mark.django_db
+def test_a_new_subtopic_merged_into_one_that_keeps_its_text_blocks_the_save(client):
+    send(client, ANSWER)
+    volumes = document("Volumes").replace(
+        "nivel: iniciante", "nivel: iniciante\nEste subtema cobre volumes nomeados."
+    )
+    edited = document("Camadas").replace("Texto.", "Texto novo.")
+
+    report = send(client, f"{edited}\n{volumes}\n{document('Redes')}").json()
+
+    assert report["documents"][0]["action"] == "keep"
+    assert any("mais de uma vez" in e for e in report["documents"][0]["errors"])
+    assert not Subtopic.objects.filter(name__in=["Volumes", "Redes"]).exists()
+
+
+@pytest.mark.django_db
+def test_a_trilha_completa_heading_is_a_plan_not_the_end_of_the_track(client):
+    report = send(client, "## Trilha completa\n\n1. Imagens\n2. Volumes\n").json()
+
+    assert not report["complete"]

@@ -22,20 +22,25 @@ QUESTION_RE = re.compile(r"^###\s+(P\d+):\s*(.+?)\s*$")
 CARD_RE = re.compile(r"^-\s+(C\d+):\s*(.+?)\s*::\s*(.+?)\s*$")
 CARD_LABEL_RE = re.compile(r"^-\s+(C\d+):")
 SOURCE_RE = re.compile(r"Fonte:\s*(https?://\S+)")
+# A code fence with any info string but a backtick (CommonMark): ```c#, ```c++, never
+# "```ls``` lista", which is inline code at the start of a line.
+FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})\s*([^`]*?)\s*$")
 # One line on its own pointing at a stored image, `![legenda](/api/images/<nome>/)`, with the
 # optional `"título"` the reading screen also takes as the caption (D-033).
 IMAGE_RE = re.compile(r'^!\[([^\]]*)\]\(/api/images/([a-z0-9][a-z0-9-]*)/?(?:\s+"([^"]*)")?\)$')
 # The label of spec 4.1 anywhere, as the parser always read it, or at the start of a line as chat
-# AIs also write it: `**Resposta de referência:**`, `Resposta de Referência:`. Never a lowercase
-# mention in a sentence ("compare com a resposta de referência: ...").
+# AIs also write it: `**Resposta de referência:**`, `Resposta de Referência:`, `> - ...`. Never a
+# lowercase mention in a sentence ("compare com a resposta de referência: ...").
 REFERENCE_RE = re.compile(
-    r"^[ \t]*(?P<m>[*_]+)?(?i:resposta de refer[êe]ncia)(?:(?P=m):|:(?P=m)|:)"
+    r"^[ \t]*(?:(?:[>*+-]|\d+[.)])[ \t]+)?(?P<m>[*_]+)?(?i:resposta de refer[êe]ncia)"
+    r"(?:(?P=m):|:(?P=m)|:)"
     r"|Resposta de referência:",
     re.MULTILINE,
 )
 # A line in Prática that looks like a question but is not `### P<n>:`, so the parser would merge it
-# into the previous answer: another heading, `**P2:**`, `### P2.`, `### P1 –`.
-QUESTION_LIKE_RE = re.compile(r"^\s*#{3,6}\s|^\W*P\d+\s*[:.)–-]")
+# into the previous answer: `**P2:**`, `### P2.`, `### P1 –`, or any heading before an answer.
+QUESTION_LIKE_RE = re.compile(r"^\W*P\d+\s*[:.)–-]")
+HEADING_RE = re.compile(r"^#{3,6}\s")
 # Stored without accents, like `Subtopic.Level` ("intermediário" -> "intermediario").
 LEVELS = {"iniciante", "intermediario", "avancado", "especialista"}
 # Fits `Content.generated_by`.
@@ -190,12 +195,18 @@ def _unquoted(value: str) -> str:
     return value
 
 
+def _fence_marker(line: str) -> str | None:
+    """ "```" or "~~~" when the line opens or closes a fenced code block."""
+    fence = FENCE_RE.match(line)
+    return fence[1][:3] if fence else None
+
+
 def _outside_fences(lines):
     """Yield (line, in_fence) so a `##` inside a fenced code block is never a heading."""
     fence = None
     for line in lines:
-        marker = line.lstrip()[:3]
-        if marker in ("```", "~~~"):
+        marker = _fence_marker(line)
+        if marker:
             if fence is None:
                 fence = marker
                 yield line, True
@@ -276,7 +287,7 @@ def split_segments(body: str) -> list[Segment]:
             segments.append(Segment(kind, text.strip("\n")))
 
     for line in body.split("\n"):
-        marker, stripped = line.lstrip()[:3], line.strip()
+        marker, stripped = _fence_marker(line), line.strip()
         # Same fence rule as `_outside_fences`: a `##` or `> [!ia]` inside code is code.
         if fence:
             if marker == fence:
@@ -284,7 +295,7 @@ def split_segments(body: str) -> list[Segment]:
                 kind, lines, fence = "text", [], None
             else:
                 lines.append(line)
-        elif marker in ("```", "~~~"):
+        elif marker:
             close()
             kind, lines, fence = "code", [], marker
         elif image := IMAGE_RE.match(stripped):
@@ -333,8 +344,8 @@ def without_reference_answers(body: str) -> str:
                 fence = None
             continue
         kept.append(line)
-        marker = line.lstrip()[:3]
-        if marker in ("```", "~~~") and fence in (None, marker):
+        marker = _fence_marker(line)
+        if marker and fence in (None, marker):
             fence = None if fence else marker
     return "\n".join(kept).strip()
 
@@ -351,8 +362,6 @@ def _duplicates(labels: list[str]) -> list[str]:
 
 # A pasted AI answer with several documents, for the "Novo tema" screen (DECISIONS.md D-040).
 
-# Any info string without a backtick (CommonMark): ```c#, ```c++, never "```ls``` lista".
-FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})\s*([^`]*?)\s*$")
 # A frontmatter key as chat AIs write it, sometimes indented or in bold (`**subtema:**`).
 FRONTMATTER_KEY_RE = re.compile(r"^\s*\**([\w-]+)\**\s*:")
 COMMENT_RE = re.compile(r"^\s*<!--.*-->\s*$")
@@ -531,9 +540,24 @@ def contract_gaps(parsed: ParsedContent) -> list[str]:
     if not any(b.kind == "Fontes" and "http" in b.body for b in parsed.blocks):
         gaps.append("Fontes sem nenhum link")
     for block in (b for b in parsed.blocks if b.kind == "Prática"):
-        lines = (ln for ln, in_fence in _outside_fences(block.body.split("\n")) if not in_fence)
-        if odd := [ln for ln in lines if QUESTION_LIKE_RE.match(ln) and not QUESTION_RE.match(ln)]:
+        odd, answer = [], False
+        for line, in_fence in _outside_fences(block.body.split("\n")):
+            if in_fence or QUESTION_RE.match(line):
+                answer = answer and in_fence
+                continue
+            # An answer may have its own sub-headings (`#### Passo 1`), never a `P<n>` line.
+            if QUESTION_LIKE_RE.match(line) or (not answer and HEADING_RE.match(line)):
+                odd.append(line)
+            answer = answer or bool(REFERENCE_RE.search(line))
+        if odd:
             gaps.append(f"Pergunta fora do formato ### P1: ...: {odd[0].strip()[:80]}")
+    if merged := [
+        q.label for q in parsed.questions if REFERENCE_RE.search(q.reference_answer or "")
+    ]:
+        gaps.append(
+            f"Duas respostas de referência em {merged[0]}: uma pergunta fora do formato "
+            "### P1: ... entrou nela"
+        )
     for block in (b for b in parsed.blocks if b.kind == "Flashcards"):
         stray = []
         for raw in block.body.split("\n"):
@@ -541,10 +565,11 @@ def contract_gaps(parsed: ParsedContent) -> list[str]:
             if not line or (CARD_LABEL_RE.match(raw) and not CARD_RE.match(raw)):
                 continue  # empty, or a label without `::`, which already warns
             if CARD_RE.match(raw):
-                # A first `::` inside a word is code (`std::vector`), not the separator.
+                # The parser cuts at the first `::`: one in code (`std::vector`, `[::2]`) or a
+                # second spaced one means the front may end in the wrong place.
                 before, _, after = raw.partition("::")
-                if before[-1:].isalnum() and after[:1].isalnum():
-                    gaps.append(f"Cartão com '::' de código na frente, cortado ali: {line[:80]}")
+                if not (before[-1:].isspace() and after[:1].isspace()) or " :: " in after:
+                    gaps.append(f"Cartão com '::' fora do separador ' :: ': {line[:80]}")
             # A `> [!ia]` callout may sit anywhere; anything else here would vanish from the cards.
             elif line[0] != ">" or CARD_LABEL_RE.match(line.lstrip("> ")):
                 stray.append(line)
