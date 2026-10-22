@@ -756,12 +756,17 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
       queue was never built, or built empty, is not a review day.
     - `late_card_accuracy`: the first rating of each card (on a subtopic or manual on a concept)
       on each Bahia day more than 14 days after its concept's completion date. A same-day repeat
-      comes right after the answer was shown, so it is left out, as Py-FSRS's optimizer does.
+      comes right after the answer was shown, so it is left out. This follows the app's Bahia
+      day (D-022), not Py-FSRS's optimizer, which needs 24 hours since the last rating and would
+      drop the next morning's review of a card due that day; the cost is that an Again just
+      before midnight and its repeat just after count as two days.
       Hard counts as recalled, as in Py-FSRS; the three counts are kept so the reading can be
       redone without Hard.
   - None of this changes completion, the caps, the queue order or Py-FSRS. The metrics inform
     the day 28 verdict and decide nothing (D-038). When `day28` (D-038) is on `main`, it prints
-    them between the blocks and the reading, over day 1 to the date it reads on.
+    them between the blocks and the reading, over the closed days of the window: day 1 to the
+    earlier of the window's last day (day 28, or the last extension block) and the day before
+    the date it reads on. Today is not over, and day 29 is not in the window.
 - Why: the smallest stored data that answers the spec's questions. A row per day with one number
   is enough for a fraction; a full copy of each day's queue would only be needed to ask which
   cards were left out, and spec 4.6 keeps that out of view anyway.
@@ -772,6 +777,7 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
   concepts completed after 2026-10-29 cannot have reviews 15 days later inside the window, so
   the accuracy metric will rest on few cards. The accuracy reads each concept's completion as
   it stands when the metric runs: reopening a subtopic, or adding one to a completed concept,
-  takes that concept's late reviews out, so read it on day 28 itself. Days before this release
+  takes that concept's late reviews out, so read it as soon as the window closes (2026-11-14
+  for the four blocks), without editing the roadmap first. Days before this release
   reached use mode have no queue row, so the fraction of reviews done starts at that release,
   not at day 1.
