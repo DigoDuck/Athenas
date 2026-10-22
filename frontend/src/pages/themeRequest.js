@@ -115,9 +115,11 @@ export function buildCorrection(report) {
     // Reusing a concept the request listed is right, so its note is not a problem either.
     // A cut is the AI's to fix even there: the document it was writing did not arrive.
     ...report.documents.flatMap((d) =>
-      [...d.errors, ...d.warnings]
+      [
+        ...d.errors,
+        ...d.warnings.filter((p) => !["keep", "same"].includes(d.action) || p.includes("cortada")),
+      ]
         .filter((p) => p !== d.joins_track)
-        .filter((p) => !["keep", "same"].includes(d.action) || p.includes("pode ter sido cortada"))
         .map((p) => `${d.subtema || "Documento sem subtema"}: ${p}`),
     ),
   ];

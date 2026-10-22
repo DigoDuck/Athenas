@@ -7,7 +7,7 @@ from datetime import UTC, datetime, time, timedelta
 
 import fsrs
 from django.db import connection, transaction
-from django.db.models import Min, Value
+from django.db.models import Min, Q, Value
 from django.db.models.functions import Replace
 from django.utils import timezone
 from organization.models import Area, Concept, Settings, Step, Track
@@ -249,7 +249,12 @@ def import_theme(*, area, track, origem, markdown, save=False) -> dict:
             "O bloco de código da resposta não fechou: ela pode ter sido cortada. Confira o fim "
             "deste documento."
         )
-    elif not ends or split_documents(markdown[ends[-1].end() :])[0]:
+    elif not ends or any(
+        # A document with contract text after the last line: the AI ended each one with it.
+        contract_heading(line.lstrip())
+        for document in split_documents(markdown[ends[-1].end() :])[0]
+        for line in document.split("\n")
+    ):
         report["documents"][-1]["warnings"].append(
             "A resposta não termina com a linha <!-- fim --> do pedido: ela pode ter sido cortada. "
             "Confira o fim deste documento."
@@ -276,15 +281,27 @@ def import_theme(*, area, track, origem, markdown, save=False) -> dict:
     return report
 
 
+# A tag: lowercase name and attributes (`<script setup>`, `<input type="file">`), or `<!`, `</`.
+TAG_RE = re.compile(
+    r"<(?:[!?/].*|[a-z][a-z0-9-]*(?:\s+[a-z@:#.-][\w@:#.-]*"
+    r"(?:=(?:\"[^\"]*\"|'[^']*'|[^\s\"'>]+))?)*\s*/?>)"
+)
+
+
+def _template(name):
+    """The request's `<nome do subtema>`, or a real name the AI left inside its brackets."""
+    if re.fullmatch(r"<\s*nome\b.*", name, re.IGNORECASE):
+        return True
+    return bool(re.fullmatch(r"<[^<>]*\s[^<>]*>", name)) and not TAG_RE.fullmatch(name)
+
+
 def _document_errors(parsed, conceito, subtema):
     errors = []
     if not conceito or not subtema:
         errors.append("O frontmatter precisa de conceito e subtema")
     if len(conceito) > NAME_MAX or len(subtema) > NAME_MAX:
         errors.append(f"Nome de conceito ou subtema com mais de {NAME_MAX} caracteres")
-    # The request's `<nome do subtema>`, or a real name the AI left inside its brackets.
-    template = r"<\s*nome\b.*|<[^<>=\"'/!]*\s[^<>=\"'/!]*>"  # never markup: <input type="file">
-    if any(re.fullmatch(template, name, re.IGNORECASE) for name in (conceito, subtema)):
+    if any(_template(name) for name in (conceito, subtema)):
         errors.append(
             "Nome entre < e >: é o modelo do pedido, não um nome. Troque pelo nome real, ou "
             "apague o trecho se a IA só repetiu o modelo."
@@ -303,7 +320,10 @@ def _document_errors(parsed, conceito, subtema):
 def _named(rows, name):
     # Ignoring case and the hyphens chat AIs write for "-", which the parser reads as one.
     plain = Replace(Replace("name", Value("\u2011"), Value("-")), Value("\u2010"), Value("-"))
-    return rows.annotate(plain=plain).filter(plain__iexact=name).first()
+    # A stored name in quotes (`"Had better"`, from tema.json) is the frontmatter's unquoted one.
+    quoted = Q(plain__iexact=f'"{name}"') | Q(plain__iexact=f"'{name}'")
+    rows = rows.annotate(plain=plain)
+    return rows.filter(plain__iexact=name).first() or rows.filter(quoted).first()
 
 
 def _open_frontmatter(lines):

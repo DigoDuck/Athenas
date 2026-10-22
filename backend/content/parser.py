@@ -291,10 +291,12 @@ def _reference_answer(lines: list[str]) -> str | None:
     if marker["m"] and not re.search(r"[*_]:?$", marker[0]):
         answer = _without_closer(answer, marker["m"])
     if quote := re.match(r"[ \t]*>", text[marker.start() :]):
-        # An answer quoted line by line, up to its first unquoted line (code after it keeps `>>>`).
+        # An answer quoted line by line, blank lines between its paragraphs included, up to its
+        # first unquoted line (code after it keeps `>>>`) or a callout of its own (`> [!ia]`).
         lines = answer.split("\n")
         for n in range(1, len(lines)):
-            if not lines[n].startswith(quote[0]):
+            filled = next((line for line in lines[n:] if line.strip()), "")
+            if not filled.startswith(quote[0]) or filled[len(quote[0]) :].lstrip().startswith("[!"):
                 break
             lines[n] = lines[n].removeprefix(quote[0]).removeprefix(" ")
         answer = "\n".join(lines)
@@ -309,8 +311,9 @@ def _without_closer(answer: str, opener: str) -> str:
     the answer's own markers (`__init__`). Inline code holds no markers.
     """
     closer = opener[::-1]
-    if answer.startswith(closer):
-        return answer[len(closer) :]  # touching the answer: `:_**O molde`
+    # Touching the answer (`:_**O molde`), or alone before it (`: **` with the answer below).
+    if start := re.match(rf"{re.escape(closer)}|[ \t]*{re.escape(closer)}(?=\s|$)", answer):
+        return answer[start.end() :]
     plain = re.sub(r"`[^`\n]*`", lambda code: "x" * len(code[0]), answer)
     depth = 1
     for run in re.finditer(r"[*_]+", plain):
@@ -323,11 +326,14 @@ def _without_closer(answer: str, opener: str) -> str:
             depth -= 1
             if not depth:
                 return answer[: run.start()] + answer[run.end() :]
-    # Unpaired, so the answer's own markers are literal (`**kwargs`): the closer ends it, alone or
-    # stacked on its last markers (`__init__**`).
-    if last := re.search(r"[*_]+(?=\s*$)", plain):
-        if last[0].endswith(closer):
-            return answer[: last.end() - len(closer)] + answer[last.end() :]
+    # Unpaired, so the answer's own markers are literal (`**kwargs`): the closer ends the answer,
+    # alone or stacked on its last markers (`__init__**`), or else it is the first one on the
+    # label's line that opens nothing (`Use **kwargs.** Ele`).
+    if (last := re.search(r"[*_]+(?=\s*$)", plain)) and last[0].endswith(closer):
+        return answer[: last.end() - len(closer)] + answer[last.end() :]
+    line = plain.split("\n", 1)[0]
+    if lone := re.search(rf"(?<![\s*_]){re.escape(closer)}(?![\w*_])", line):
+        return answer[: lone.start()] + answer[lone.end() :]
     return answer
 
 
@@ -442,7 +448,7 @@ COMMENT_RE = re.compile(r"^\s*<!--.*-->\s*$")
 END_RE = re.compile(r"^\s*<!--\s*fim\s*-->\s*$", re.MULTILINE | re.IGNORECASE)
 # A heading or a line that opens in bold, as chat AIs title each document ("**Subtema 2: Camadas**",
 # "**Subtema 2:** Camadas", "📘 **Subtema 2**", "2. **Camadas**").
-LABEL_RE = re.compile(r"^\s*(#{1,6}\s|(?:\d+[.)]\s+|[^\w\s*>|-]+\s*)?\*\*[^*].*\*\*)")
+LABEL_RE = re.compile(r"^\s*(#{1,6}\s|(?:\d+[.)]\s+|[^\w\s*>|-]+\s*)?(\*\*[^*].*\*\*|__[^_].*__))")
 FRONTMATTER_MAX = 40  # lines; the contract's frontmatter has five
 
 
@@ -460,11 +466,13 @@ def split_documents(text: str) -> tuple[list[str], list[str], bool]:
     lines = text.split("\n")
     documents: list[list[str]] = []
     heads: list[int] = []  # frontmatter length of each document, which trimming never cuts
+    late: list[bool] = []  # whether it starts after a <!-- fim --> line
     ignored: list[list[str]] = [[]]
     wrapper = None  # the fence wrapping the documents: its character and length
     chat = []  # fences open in the chat, innermost last: one may be a wrapper read late
     inner = None  # a code fence open inside a document
     outside = True
+    ended = False
     i = 0
     while i < len(lines):
         line = lines[i]
@@ -472,6 +480,7 @@ def split_documents(text: str) -> tuple[list[str], list[str], bool]:
         if inner is None and (end := _frontmatter_end(lines, i)) is not None:
             documents.append(lines[i : end + 1])
             heads.append(end + 1 - i)
+            late.append(ended)
             outside = False
             i = end + 1
             if wrapper and (closer := _closes(lines, i, wrapper)) is not None:
@@ -479,7 +488,7 @@ def split_documents(text: str) -> tuple[list[str], list[str], bool]:
                 i, wrapper = closer + 1, None
             continue
         if inner is None and not outside and END_RE.match(line):
-            outside = True
+            outside = ended = True
             ignored.append([])
             i += 1
             continue
@@ -515,7 +524,7 @@ def split_documents(text: str) -> tuple[list[str], list[str], bool]:
         i += 1
 
     texts = []
-    for n, (document, head) in enumerate(zip(documents, heads, strict=True)):
+    for n, (document, head, after_end) in enumerate(zip(documents, heads, late, strict=True)):
         labels = []
         while len(document) > head:
             last, plain = document[-1], document[-1].lstrip()
@@ -538,6 +547,11 @@ def split_documents(text: str) -> tuple[list[str], list[str], bool]:
         indent = document[0][: len(document[0]) - len(document[0].lstrip())]
         prose = [line for line, in_fence in _outside_fences(document) if not in_fence]
         headings = [line for line in prose if contract_heading(line.lstrip())]
+        if after_end and not headings:
+            # A frontmatter in the chat after the answer ended (the next round's header, shown as
+            # an example): never a document. The import blocks on it as a frontmatter left out.
+            ignored.append(document)
+            continue
         if indent and headings and all(line.startswith(indent) for line in headings):
             document = _dedented(document, indent)
         texts.append("\n".join(document) + "\n")
@@ -696,9 +710,10 @@ def contract_gaps(parsed: ParsedContent) -> list[str]:
                 between.append(label)
             if in_fence:
                 continue
-            # A label opening the line, or after a question in another format; not an intro.
+            # A label opening the line, or right after a question in another format; not an intro.
             if label is None and (found := REFERENCE_RE.search(line)):
-                if not line[: found.start()].strip() or "?" in line[: found.start()]:
+                before = line[: found.start()]
+                if not before.strip() or re.sub(r"[\s*_\u2013\u2014-]+$", "", before).endswith("?"):
                     orphan.append(line)  # its question is in another format: the reading shows it
             # An answer may have its own sub-headings (`#### Passo 1`), never a question's level.
             heading = HEADING_RE.match(line) and (not answer or line.startswith("### "))

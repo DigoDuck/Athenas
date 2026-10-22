@@ -1177,3 +1177,77 @@ def test_a_subtopic_named_by_one_quoted_phrase_matches_its_frontmatter():
     parsed = parse_markdown(text, Target("Programação", "Should e had better", '"Had better"'))
 
     assert parsed.warnings == []
+
+
+# Found by the fifteenth review of PR #45.
+
+
+def test_a_label_bold_closed_by_a_lone_marker_or_after_an_identifier_and_quoted_paragraphs():
+    exact = "Resposta de referência: O molde."
+    answers = {
+        "**Resposta de referência: **\nSim, o valor conta.": "Sim, o valor conta.",
+        "**Resposta de referência: Use **kwargs.** Ele recebe um dict.": (
+            "Use **kwargs. Ele recebe um dict."
+        ),
+        "_Resposta de referência: o nome _privado é interno._ É convenção.": (
+            "o nome _privado é interno. É convenção."
+        ),
+        "**Resposta de referência: Sim, **kwargs e **imutável** ficam.**": (
+            "Sim, **kwargs e **imutável** ficam."
+        ),
+        "> **Resposta de referência:** O molde.\n\n> Ela gera containers.": (
+            "O molde.\n\nEla gera containers."
+        ),
+    }
+
+    stored = [
+        parse_markdown(document("Camadas").replace(exact, label)).questions[0].reference_answer
+        for label in answers
+    ]
+
+    assert stored == list(answers.values())
+
+
+def test_an_intro_with_a_question_before_a_mention_of_the_label_is_not_an_orphan_answer():
+    intro = "Consegue responder? Escreva antes de abrir a Resposta de referência: ela fica oculta."
+    text = document("Camadas").replace("### P1:", intro + "\n\n### P1:", 1)
+
+    gaps = contract_gaps(parse_markdown(text))
+
+    assert not [g for g in gaps if g.startswith("Resposta de referência antes")]
+
+
+@pytest.mark.django_db
+def test_a_frontmatter_shown_in_the_chat_after_the_closing_line_blocks_and_creates_nothing(client):
+    header = "---\narea: Programação\nconceito: Redes\nsubtema: Bridge\n---\n"
+    outro = f"\nNa próxima rodada o cabeçalho fica assim:\n{FENCE}yaml\n{header}{FENCE}\nQuer?\n"
+    answer = ANSWER.replace("~~~~\n\nQuer", f"~~~~\n{outro}\nQuer")
+
+    report = send(client, answer, "/api/themes/preview/").json()
+    saved = send(client, answer)
+
+    assert [d["subtema"] for d in report["documents"]] == ["Imagem e container", "Camadas"]
+    assert saved.status_code == 400 and not Concept.objects.exists()
+
+
+@pytest.mark.django_db
+def test_names_in_brackets_titles_in_underscores_and_a_quoted_stored_name(client):
+    names = ["<CI/CD com GitHub Actions>", "<Don't Repeat Yourself>", "<script setup>"]
+    titled = ANSWER.replace("---\n---", "---\n__Subtema 2: Camadas__\n---")
+    area = Area.objects.create(name="Inglês")
+    concept = Concept.objects.create(area=area, name="Should e had better")
+    concept.subtopics.create(name='"Had better"')
+    quoted = document('"Had better"', conceito="Should e had better").replace(
+        "Programação", "Inglês"
+    )
+
+    blocked = [
+        bool(send(client, document(n), "/api/themes/preview/").json()["documents"][0]["errors"])
+        for n in names
+    ]
+    documents, ignored, _ = split_documents(titled)
+    action = send(client, quoted, "/api/themes/preview/", area="Inglês").json()["documents"][0]
+
+    assert blocked == [True, True, False]
+    assert "__Subtema 2: Camadas__" in ignored and "__Subtema" not in documents[0]
+    assert action["action"] == "fill"
