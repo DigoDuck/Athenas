@@ -20,10 +20,14 @@ import "./content.css";
 // Paste the subtopic's Markdown, see what the import will make of it, then save (spec 4.2.1).
 // Saving needs a preview of the exact text in the field, so nothing is saved unseen.
 // It is a list item: the Library opens it right under the subtopic's row. The Library keeps the
-// unsaved text (`draft`, `onDraft`), so closing the editor or opening another row never loses it.
+// unsaved text (`draft`, `onDraft`), so closing the editor, opening another row or reloading never
+// loses it. The draft keeps the saved text it started from (`base`): if the saved text changed
+// since, in another tab or by theme.py, the save answers 409 instead of overwriting it (D-039).
 export default function ContentEditor({ subtopic, draft, onDraft, onClose }) {
   const url = `/api/subtopics/${subtopic.id}/content/`;
-  const [markdown, setMarkdown] = useState(draft ?? "");
+  const [markdown, setMarkdown] = useState(draft?.text ?? "");
+  // The saved text this editor started from: null when there was none, undefined until known.
+  const [base, setBase] = useState(draft?.base);
   const [loadError, setLoadError] = useState(null);
   const [preview, setPreview] = useState(null);
   const [busy, setBusy] = useState(null);
@@ -44,9 +48,14 @@ export default function ContentEditor({ subtopic, draft, onDraft, onClose }) {
       (content) => {
         if (!active) return;
         setMarkdown((current) => current || content.raw_markdown);
+        setBase((known) => (known === undefined ? content.raw_markdown : known));
         setGeneratedBy(content.generated_by);
       },
-      (e) => active && e.status !== 404 && setLoadError(e.message),
+      (e) => {
+        if (!active) return;
+        if (e.status === 404) setBase((known) => (known === undefined ? null : known));
+        else setLoadError(e.message);
+      },
     );
     return () => {
       active = false;
@@ -57,7 +66,7 @@ export default function ContentEditor({ subtopic, draft, onDraft, onClose }) {
     setMarkdown(value);
     setPreview(null);
     setSaved(null);
-    onDraft(value);
+    onDraft({ text: value, base });
   }
 
   async function act(kind, request) {
@@ -66,6 +75,11 @@ export default function ContentEditor({ subtopic, draft, onDraft, onClose }) {
     try {
       await request();
     } catch (e) {
+      if (e.status === 409 && e.data?.raw_markdown !== undefined) {
+        // The text stays; saving again is now a deliberate overwrite of the newer version.
+        setBase(e.data.raw_markdown);
+        onDraft({ text: markdown, base: e.data.raw_markdown });
+      }
       setError(e.message);
     }
     setBusy(null);
@@ -78,7 +92,8 @@ export default function ContentEditor({ subtopic, draft, onDraft, onClose }) {
 
   const save = () =>
     act("save", async () => {
-      const content = await api.put(url, { markdown });
+      const content = await api.put(url, { markdown, base });
+      setBase(content.raw_markdown);
       setSaved(content.state);
       setGeneratedBy(content.generated_by);
       onDraft(undefined);

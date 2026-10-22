@@ -19,6 +19,17 @@ import ContentEditor from "./ContentEditor.jsx";
 import { ActionError, AddForm, toOptions } from "./forms.jsx";
 import "./library.css";
 
+const DRAFTS = "athenas:conteudo";
+
+// Storage can be full or blocked; the editor still works, only the drafts live in memory.
+function readDrafts() {
+  try {
+    return JSON.parse(localStorage.getItem(DRAFTS)) ?? {};
+  } catch {
+    return {};
+  }
+}
+
 const LEVELS = [
   ["", "Não definido"],
   ["iniciante", "Iniciante"],
@@ -44,8 +55,15 @@ export default function Library() {
   const [actionError, setActionError] = useState(null);
   const [editing, setEditing] = useState(null);
   const [contentOf, setContentOf] = useState(null);
-  // Unsaved Markdown per subtopic id, kept while the content editor is closed.
-  const [drafts, setDrafts] = useState({});
+  // Unsaved Markdown per subtopic id, kept while the editor is closed and across reloads.
+  const [drafts, setDrafts] = useState(readDrafts);
+  useEffect(() => {
+    try {
+      localStorage.setItem(DRAFTS, JSON.stringify(drafts));
+    } catch {
+      // Kept in memory only.
+    }
+  }, [drafts]);
 
   // Runs a write and reloads. Returns the error message, or null when it worked.
   async function run(write) {
