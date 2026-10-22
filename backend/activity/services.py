@@ -247,7 +247,7 @@ LATE_AFTER_DAYS = 14
 
 
 def late_card_accuracy(*, start, end) -> dict:
-    """Ratings of cards whose concept was completed more than 14 Bahia days before the review.
+    """First rating of each card per Bahia day, more than 14 days after its concept's completion.
 
     A concept is completed when all its subtopics are, on the day of the last one (spec 4.4.6).
     Hard counts as recalled, as in Py-FSRS.
@@ -264,6 +264,9 @@ def late_card_accuracy(*, start, end) -> dict:
             concept=Coalesce("flashcard__concept", "flashcard__subtopic__concept"),
         )
         .filter(day__range=(start, end), concept__in=completed)
+        # A same-day repeat comes right after the answer was shown, so it tests no recall.
+        .order_by("flashcard_id", "day", "reviewed_at")
+        .distinct("flashcard_id", "day")
         .values_list("concept", "day", "rating")
     )
     ratings = Counter(

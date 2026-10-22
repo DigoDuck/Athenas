@@ -159,6 +159,20 @@ def test_late_accuracy_counts_only_reviews_more_than_14_days_after_the_concept(c
     assert metric["accuracy"] == pytest.approx(2 / 3)
 
 
+def test_late_accuracy_takes_only_the_first_rating_of_a_card_each_day(concept):
+    completed_on(studied(concept), date(2026, 10, 18))
+    forgotten, known = Flashcard.objects.filter(subtopic__concept=concept)[:2]
+    at = datetime(2026, 11, 5, 10, 0, tzinfo=BAHIA)
+    rate_card(forgotten, "again", now=at, enable_fuzzing=False)
+    rate_card(forgotten, "good", now=at + timedelta(minutes=10), enable_fuzzing=False)
+    rate_card(known, "good", now=at, enable_fuzzing=False)
+    rate_card(forgotten, "good", now=at + timedelta(days=1), enable_fuzzing=False)
+
+    metric = late_card_accuracy(start=date(2026, 10, 17), end=date(2026, 11, 13))
+
+    assert metric["ratings"] == {"again": 1, "hard": 0, "good": 2}
+
+
 def test_late_accuracy_dates_a_concept_by_its_last_subtopic_and_skips_unfinished_ones(concept):
     completed_on(studied(concept), date(2026, 10, 18))
     completed_on(studied(concept, name="Herança"), date(2026, 10, 25))
