@@ -731,3 +731,48 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
   mockups ask for and what "começar e retomar sem esforço" needs.
 - Cost: a long track scrolls sideways on the board. Text on the panorama depends on the fade:
   a new landscape needs a light left side, or its opening lines need a panel.
+
+### D-039: Stability hardening in the month of use
+
+- Date: 2026-10-22. Source: Diogo asked for the open tasks to run unattended; the project goal
+  puts "não perder nada" first. An audit over import, history, backup, HTTP, activity, frontend,
+  scripts and input validation found 25 issues; three independent checks kept the ones below.
+- Decision:
+  - Writes must be JSON: a POST, PUT or PATCH with any other body type answers 415
+    (`config.middleware.JsonWritesOnly`). With no login and no CSRF cookie (D-008), any page in
+    the same browser could post a form to 127.0.0.1 and write review logs, attempts and events
+    the app never deletes, or approve pending cards. A form needs no CORS preflight; JSON does,
+    and this API never answers one.
+  - A re-import only touches Markdown cards. Manual cards on the subtopic (label empty) were
+    suspended by every save of its Markdown, with no way back.
+  - Saving content takes an optional `base`, the saved text the editor started from (`null`:
+    none). When the stored text differs, the save answers 409 with the stored text and changes
+    nothing; the editor keeps Diogo's text, and saving again overwrites on purpose. theme.py
+    sends no `base`. The content editor's drafts now live in `localStorage`
+    (`athenas:conteudo`) with their `base`, so a reload or a click elsewhere keeps them and an
+    old draft cannot silently replace newer text.
+  - In practice and review, a 409 on saving means an earlier send was saved and its answer was
+    lost: the screen reloads instead of offering a retry that would record the attempt twice.
+  - `scripts/theme.py push --replace` names the files it may overwrite (paths as in
+    `tema.json`) and saves the app's copy of a replaced subtopic as `<file>.app.md`; as one flag
+    it overwrote every subtopic Diogo had edited in the app. A failed content read (502 while
+    the backend restarts) stops the push instead of counting as "no content". This supersedes
+    the `--replace` lines of D-030 and D-033.
+  - The README restore adds one step that derives `generated_by` again from the saved Markdown,
+    for exports made before content migration 0005.
+  - Bad input that crashed with 500 answers 400: a non-numeric `?subtopic=`, a non-object body
+    to move a step, and adding the same concept to a track twice at once.
+- Left as they are, with the reason:
+  - SVG images are not sanitized. They are shown as `<img>`, which never runs scripts, and the
+    image response carries `Content-Security-Policy: default-src 'none'` and `nosniff` (D-033),
+    so an SVG opened on its own runs nothing either.
+  - Core parser findings, for Diogo: a second `## Flashcards` or `## Prática` section replaces
+    the first (its cards are suspended, its questions archived, and a label repeated across the
+    two is not caught); a label over 10 characters passes the preview and fails the save with a
+    500; `### P2 sem dois-pontos` folds into the previous question's answer without a warning.
+  - D-021 (a reopened draft starts a new event) and D-023 (a block completed across a save of
+    its subtopic stays unread) are accepted risks already recorded.
+- Why: each change closes a path to losing study text or history, or to writing history Diogo
+  did not make, with the smallest change and no new dependency or migration.
+- Cost: any client of the API must send JSON, including tests. A draft kept in `localStorage`
+  stays in that browser only.
