@@ -24,7 +24,7 @@ CARD_LABEL_RE = re.compile(r"^-\s+(C\d+):")
 SOURCE_RE = re.compile(r"Fonte:\s*(https?://\S+)")
 # A code fence with any info string but a backtick (CommonMark): ```c#, ```c++, never
 # "```ls``` lista", which is inline code at the start of a line.
-FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})\s*([^`]*?)\s*$")
+FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})([^`]*)$")
 # One line on its own pointing at a stored image, `![legenda](/api/images/<nome>/)`, with the
 # optional `"título"` the reading screen also takes as the caption (D-033).
 IMAGE_RE = re.compile(r'^!\[([^\]]*)\]\(/api/images/([a-z0-9][a-z0-9-]*)/?(?:\s+"([^"]*)")?\)$')
@@ -32,7 +32,7 @@ IMAGE_RE = re.compile(r'^!\[([^\]]*)\]\(/api/images/([a-z0-9][a-z0-9-]*)/?(?:\s+
 # AIs also write it: `**Resposta de referência:**`, `Resposta de Referência:`, `> - ...`. Never a
 # lowercase mention in a sentence ("compare com a resposta de referência: ...").
 REFERENCE_RE = re.compile(
-    r"^[ \t]*(?:(?:[>*+-]|\d+[.)])[ \t]+)?(?P<m>[*_]+)?(?i:resposta de refer[êe]ncia)"
+    r"^[ \t]*(?:(?:[>*+-]|\d+[.)])[ \t]+)*(?P<m>[*_]+)?(?i:resposta de refer[êe]ncia)"
     r"(?:(?P=m):|:(?P=m)|:)"
     r"|Resposta de referência:",
     re.MULTILINE,
@@ -387,6 +387,7 @@ def split_documents(text: str) -> tuple[list[str], list[str], bool]:
     heads: list[int] = []  # frontmatter length of each document, which trimming never cuts
     ignored: list[list[str]] = [[]]
     wrapper = None  # the fence wrapping the documents: its character and length
+    loose = None  # a fence opened in the chat, maybe a wrapper too far from the first frontmatter
     inner = None  # a code fence open inside a document
     outside = True
     i = 0
@@ -406,6 +407,8 @@ def split_documents(text: str) -> tuple[list[str], list[str], bool]:
             inner = None if fence[1][:3] == inner else inner
         elif fence and wrapper is None and _opens_documents(lines, i + 1):
             wrapper, outside = (fence[1][0], len(fence[1])), True
+            if loose and _is_closer(fence, loose):
+                loose = None  # it also closed a chat snippet
             ignored.append([])
             i += 1
             continue
@@ -415,7 +418,19 @@ def split_documents(text: str) -> tuple[list[str], list[str], bool]:
             i += 1
             continue
         elif fence and not outside:
+            if (
+                wrapper is None
+                and loose
+                and _is_closer(fence, loose)
+                and not _heading_ahead(lines, i + 1)
+            ):
+                loose, outside = None, True  # its closer: what follows is chat again
+                ignored.append([])
+                i += 1
+                continue
             inner = fence[1][:3]
+        elif fence:
+            loose = None if loose and _is_closer(fence, loose) else (fence[1][0], len(fence[1]))
         (ignored[-1] if outside else documents[-1]).append(line)
         i += 1
 
@@ -483,7 +498,7 @@ def _heading_ahead(lines: list[str], start: int) -> bool:
             return False
         found = FENCE_RE.match(lines[at])
         if found and inner:
-            if found[2]:
+            if found[2].strip():
                 return False  # a fence with a language opens code, it cannot end it
             inner = False
         elif found:
@@ -504,7 +519,7 @@ def _next_filled(lines: list[str], start: int) -> int:
 
 
 def _is_closer(fence, wrapper) -> bool:
-    return not fence[2] and fence[1][0] == wrapper[0] and len(fence[1]) >= wrapper[1]
+    return not fence[2].strip() and fence[1][0] == wrapper[0] and len(fence[1]) >= wrapper[1]
 
 
 def _closes(lines, start, wrapper) -> int | None:
@@ -546,12 +561,16 @@ def contract_gaps(parsed: ParsedContent) -> list[str]:
             if in_fence or QUESTION_RE.match(line):
                 answer = answer and in_fence
                 continue
-            # An answer may have its own sub-headings (`#### Passo 1`), never a `P<n>` line.
-            if QUESTION_LIKE_RE.match(line) or (not answer and HEADING_RE.match(line)):
+            # An answer may have its own sub-headings (`#### Passo 1`), never a question's level.
+            heading = HEADING_RE.match(line) and (not answer or line.startswith("### "))
+            if QUESTION_LIKE_RE.match(line) or heading:
                 odd.append(line)
             answer = answer or bool(REFERENCE_RE.search(line))
         if odd:
             gaps.append(f"Pergunta fora do formato ### P1: ...: {odd[0].strip()[:80]}")
+    if unanswered := [q.label for q in parsed.questions if not q.reference_answer]:
+        # Also the sign of a label written in a way the parser does not read.
+        gaps.append(f"Pergunta sem resposta de referência: {unanswered[0]}")
     if merged := [
         q.label for q in parsed.questions if REFERENCE_RE.search(q.reference_answer or "")
     ]:

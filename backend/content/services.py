@@ -198,14 +198,15 @@ def import_theme(*, area, track, origem, markdown, save=False) -> dict:
             action = "same"
         elif action == "keep":
             warnings.append(KEPT)
-        joins_track = concept and not concept.steps.filter(track=track_obj).exists()
-        if joins_track:
+        joins_track = ""
+        if concept and not concept.steps.filter(track=track_obj).exists():
             others = ", ".join(concept.steps.values_list("track__name", flat=True))
-            warnings.append(
+            joins_track = (
                 f"O conceito {concept.name} já existe nesta área"
                 + (f", na trilha {others}" if others else "")
                 + ": os subtemas entram nele, e ele entra também nesta trilha."
             )
+            warnings.append(joins_track)
         found = set(Image.objects.filter(name__in=parsed.images).values_list("name", flat=True))
         warnings += [f"Imagem não encontrada: {n}" for n in parsed.images if n not in found]
         plans.append((parsed, conceito, subtema, action))
@@ -214,8 +215,9 @@ def import_theme(*, area, track, origem, markdown, save=False) -> dict:
                 "conceito": conceito,
                 "subtema": subtema,
                 "concept_new": concept is None,
-                # An existing concept this round adds to the track, even with no new subtopic.
-                "joins_track": bool(joins_track),
+                # An existing concept this round adds to the track, even with no new subtopic: the
+                # note that says so, which is not a problem for the AI to fix.
+                "joins_track": joins_track,
                 "action": action,
                 "state": parsed.state,
                 "level": parsed.level,

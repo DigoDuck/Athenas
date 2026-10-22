@@ -109,10 +109,11 @@ export function buildCorrection(report) {
     // "TRILHA COMPLETA" is an answer, not a mistake.
     ...(report.complete ? [] : report.errors),
     // A subtopic that keeps its own text is Diogo's to change; only a broken split is the AI's.
+    // Reusing a concept the request listed is right, so its note is not a problem either.
     ...report.documents.flatMap((d) =>
-      [...d.errors, ...(d.action === "keep" || d.action === "same" ? [] : d.warnings)].map(
-        (p) => `${d.subtema || "Documento sem subtema"}: ${p}`,
-      ),
+      [...d.errors, ...(d.action === "keep" || d.action === "same" ? [] : d.warnings)]
+        .filter((p) => p !== d.joins_track)
+        .map((p) => `${d.subtema || "Documento sem subtema"}: ${p}`),
     ),
   ];
   if (!lines.length) return null;

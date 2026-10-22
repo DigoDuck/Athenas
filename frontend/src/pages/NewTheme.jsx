@@ -171,13 +171,17 @@ export default function NewTheme() {
 
   const save = () =>
     act("save", async () => {
-      const result = await api.post("/api/themes/", JSON.parse(sent));
-      setCreated(result);
-      setReport(null);
-      // Text pasted while saving is a new round: keep it.
-      const saved = JSON.parse(sent).markdown;
-      setForm((current) => ({ ...current, answer: current.answer === saved ? "" : current.answer }));
-      await reload();
+      try {
+        const result = await api.post("/api/themes/", JSON.parse(sent));
+        setCreated(result);
+        setReport(null);
+        // Text pasted while saving is a new round: keep it.
+        const saved = JSON.parse(sent).markdown;
+        setForm((current) => ({ ...current, answer: current.answer === saved ? "" : current.answer }));
+      } finally {
+        // Also after a failure: the server may have saved a round whose answer was lost.
+        await reload();
+      }
     });
 
   const blocked = checked && (checked.errors.length > 0 || checked.documents.some((d) => d.errors.length > 0));
@@ -195,9 +199,6 @@ export default function NewTheme() {
           O Athenas monta o pedido, você cola na IA que preferir e traz a resposta de volta. Um
           conceito por rodada; os cartões chegam pendentes, para você aprovar depois de estudar.
         </p>
-        <ActionError>
-          {error && `Não foi possível atualizar áreas e trilhas. ${error}`}
-        </ActionError>
       </Stack>
 
       <Panel aria-labelledby="pedido">
@@ -291,6 +292,22 @@ export default function NewTheme() {
             <CopyStatus copied={copied} what="pedido" />
           </Inline>
           <ActionError>{missing}</ActionError>
+          {error && (
+            // An outdated list would ask the AI for a concept the track already has.
+            <Inline>
+              <ActionError>
+                A lista da trilha não atualizou, então o pedido pode estar desatualizado. {error}
+              </ActionError>
+              <Button
+                variant="secondary"
+                loading={busy === "reload"}
+                loadingLabel="Atualizando…"
+                onClick={() => act("reload", reload)}
+              >
+                Atualizar a lista
+              </Button>
+            </Inline>
+          )}
           <details className="new-theme__request">
             <summary>Ver o pedido</summary>
             <pre tabIndex={0}>{request}</pre>
@@ -321,7 +338,13 @@ export default function NewTheme() {
               Conferir
             </Button>
             {checked && !blocked && (toCreate.length > 0 || joins) && (
-              <Button icon="check" loading={busy === "save"} loadingLabel="Criando…" onClick={save}>
+              <Button
+                icon="check"
+                loading={busy === "save"}
+                loadingLabel="Criando…"
+                disabled={busy === "check"}
+                onClick={save}
+              >
                 {toCreate.length === 0
                   ? "Pôr na trilha"
                   : toCreate.length === 1
@@ -336,7 +359,7 @@ export default function NewTheme() {
           <ActionError>
             {actionError && `Não foi possível concluir. A resposta continua aqui. ${actionError}`}
           </ActionError>
-          {created && <Created result={created} stale={error} reload={reload} />}
+          {created && <Created result={created} stale={error} />}
           {checked && (
             <Report report={checked} blocked={blocked} toCreate={toCreate.length} joins={joins}>
               {correction && (
@@ -479,29 +502,19 @@ function Problems({ items, error = false }) {
   );
 }
 
-function Created({ result, stale, reload }) {
+function Created({ result, stale }) {
   const made = result.documents.filter((d) => d.action === "create" || d.action === "fill");
   const names = (docs) => [...new Set(docs.map((d) => d.conceito))].join(", ");
   // Without the reload the next request would list an outdated track.
   const next = stale
-    ? "A lista da trilha não atualizou: atualize antes de copiar o pedido de novo."
+    ? "A lista da trilha não atualizou: atualize-a no pedido, acima, antes de copiá-lo de novo."
     : "Para o próximo conceito, copie o pedido de novo: ele já lista o que a trilha tem.";
-  const update = stale && (
-    <Button variant="secondary" onClick={reload}>
-      Atualizar a lista
-    </Button>
-  );
   if (!made.length) {
     return (
       <StateMessage
         kind="success"
         title={`${names(result.documents)} entrou na trilha.`}
-        action={
-          <Inline>
-            {update}
-            <a href="#/roadmap">Abrir o Roadmap</a>
-          </Inline>
-        }
+        action={<a href="#/roadmap">Abrir o Roadmap</a>}
       >
         {stale && next}
       </StateMessage>
@@ -513,7 +526,6 @@ function Created({ result, stale, reload }) {
       title={`${made.length === 1 ? "1 subtema criado" : `${made.length} subtemas criados`} em ${names(made)}.`}
       action={
         <Inline>
-          {update}
           <a href="#/roadmap">Abrir o Roadmap</a>
           <a href="#/biblioteca">Abrir a Biblioteca</a>
         </Inline>

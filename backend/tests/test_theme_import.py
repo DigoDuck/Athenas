@@ -89,10 +89,10 @@ def test_a_rule_in_a_body_or_text_without_frontmatter_is_never_a_new_document():
 def test_the_origin_chosen_on_the_screen_replaces_the_one_the_answer_claims():
     claimed = document("Camadas").replace("nivel: iniciante", "nivel: iniciante\norigem: claude")
 
-    parsed = parse_markdown(with_origin(claimed, "gemini"))
+    text = with_origin(claimed, "gemini")
 
-    assert parsed.generated_by == "gemini"
-    assert list(parsed.frontmatter).count("origem") == 1
+    assert parse_markdown(text).generated_by == "gemini"
+    assert text.count("origem:") == 1
 
 
 def send(client, markdown, path="/api/themes/", **fields):
@@ -308,7 +308,7 @@ def test_a_kept_or_identical_document_still_puts_its_concept_in_the_track(client
     response = send(client, ANSWER)
 
     # The screen offers the save for this alone, so the concept can join the track.
-    assert [d["joins_track"] for d in preview["documents"]] == [True, True]
+    assert all("entra também nesta trilha" in d["joins_track"] for d in preview["documents"])
     assert [d["action"] for d in response.json()["documents"]] == ["same", "same"]
     assert [s.concept.name for s in Track.objects.get(name="Docker").steps.all()] == [
         "Imagens e containers"
@@ -564,6 +564,7 @@ def test_an_answer_label_after_a_list_or_quote_marker_is_read_and_hidden():
         "### P1: O que é uma imagem?\n> **Resposta de Referência:** O molde.\n"
         "### P2: E um container?\n- **Resposta de referência:** A execução.\n"
         "### P3: E o cache?\n1. Resposta de referência: As camadas.\n"
+        "### P4: E o volume?\n> - **Resposta de Referência:** Fica fora do container.\n"
     )
     exact = "### P1: O que é uma imagem?\nResposta de referência: O molde.\n"
 
@@ -573,9 +574,11 @@ def test_an_answer_label_after_a_list_or_quote_marker_is_read_and_hidden():
         "O molde.",
         "A execução.",
         "As camadas.",
+        "Fica fora do container.",
     ]
     assert without_reference_answers(practice) == (
-        "### P1: O que é uma imagem?\n### P2: E um container?\n### P3: E o cache?"
+        "### P1: O que é uma imagem?\n### P2: E um container?\n### P3: E o cache?\n"
+        "### P4: E o volume?"
     )
 
 
@@ -625,3 +628,38 @@ def test_a_trilha_completa_heading_is_a_plan_not_the_end_of_the_track(client):
     report = send(client, "## Trilha completa\n\n1. Imagens\n2. Volumes\n").json()
 
     assert not report["complete"]
+
+
+# Found by the fifth review of PR #45.
+
+
+def test_a_question_level_heading_or_an_unread_label_after_an_answer_is_listed():
+    exact = "Resposta de referência: O molde.\n"
+    challenge = exact + "### Desafio: Monte um Dockerfile multi-stage.\n"
+    unread = exact + "### P2: E um container?\n**Resposta de referência**\nA execução.\n"
+
+    gaps = [
+        contract_gaps(parse_markdown(document("Camadas").replace(exact, t)))
+        for t in (challenge, unread)
+    ]
+
+    assert any("Pergunta fora do formato ### P1: ...: ### Desafio" in g for g in gaps[0])
+    assert "Pergunta sem resposta de referência: P2" in gaps[1]
+
+
+def test_a_wrapper_read_late_still_closes_before_the_chat_after_it():
+    yaml = "".join(
+        document(name)
+        .replace("---\narea", f"{FENCE}yaml\n---\narea", 1)
+        .replace("nivel: iniciante\n---\n", f"nivel: iniciante\n---\n{FENCE}\n", 1)
+        for name in ("Imagem e container", "Camadas")
+    )
+    chat = f"# Docker\nAqui estão os subtemas.\n**Subtema 1**\n{document('Imagem e container')}"
+
+    for inside in (yaml, chat + document("Camadas")):
+        documents, ignored, cut = split_documents(
+            f"~~~~markdown\n{inside}~~~~\n\nQuer o próximo?\n"
+        )
+
+        assert len(documents) == 2 and "~~~~" not in documents[1], inside
+        assert ignored[-1] == "Quer o próximo?" and not cut
