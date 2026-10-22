@@ -75,10 +75,12 @@ O que vai em cada título:
 - Fontes: um link por linha.
 - Flashcards: de três a seis cartões, um fato por cartão, uma linha cada, sem :: dentro do texto.
 
-Em Prática, cada pergunta tem um número e a resposta na linha seguinte, assim:
+Em Prática, cada pergunta tem um número e cabe inteira na linha do ###, com a resposta na linha seguinte, assim:
 
 ### P1: Qual problema o encapsulamento resolve?
 Resposta de referência: Impede que outro código mude o estado interno do objeto sem passar pelos métodos dele.
+
+Se uma pergunta precisar de código, ponha o código no Exemplo e cite-o na pergunta: o app mostra só a linha do ###.
 
 Em Flashcards, cada cartão começa com hífen e um número, com a frente e o verso separados por ::, assim:
 

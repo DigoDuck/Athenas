@@ -744,8 +744,8 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
     request lists the concepts the track already has, so the next round continues it, and the
     area's concepts from other tracks, so the AI does not reuse one by accident. An AI that finds
     the theme covered answers "TRILHA COMPLETA", which the screen shows as the end of the track.
-    It counts on a line of its own, in bold or with a period, with chat around it, never as a
-    heading ("## Trilha completa" titles a plan). Nothing calls an AI from the app (D-030).
+    It counts on a line of its own, in bold, with a period or an emoji, with chat around it, never
+    as a heading ("## Trilha completa" titles a plan). Nothing calls an AI from the app (D-030).
   - The answer comes back in one code block fenced with `~~~~`, so the code inside it survives and
     the chat's copy button gives the raw Markdown. The server cuts it into documents at each
     frontmatter that names a `subtema` (keys in any case, values with or without quotes), drops a
@@ -758,8 +758,9 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
     lista" at the start of a line is inline code everywhere, never a block that swallows the
     sections after it. A wrapper the split did not take as one at its opening (a fenced
     frontmatter right after it, or chat before the first frontmatter) still ends at its matching
-    fence, so the chat after it is never saved. A wrapper that never closes is reported as a
-    possibly truncated answer.
+    fence, so the chat after it is never saved; a code snippet in the chat before the documents
+    neither replaces it nor opens a wrapper of its own. A wrapper that never closes, read at its
+    opening or late, is reported as a possibly truncated answer.
   - Area and track come from the screen; each document's frontmatter names its concept and subtopic.
     Names match what exists ignoring case, so a round never duplicates a row, and the parser no
     longer warns when a frontmatter name differs from its destination only in case (the content
@@ -785,15 +786,19 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
     `subtema`, a subtopic repeated in the answer, a name over 160 characters. Also blocking, since
     each means the split or the AI went wrong: a name still in the request's `<...>` template, a
     document with no text after its frontmatter, a contract section that appears twice (two
-    documents run together), and a contract heading, or a `---` with a `subtema` key, left outside
-    every document. A chat line such as "**Subtema:** Volumes" is not.
+    documents run together), a document that ends in a frontmatter that never closed (the answer was
+    cut inside the next document), and a contract heading, or a `---` with a `subtema` key, left
+    outside every document. A chat line such as "**Subtema:** Volumes" is not.
   - Everything else the skill's check refuses (missing headings, extra headings, draft, no `nivel`,
     no link under Fontes, a line in Flashcards that is not a card, no card at all) is listed per
     document and does not block. So is what the parser would read wrong without a word: a question
     line in Prática that is not `### P<n>:` (a heading before an answer, a `###` heading or a
     `P<n>` line anywhere; an answer may have deeper sub-headings, `#### Passo 1`), two reference
     answers under one question, which means a question in another format ran into it, a question
-    with no reference answer, which is also the sign of a label the parser does not read, a card
+    with no reference answer, which is also the sign of a label the parser does not read, text
+    between a question and its answer, which the Prática screen does not show (the question is
+    its heading line, spec 4.2.4; the request asks for questions that fit their line, with any
+    code in Exemplo), a card
     indented or inside a quote, and a card with a
     `::` other than the spaced separator (`std::vector`, `[::2]`, a second ` :: `), where the parser
     would end the front; `:: std::cout` in the back is fine. All of it is listed, since spec 4.2.1
@@ -805,13 +810,14 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
     a subtopic that keeps its own text (a broken split there goes in) and the note on a concept
     reused from the area, which the request allows, and the message can be opened and copied by
     hand. Saving is not offered while a check runs. If the lists fail to reload, the request panel
-    says the request may be outdated and offers to reload; they reload after a failed save too,
-    since the server may have saved a round whose answer was lost.
+    says the request may be outdated and offers to reload, without freeing the buttons a check or a
+    save holds. A failed save reloads the lists and drops the check, since the server may have
+    saved a round whose answer was lost.
   - The form stays in the browser's storage for the next round; the pasted answer stays until its
     round is created.
   - The parser still reads "Resposta de referência:" anywhere in a line, and now also at the start
-    of a line, after list or quote markers or not (`> - `), in any case and between bold or italic
-    markers, as chat AIs write it, so the answer
+    of a line, after list or quote markers or an emoji or not (`> - `), in any case and between
+    bold or italic markers, as chat AIs write it, so the answer
     is stored without them and stays hidden in the reading until an attempt (spec 4.8.3), in the
     content editor too. A lowercase mention inside a sentence is never the label. Content saved
     before this with such a variant at the start of a line, which the old parser did not read,
@@ -819,7 +825,8 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
     expected, since `scripts/theme.py` wrote the exact label. The same holds for a stored line that
     starts with inline triple backticks, which the old rule read as a code fence. A bold
     frontmatter key loses
-    its markers; a value keeps its own (`*args e **kwargs`).
+    its markers; a value keeps its own (`*args e **kwargs`). A contract heading written with a
+    non-breaking hyphen ("Pré‑requisitos", as ChatGPT may write it) is the contract one.
   - A re-import never suspends a manual card. `import_content` suspended every card whose label
     left the Markdown, and manual cards have no label there, so filling a subtopic or saving it in
     the content editor suspended Diogo's own cards. It now syncs only the cards that came from

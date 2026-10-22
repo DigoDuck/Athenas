@@ -1,5 +1,7 @@
 """Re-import of a parsed document into a subtopic. Identity follows the labels (spec 4.2.6)."""
 
+import itertools
+import re
 from collections import defaultdict
 from datetime import UTC, datetime, time, timedelta
 
@@ -149,8 +151,11 @@ def import_theme(*, area, track, origem, markdown, save=False) -> dict:
     }
     if not documents:
         # Chat AIs add bold, a period or a sentence around it: "Claro!\n\n**TRILHA COMPLETA**".
+        # Never a heading: "## Trilha completa" titles a plan.
         report["complete"] = any(
-            line.strip("*_.!` \t").upper() == "TRILHA COMPLETA" for line in markdown.split("\n")
+            re.sub(r"[^\w ]", "", line).strip().upper() == "TRILHA COMPLETA"
+            for line in markdown.split("\n")
+            if not line.lstrip().startswith("#")
         )
         report["errors"].append(
             "A IA respondeu que a trilha está completa." if report["complete"] else NO_DOCUMENT
@@ -269,6 +274,13 @@ def _document_errors(parsed, conceito, subtema):
         )
     if not parsed.blocks:
         errors.append("Documento sem texto depois do frontmatter: a resposta foi cortada?")
+    # The next document's frontmatter, cut before its closing `---`, lands at the end of this one.
+    tail = list(
+        itertools.takewhile(lambda ln: ln.strip() != "---", reversed(parsed.raw.split("\n")))
+    )
+    keys = [FRONTMATTER_KEY_RE.match(line) for line in tail if line.strip()]
+    if keys and all(keys) and "subtema" in {k[1].lower() for k in keys}:
+        errors.append("O documento termina num frontmatter que não fechou: a resposta foi cortada?")
     kinds = [block.kind for block in parsed.blocks if block.kind != "extra"]
     for kind in dict.fromkeys(k for k in kinds if kinds.count(k) > 1):
         # Two documents run together when the second frontmatter was not recognized.

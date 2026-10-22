@@ -29,10 +29,10 @@ FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})([^`]*)$")
 # optional `"título"` the reading screen also takes as the caption (D-033).
 IMAGE_RE = re.compile(r'^!\[([^\]]*)\]\(/api/images/([a-z0-9][a-z0-9-]*)/?(?:\s+"([^"]*)")?\)$')
 # The label of spec 4.1 anywhere, as the parser always read it, or at the start of a line as chat
-# AIs also write it: `**Resposta de referência:**`, `Resposta de Referência:`, `> - ...`. Never a
-# lowercase mention in a sentence ("compare com a resposta de referência: ...").
+# AIs also write it: `**Resposta de referência:**`, `Resposta de Referência:`, `> - ...`, `💡 ...`.
+# Never a lowercase mention in a sentence ("compare com a resposta de referência: ...").
 REFERENCE_RE = re.compile(
-    r"^[ \t]*(?:(?:[>*+-]|\d+[.)])[ \t]+)*(?P<m>[*_]+)?(?i:resposta de refer[êe]ncia)"
+    r"^[ \t]*(?:(?:\*|\d+[.)]|[^\w\s*_]+)[ \t]+)*(?P<m>[*_]+)?(?i:resposta de refer[êe]ncia)"
     r"(?:(?P=m):|:(?P=m)|:)"
     r"|Resposta de referência:",
     re.MULTILINE,
@@ -228,7 +228,7 @@ def _split_blocks(body: str) -> list[Block]:
         body_text = "\n".join(current).strip()
         # Text before the first heading has no heading: keep it as an extra block ([C3]).
         if heading is not None or body_text:
-            kind = heading if heading in KNOWN_HEADINGS else "extra"
+            kind = name if (name := _contract_name(heading or "")) in KNOWN_HEADINGS else "extra"
             blocks.append(Block(kind, heading or "", body_text))
 
     for line, in_fence in _outside_fences(body.split("\n")):
@@ -387,7 +387,7 @@ def split_documents(text: str) -> tuple[list[str], list[str], bool]:
     heads: list[int] = []  # frontmatter length of each document, which trimming never cuts
     ignored: list[list[str]] = [[]]
     wrapper = None  # the fence wrapping the documents: its character and length
-    loose = None  # a fence opened in the chat, maybe a wrapper too far from the first frontmatter
+    chat = []  # fences open in the chat, innermost last: one may be a wrapper read late
     inner = None  # a code fence open inside a document
     outside = True
     i = 0
@@ -405,10 +405,13 @@ def split_documents(text: str) -> tuple[list[str], list[str], bool]:
             continue
         if fence and inner is not None:
             inner = None if fence[1][:3] == inner else inner
-        elif fence and wrapper is None and _opens_documents(lines, i + 1):
+        elif (
+            fence
+            and wrapper is None
+            and not _closes_chat(fence, chat)
+            and _opens_documents(lines, i + 1)
+        ):
             wrapper, outside = (fence[1][0], len(fence[1])), True
-            if loose and _is_closer(fence, loose):
-                loose = None  # it also closed a chat snippet
             ignored.append([])
             i += 1
             continue
@@ -418,19 +421,16 @@ def split_documents(text: str) -> tuple[list[str], list[str], bool]:
             i += 1
             continue
         elif fence and not outside:
-            if (
-                wrapper is None
-                and loose
-                and _is_closer(fence, loose)
-                and not _heading_ahead(lines, i + 1)
-            ):
-                loose, outside = None, True  # its closer: what follows is chat again
+            if wrapper is None and _closes_chat(fence, chat) and not _heading_ahead(lines, i + 1):
+                # A wrapper too far from its first frontmatter to be read at its opening.
+                chat.pop()
+                outside = True
                 ignored.append([])
                 i += 1
                 continue
             inner = fence[1][:3]
         elif fence:
-            loose = None if loose and _is_closer(fence, loose) else (fence[1][0], len(fence[1]))
+            chat.pop() if _closes_chat(fence, chat) else chat.append((fence[1][0], len(fence[1])))
         (ignored[-1] if outside else documents[-1]).append(line)
         i += 1
 
@@ -447,7 +447,8 @@ def split_documents(text: str) -> tuple[list[str], list[str], bool]:
         ignored.append(labels)
         texts.append("\n".join(document) + "\n")
     stretches = ("\n".join(stretch).strip() for stretch in ignored)
-    return texts, [stretch for stretch in stretches if stretch], wrapper is not None
+    cut = wrapper is not None or (bool(chat) and not outside)
+    return texts, [stretch for stretch in stretches if stretch], cut
 
 
 def _frontmatter_end(lines: list[str], start: int) -> int | None:
@@ -509,7 +510,12 @@ def _heading_ahead(lines: list[str], start: int) -> bool:
 
 
 def contract_heading(line: str) -> bool:
-    return line.startswith("## ") and line[3:].strip() in KNOWN_HEADINGS
+    return line.startswith("## ") and _contract_name(line[3:]) in KNOWN_HEADINGS
+
+
+def _contract_name(heading: str) -> str:
+    # Chat AIs may write a non-breaking hyphen (U+2011) in "Pré-requisitos".
+    return heading.strip().replace("\u2011", "-").replace("\u2010", "-")
 
 
 def _next_filled(lines: list[str], start: int) -> int:
@@ -520,6 +526,10 @@ def _next_filled(lines: list[str], start: int) -> int:
 
 def _is_closer(fence, wrapper) -> bool:
     return not fence[2].strip() and fence[1][0] == wrapper[0] and len(fence[1]) >= wrapper[1]
+
+
+def _closes_chat(fence, chat) -> bool:
+    return bool(chat) and _is_closer(fence, chat[-1])
 
 
 def _closes(lines, start, wrapper) -> int | None:
@@ -556,10 +566,14 @@ def contract_gaps(parsed: ParsedContent) -> list[str]:
     if not any(b.kind == "Fontes" and "http" in b.body for b in parsed.blocks):
         gaps.append("Fontes sem nenhum link")
     for block in (b for b in parsed.blocks if b.kind == "Prática"):
-        odd, answer = [], False
+        odd, between, answer, label = [], [], False, None
         for line, in_fence in _outside_fences(block.body.split("\n")):
-            if in_fence or QUESTION_RE.match(line):
-                answer = answer and in_fence
+            if not in_fence and (question := QUESTION_RE.match(line)):
+                answer, label = False, question[1]
+                continue
+            if label and not answer and line.strip() and not REFERENCE_RE.search(line):
+                between.append(label)
+            if in_fence:
                 continue
             # An answer may have its own sub-headings (`#### Passo 1`), never a question's level.
             heading = HEADING_RE.match(line) and (not answer or line.startswith("### "))
@@ -568,6 +582,12 @@ def contract_gaps(parsed: ParsedContent) -> list[str]:
             answer = answer or bool(REFERENCE_RE.search(line))
         if odd:
             gaps.append(f"Pergunta fora do formato ### P1: ...: {odd[0].strip()[:80]}")
+        if between:
+            # Practice shows only the question's line (spec 4.2.4): code under it would be lost.
+            gaps.append(
+                f"Texto entre ### {between[0]} e a resposta de referência: a Prática mostra só a "
+                "linha da pergunta"
+            )
     if unanswered := [q.label for q in parsed.questions if not q.reference_answer]:
         # Also the sign of a label written in a way the parser does not read.
         gaps.append(f"Pergunta sem resposta de referência: {unanswered[0]}")

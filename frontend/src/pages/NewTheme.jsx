@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { api } from "../api.js";
 import {
@@ -61,6 +61,8 @@ export default function NewTheme() {
   const [actionError, setActionError] = useState(null);
   const [copied, setCopied] = useState(null);
   const [missing, setMissing] = useState(null);
+  const [reloading, setReloading] = useState(false);
+  const copyButton = useRef(null);
 
   useEffect(() => {
     try {
@@ -178,11 +180,24 @@ export default function NewTheme() {
         // Text pasted while saving is a new round: keep it.
         const saved = JSON.parse(sent).markdown;
         setForm((current) => ({ ...current, answer: current.answer === saved ? "" : current.answer }));
+      } catch (e) {
+        // The round may have been saved anyway: the next step is a fresh check, not this one.
+        setReport(null);
+        throw e;
       } finally {
         // Also after a failure: the server may have saved a round whose answer was lost.
         await reload();
       }
     });
+
+  // Apart from `busy`, so a retry never frees the buttons a check or a save holds.
+  async function retryReload() {
+    setReloading(true);
+    const ok = await reload();
+    setReloading(false);
+    // The button leaves with the alert; the keyboard stays by the request.
+    if (ok) copyButton.current?.focus();
+  }
 
   const blocked = checked && (checked.errors.length > 0 || checked.documents.some((d) => d.errors.length > 0));
   const toCreate = checked ? checked.documents.filter((d) => d.action === "create" || d.action === "fill") : [];
@@ -283,6 +298,7 @@ export default function NewTheme() {
           )}
           <Inline>
             <Button
+              ref={copyButton}
               icon="copy"
               variant={answer.trim() ? "secondary" : "primary"}
               onClick={copyRequest}
@@ -295,14 +311,17 @@ export default function NewTheme() {
           {error && (
             // An outdated list would ask the AI for a concept the track already has.
             <Inline>
-              <ActionError>
-                A lista da trilha não atualizou, então o pedido pode estar desatualizado. {error}
-              </ActionError>
+              {/* Rendered again after each retry, so a failed one is announced too. */}
+              {!reloading && (
+                <ActionError>
+                  A lista da trilha não atualizou, então o pedido pode estar desatualizado. {error}
+                </ActionError>
+              )}
               <Button
                 variant="secondary"
-                loading={busy === "reload"}
+                loading={reloading}
                 loadingLabel="Atualizando…"
-                onClick={() => act("reload", reload)}
+                onClick={retryReload}
               >
                 Atualizar a lista
               </Button>

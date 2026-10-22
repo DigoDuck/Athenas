@@ -21,12 +21,15 @@ export function useCollections(urls) {
     };
   }, [key]);
 
+  // Resolves to whether the lists came back.
   const reload = useCallback(async () => {
     try {
       setData(await fetchAll(key));
       setError(null);
+      return true;
     } catch (e) {
       setError(e.message);
+      return false;
     }
   }, [key]);
 

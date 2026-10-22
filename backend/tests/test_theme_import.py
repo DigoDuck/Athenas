@@ -663,3 +663,55 @@ def test_a_wrapper_read_late_still_closes_before_the_chat_after_it():
 
         assert len(documents) == 2 and "~~~~" not in documents[1], inside
         assert ignored[-1] == "Quer o próximo?" and not cut
+
+
+# Found by the sixth review of PR #45.
+
+
+def test_a_late_wrapper_left_open_is_a_cut_answer_and_a_chat_snippet_never_replaces_it():
+    preface = f"# Docker\nRode antes:\n{FENCE}bash\ndocker --version\n{FENCE}\nDois subtemas.\n"
+    docs = document("Imagem e container") + document("Camadas")
+
+    closed = split_documents(f"~~~~markdown\n{preface}{docs}~~~~\nQuer o próximo?\n")
+    cut = split_documents(f"~~~~markdown\n{preface}{docs[:-12]}")
+    unwrapped = split_documents(f"Rode antes:\n{FENCE}bash\ndocker ps\n{FENCE}\n{docs}")
+
+    assert closed[0] == [document("Imagem e container"), document("Camadas")]
+    assert closed[1][-1] == "Quer o próximo?" and not closed[2]
+    assert cut[2] and not unwrapped[2]
+
+
+def test_text_between_a_question_and_its_answer_is_listed():
+    exact = "### P1: O que é uma imagem?\nResposta de referência: O molde.\n"
+    code = (
+        "### P1: Reescreva este Dockerfile.\n```dockerfile\nCOPY . /app\n```\n"
+        "**Resposta de referência:** Copie antes o requirements.\n"
+    )
+
+    gaps = contract_gaps(parse_markdown(document("Camadas").replace(exact, code)))
+
+    assert any(g.startswith("Texto entre ### P1 e a resposta") for g in gaps)
+    assert not [g for g in contract_gaps(parse_markdown(document("Camadas"))) if "Texto" in g]
+
+
+@pytest.mark.django_db
+def test_an_answer_cut_inside_the_next_frontmatter_blocks(client):
+    cut = "---\narea: Programação\nconceito: Imagens e containers\nsubtema: Perfis e amb"
+
+    report = send(client, document("Camadas") + "\n" + cut, "/api/themes/preview/").json()
+
+    assert "frontmatter que não fechou" in report["documents"][0]["errors"][0]
+
+
+@pytest.mark.django_db
+def test_chat_decorations_do_not_hide_the_answer_label_a_heading_or_trilha_completa(client):
+    exact = "Resposta de referência: O molde.\n"
+    text = document("Camadas").replace(exact, "💡 **Resposta de referência:** O molde.\n")
+    text = text.replace("## Pré-requisitos", "## Pré\u2011requisitos")
+
+    parsed = parse_markdown(text)
+    report = send(client, "✅ **TRILHA COMPLETA**\n", "/api/themes/preview/").json()
+
+    assert parsed.questions[0].reference_answer == "O molde."
+    assert not [g for g in contract_gaps(parsed) if "seç" in g]
+    assert report["complete"]
