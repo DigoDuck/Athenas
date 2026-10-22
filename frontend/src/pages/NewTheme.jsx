@@ -50,6 +50,8 @@ function loadDraft() {
 }
 
 const sameName = (a, b) => a.toLowerCase() === b.trim().toLowerCase();
+// A focused element that unmounts leaves the focus on the body.
+const focusLost = () => !document.activeElement || document.activeElement === document.body;
 
 export default function NewTheme() {
   const { data, error, reload } = useCollections(["/api/areas/", "/api/tracks/", "/api/concepts/"]);
@@ -63,6 +65,10 @@ export default function NewTheme() {
   const [missing, setMissing] = useState(null);
   const [reloading, setReloading] = useState(false);
   const copyButton = useRef(null);
+  const checkButton = useRef(null);
+  const retryButton = useRef(null);
+  // Where the keyboard goes once a save ends: the button it was on leaves with the check.
+  const refocus = useRef(null);
 
   useEffect(() => {
     try {
@@ -71,6 +77,12 @@ export default function NewTheme() {
       // Storage full or blocked: the screen still works, the draft just does not survive.
     }
   }, [form]);
+
+  useEffect(() => {
+    if (busy !== null || !refocus.current) return;
+    if (focusLost()) refocus.current.current?.focus();
+    refocus.current = null;
+  }, [busy]);
 
   if (!data) {
     return (
@@ -177,12 +189,14 @@ export default function NewTheme() {
         const result = await api.post("/api/themes/", JSON.parse(sent));
         setCreated(result);
         setReport(null);
+        refocus.current = copyButton;
         // Text pasted while saving is a new round: keep it.
         const saved = JSON.parse(sent).markdown;
         setForm((current) => ({ ...current, answer: current.answer === saved ? "" : current.answer }));
       } catch (e) {
         // The round may have been saved anyway: the next step is a fresh check, not this one.
         setReport(null);
+        refocus.current = checkButton;
         throw e;
       } finally {
         // Also after a failure: the server may have saved a round whose answer was lost.
@@ -195,8 +209,8 @@ export default function NewTheme() {
     setReloading(true);
     const ok = await reload();
     setReloading(false);
-    // The button leaves with the alert; the keyboard stays by the request.
-    if (ok) copyButton.current?.focus();
+    // The button leaves with the alert; the keyboard stays by the request, unless it moved on.
+    if (ok && (focusLost() || document.activeElement === retryButton.current)) copyButton.current?.focus();
   }
 
   const blocked = checked && (checked.errors.length > 0 || checked.documents.some((d) => d.errors.length > 0));
@@ -318,6 +332,7 @@ export default function NewTheme() {
                 </ActionError>
               )}
               <Button
+                ref={retryButton}
                 variant="secondary"
                 loading={reloading}
                 loadingLabel="Atualizando…"
@@ -347,6 +362,7 @@ export default function NewTheme() {
           />
           <Inline>
             <Button
+              ref={checkButton}
               variant={checked && !blocked ? "secondary" : "primary"}
               icon="file-text"
               loading={busy === "check"}

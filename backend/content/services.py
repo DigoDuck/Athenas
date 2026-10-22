@@ -113,6 +113,7 @@ def _sync_cards(subtopic, parsed):
 # "Novo tema" (DECISIONS.md D-040): one pasted AI answer becomes concepts and subtopics in a track.
 
 NAME_MAX = 160  # Concept.name and Subtopic.name
+FRONTMATTER_KEYS = {"area", "conceito", "subtema", "nivel", "origem"}
 THEME_LOCK = 4045  # any constant: the advisory lock key for saving a round
 KEPT = (
     "O subtema já tem outro texto, que fica como está. Para trocar, cole este documento no "
@@ -153,7 +154,8 @@ def import_theme(*, area, track, origem, markdown, save=False) -> dict:
         # Chat AIs add bold, a period or a sentence around it: "Claro!\n\n**TRILHA COMPLETA**".
         # Never a heading: "## Trilha completa" titles a plan.
         report["complete"] = any(
-            re.sub(r"[^\w ]", "", line).strip().upper() == "TRILHA COMPLETA"
+            # Bold, a period, an emoji go; a colon, a question or a list marker make it a title.
+            re.sub(r"[^\w\s:?|-]", "", line).strip().upper() == "TRILHA COMPLETA"
             for line in markdown.split("\n")
             if not line.lstrip().startswith("#")
         )
@@ -279,7 +281,10 @@ def _document_errors(parsed, conceito, subtema):
         itertools.takewhile(lambda ln: ln.strip() != "---", reversed(parsed.raw.split("\n")))
     )
     keys = [FRONTMATTER_KEY_RE.match(line) for line in tail if line.strip()]
-    if keys and all(keys) and "subtema" in {k[1].lower() for k in keys}:
+    names = [k[1].lower() for k in reversed(keys) if k]
+    # Cut before `subtema` too: then the tail is only frontmatter keys, `area` first as asked.
+    opens = names[:1] == ["area"] and set(names) <= FRONTMATTER_KEYS
+    if keys and all(keys) and ("subtema" in names or opens):
         errors.append("O documento termina num frontmatter que não fechou: a resposta foi cortada?")
     kinds = [block.kind for block in parsed.blocks if block.kind != "extra"]
     for kind in dict.fromkeys(k for k in kinds if kinds.count(k) > 1):

@@ -29,10 +29,12 @@ FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})([^`]*)$")
 # optional `"título"` the reading screen also takes as the caption (D-033).
 IMAGE_RE = re.compile(r'^!\[([^\]]*)\]\(/api/images/([a-z0-9][a-z0-9-]*)/?(?:\s+"([^"]*)")?\)$')
 # The label of spec 4.1 anywhere, as the parser always read it, or at the start of a line as chat
-# AIs also write it: `**Resposta de referência:**`, `Resposta de Referência:`, `> - ...`, `💡 ...`.
+# AIs also write it: `**Resposta de referência:**`, `Resposta de Referência:`, `> - ...`, `💡 ...`,
+# `**💡 ...`.
 # Never a lowercase mention in a sentence ("compare com a resposta de referência: ...").
 REFERENCE_RE = re.compile(
-    r"^[ \t]*(?:(?:\*|\d+[.)]|[^\w\s*_]+)[ \t]+)*(?P<m>[*_]+)?(?i:resposta de refer[êe]ncia)"
+    r"^[ \t]*(?:(?:\*|\d+[.)]|[^\w\s*_]+)[ \t]+)*(?P<m>[*_]+)?(?:[^\w\s*_]+[^\S\n]*)?"
+    r"(?i:resposta de refer[êe]ncia)"
     r"(?:(?P=m):|:(?P=m)|:)"
     r"|Resposta de referência:",
     re.MULTILINE,
@@ -190,8 +192,10 @@ def _value(key: str, value: str) -> str:
 
 
 def _unquoted(value: str) -> str:
-    # YAML quotes a value with a colon in it, and chat AIs often quote every value.
-    if len(value) > 1 and value[0] == value[-1] and value[0] in "\"'":
+    # YAML quotes a value with a colon in it, and chat AIs often quote every value; never a name
+    # that only starts and ends with quoted words (`"Since" e "for"`).
+    quote = value[:1]
+    if len(value) > 1 and quote in "\"'" and value[-1] == quote and quote not in value[1:-1]:
         return value[1:-1].strip()
     return value
 

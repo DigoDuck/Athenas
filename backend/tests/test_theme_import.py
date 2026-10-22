@@ -715,3 +715,50 @@ def test_chat_decorations_do_not_hide_the_answer_label_a_heading_or_trilha_compl
     assert parsed.questions[0].reference_answer == "O molde."
     assert not [g for g in contract_gaps(parsed) if "seç" in g]
     assert report["complete"]
+
+
+# Found by the seventh review of PR #45.
+
+
+@pytest.mark.django_db
+def test_a_plan_titled_trilha_completa_is_not_the_end_of_the_track(client):
+    plans = (
+        "Veja o plano:\n\n**Trilha completa:**\n1. Imagens e containers\n2. Volumes\n",
+        "- Trilha completa\n- Volumes\n",
+        "Trilha completa?\nAinda faltam Volumes.\n",
+    )
+
+    reports = [send(client, p, "/api/themes/preview/").json() for p in plans]
+
+    assert not [r for r in reports if r["complete"]]
+    assert all("Nenhum documento" in r["errors"][0] for r in reports)
+
+
+@pytest.mark.django_db
+def test_an_answer_cut_before_the_next_subtema_line_blocks(client):
+    for cut in ("---\narea: Programação", "---\narea: Programação\nconceito: Imagens e"):
+        report = send(client, document("Camadas") + "\n" + cut, "/api/themes/preview/").json()
+
+        assert any("frontmatter que não fechou" in e for e in report["documents"][0]["errors"]), cut
+
+    footer = document("Camadas") + "---\n**Conceito:** pronto.\n"
+    report = send(client, footer, "/api/themes/preview/").json()
+    assert not [e for e in report["documents"][0]["errors"] if "frontmatter" in e]
+
+
+def test_a_name_that_only_starts_and_ends_with_quoted_words_keeps_its_quotes():
+    names = ('"Since" e "for"', '"Docker: imagens"', "'Camadas'")
+
+    parsed = [parse_markdown(document(name)).frontmatter["subtema"] for name in names]
+
+    assert parsed == ['"Since" e "for"', "Docker: imagens", "Camadas"]
+
+
+def test_an_emoji_inside_the_bold_answer_label_is_read_and_hidden():
+    practice = "### P1: O que é uma imagem?\n**💡 Resposta de referência:** O molde.\n"
+    exact = "### P1: O que é uma imagem?\nResposta de referência: O molde.\n"
+
+    parsed = parse_markdown(document("Camadas").replace(exact, practice))
+
+    assert parsed.questions[0].reference_answer == "O molde."
+    assert without_reference_answers(practice) == "### P1: O que é uma imagem?"

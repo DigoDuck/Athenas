@@ -745,10 +745,12 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
     area's concepts from other tracks, so the AI does not reuse one by accident. An AI that finds
     the theme covered answers "TRILHA COMPLETA", which the screen shows as the end of the track.
     It counts on a line of its own, in bold, with a period or an emoji, with chat around it, never
-    as a heading ("## Trilha completa" titles a plan). Nothing calls an AI from the app (D-030).
+    as a heading or a title ("## Trilha completa", "**Trilha completa:**", "- Trilha completa" or
+    "Trilha completa?" open a plan). Nothing calls an AI from the app (D-030).
   - The answer comes back in one code block fenced with `~~~~`, so the code inside it survives and
     the chat's copy button gives the raw Markdown. The server cuts it into documents at each
-    frontmatter that names a `subtema` (keys in any case, values with or without quotes), drops a
+    frontmatter that names a `subtema` (keys in any case, values with or without quotes; a name
+    that only starts and ends with quoted words, `"Since" e "for"`, keeps them), drops a
     fence wrapped around everything or around each document, and shows the chat text around them
     as ignored, never saved: a heading or a bold line that titles the next document ("### Subtema
     2", "**Subtema 2**") is chat too. Only a contract heading means a document goes on, so a chat
@@ -787,8 +789,9 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
     each means the split or the AI went wrong: a name still in the request's `<...>` template, a
     document with no text after its frontmatter, a contract section that appears twice (two
     documents run together), a document that ends in a frontmatter that never closed (the answer was
-    cut inside the next document), and a contract heading, or a `---` with a `subtema` key, left
-    outside every document. A chat line such as "**Subtema:** Volumes" is not.
+    cut inside the next document, even before its `subtema` line), and a contract heading, or a
+    `---` with a `subtema` key, left outside every document. A chat line such as "**Subtema:**
+    Volumes" is not.
   - Everything else the skill's check refuses (missing headings, extra headings, draft, no `nivel`,
     no link under Fontes, a line in Flashcards that is not a card, no card at all) is listed per
     document and does not block. So is what the parser would read wrong without a word: a question
@@ -798,12 +801,11 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
     with no reference answer, which is also the sign of a label the parser does not read, text
     between a question and its answer, which the Prática screen does not show (the question is
     its heading line, spec 4.2.4; the request asks for questions that fit their line, with any
-    code in Exemplo), a card
-    indented or inside a quote, and a card with a
-    `::` other than the spaced separator (`std::vector`, `[::2]`, a second ` :: `), where the parser
-    would end the front; `:: std::cout` in the back is fine. All of it is listed, since spec 4.2.1
-    allows saving incomplete content and Diogo sees the check before creating. `scripts/theme.py
-    check` reads the same list from the parser (`contract_gaps`), so both paths keep one contract.
+    code in Exemplo), a card indented or inside a quote, and a card with a `::` other than the
+    spaced separator (`std::vector`, `[::2]`, a second ` :: `), where the parser would end the
+    front; `:: std::cout` in the back is fine. All of it is listed, since spec 4.2.1 allows saving
+    incomplete content and Diogo sees the check before creating. `scripts/theme.py check` reads the
+    same list from the parser (`contract_gaps`), so both paths keep one contract.
   - A check answers for the exact text, area, track and AI it was sent: any edit, or a late
     answer for older text, takes the create button away until the next check. "Copiar pedido de
     correção" turns the listed problems into a message for the AI, leaving out the text problems of
@@ -812,21 +814,24 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
     hand. Saving is not offered while a check runs. If the lists fail to reload, the request panel
     says the request may be outdated and offers to reload, without freeing the buttons a check or a
     save holds. A failed save reloads the lists and drops the check, since the server may have
-    saved a round whose answer was lost.
+    saved a round whose answer was lost. When a save ends, the keyboard focus goes to the next
+    step (Conferir after a failure, Copiar pedido after a success), and a reload moves it only
+    if it was still on the reload button.
   - The form stays in the browser's storage for the next round; the pasted answer stays until its
     round is created.
   - The parser still reads "Resposta de referência:" anywhere in a line, and now also at the start
-    of a line, after list or quote markers or an emoji or not (`> - `), in any case and between
-    bold or italic markers, as chat AIs write it, so the answer
+    of a line, after list or quote markers or an emoji, outside the bold or inside it (`> - `,
+    `**💡 `), in any case and between bold or italic markers, as chat AIs write it, so the answer
     is stored without them and stays hidden in the reading until an attempt (spec 4.8.3), in the
     content editor too. A lowercase mention inside a sentence is never the label. Content saved
     before this with such a variant at the start of a line, which the old parser did not read,
     now hides that line in the reading but has no stored answer until it is saved again; none is
     expected, since `scripts/theme.py` wrote the exact label. The same holds for a stored line that
     starts with inline triple backticks, which the old rule read as a code fence. A bold
-    frontmatter key loses
-    its markers; a value keeps its own (`*args e **kwargs`). A contract heading written with a
-    non-breaking hyphen ("Pré‑requisitos", as ChatGPT may write it) is the contract one.
+    frontmatter key loses its markers; a value keeps its own (`*args e **kwargs`). A contract
+    heading written with a non-breaking hyphen ("Pré‑requisitos", as ChatGPT may write it) is the
+    contract one; such a heading saved before was an extra section, so its read mark is lost the
+    next time that subtopic is saved.
   - A re-import never suspends a manual card. `import_content` suspended every card whose label
     left the Markdown, and manual cards have no label there, so filling a subtopic or saving it in
     the content editor suspended Diogo's own cards. It now syncs only the cards that came from
@@ -842,5 +847,7 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
   fence stays in it and shows as a gap; a frontmatter example inside an unfenced document starts
   a false document, listed on its own; a body fenced apart from its frontmatter lands as one code
   block, with all ten sections listed as missing; a chat opening with a `---` rule and a
-  "**Subtema:**" line blocks as a possibly cut frontmatter, since the two look the same. A
-  `> [!IA]` callout in capitals is not read as one, as everywhere else in the app.
+  "**Subtema:**" line blocks as a possibly cut frontmatter, since the two look the same; a chat
+  fence that never closes before documents the AI did not fence (a decorative "~~~ Resumo ~~~"
+  line) warns that the answer may have been cut. A `> [!IA]` callout in capitals is not read as
+  one, as everywhere else in the app.
