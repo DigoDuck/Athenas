@@ -72,7 +72,8 @@ def _sync_questions(subtopic, parsed):
 
 
 def _sync_cards(subtopic, parsed):
-    existing = {c.label: c for c in subtopic.flashcards.all()}
+    # Manual cards have no label and are not in the Markdown: a re-import never suspends them.
+    existing = {c.label: c for c in subtopic.flashcards.filter(origin=Flashcard.Origin.MARKDOWN)}
     for item in parsed.cards:
         card = existing.get(item.label)
         if card is None:

@@ -151,7 +151,7 @@ def test_8_the_api_shows_only_the_capped_count_never_overdue_totals(subtopic, cl
         graduate(card, timezone.now() - timedelta(days=60 + days))
 
     today = client.get("/api/reviews/today/").json()
-    home = client.post("/api/home/").json()
+    home = client.post("/api/home/", content_type="application/json").json()
 
     assert today["count"] == home["reviews_today"] == 20
     # Only N and the cards: no overdue total, and no due date to count days overdue from.

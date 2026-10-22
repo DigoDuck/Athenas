@@ -19,6 +19,28 @@ import ContentEditor from "./ContentEditor.jsx";
 import { ActionError, AddForm, toOptions } from "./forms.jsx";
 import "./library.css";
 
+// One key per subtopic, so a second tab never writes over another subtopic's draft.
+const DRAFT = "athenas:conteudo:";
+
+// Storage can be full or blocked; the editor still works, only the drafts live in memory.
+function readDrafts() {
+  try {
+    const keys = Object.keys(localStorage).filter((key) => key.startsWith(DRAFT));
+    return Object.fromEntries(keys.map((key) => [key.slice(DRAFT.length), JSON.parse(localStorage.getItem(key))]));
+  } catch {
+    return {};
+  }
+}
+
+function writeDraft(id, draft) {
+  try {
+    if (draft) localStorage.setItem(DRAFT + id, JSON.stringify(draft));
+    else localStorage.removeItem(DRAFT + id);
+  } catch {
+    // Kept in memory only.
+  }
+}
+
 const LEVELS = [
   ["", "Não definido"],
   ["iniciante", "Iniciante"],
@@ -44,8 +66,8 @@ export default function Library() {
   const [actionError, setActionError] = useState(null);
   const [editing, setEditing] = useState(null);
   const [contentOf, setContentOf] = useState(null);
-  // Unsaved Markdown per subtopic id, kept while the content editor is closed.
-  const [drafts, setDrafts] = useState({});
+  // Unsaved Markdown per subtopic id, kept while the editor is closed and across reloads.
+  const [drafts, setDrafts] = useState(readDrafts);
 
   // Runs a write and reloads. Returns the error message, or null when it worked.
   async function run(write) {
@@ -153,7 +175,10 @@ export default function Library() {
                 onContent={setContentOf}
                 onCloseContent={closeContent}
                 drafts={drafts}
-                onDraft={(id, text) => setDrafts((all) => ({ ...all, [id]: text }))}
+                onDraft={(id, draft) => {
+                  writeDraft(id, draft);
+                  setDrafts((all) => ({ ...all, [id]: draft }));
+                }}
                 run={run}
                 remove={remove}
                 actionError={actionError}

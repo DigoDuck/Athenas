@@ -83,6 +83,8 @@ class StepSerializer(serializers.ModelSerializer):
         with transaction.atomic():
             # Lock the track row so two inserts cannot take the same position.
             Track.objects.select_for_update().get(pk=validated_data["track"].pk)
+            # Again under the lock: a double click passes validate() twice (DECISIONS.md D-039).
+            self.validate(validated_data)
             last = Step.objects.filter(track=validated_data["track"]).aggregate(last=Max("order"))
             validated_data["order"] = 0 if last["last"] is None else last["last"] + 1
             return super().create(validated_data)
