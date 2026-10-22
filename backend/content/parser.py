@@ -19,14 +19,18 @@ CONTRACT_ORDER = (
 )
 KNOWN_HEADINGS = set(CONTRACT_ORDER)
 
-QUESTION_RE = re.compile(r"^###\s+(P\d+):\s*(.+?)\s*$")
-CARD_RE = re.compile(r"^-\s+(C\d+):\s*(.+?)\s*::\s*(.+?)\s*$")
+# The text trimmed with no lazy group, so a run of spaces reads at once, as in CARD_RE.
+QUESTION_RE = re.compile(r"^###\s+(P\d+):\s*(\S(?:.*\S)?|\s)\s*$")
+# The front ends at the first `::`, never blank; no lazy group, so a run of spaces reads at once.
+CARD_RE = re.compile(
+    r"^-\s+(C\d+):\s*+(\S(?:(?!::)\S|\s+(?=\S)(?!::))*)\s*::\s*(\S(?:.*\S)?|\s)\s*$"
+)
 LABEL_MAX = 10  # PracticeQuestion.label and Flashcard.label
 CARD_LABEL_RE = re.compile(r"^-\s+(C\d+):")
 SOURCE_RE = re.compile(r"Fonte:\s*(https?://\S+)")
 # A code fence with any info string but a backtick (CommonMark): ```c#, ```c++, never
-# "```ls``` lista", which is inline code at the start of a line.
-FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})([^`]*)$")
+# "```ls``` lista", which is inline code at the start of a line. The run never backtracks.
+FENCE_RE = re.compile(r"^\s*(`{3,}+|~{3,}+)([^`]*)$")
 # One line on its own pointing at a stored image, `![legenda](/api/images/<nome>/)`, with the
 # optional `"título"` the reading screen also takes as the caption (D-033).
 IMAGE_RE = re.compile(r'^!\[([^\]]*)\]\(/api/images/([a-z0-9][a-z0-9-]*)/?(?:\s+"([^"]*)")?\)$')
@@ -349,7 +353,9 @@ def _parse_cards(body: str) -> tuple[list[Card], list[str]]:
         if match := CARD_RE.match(line):
             cards.append(Card(*match.groups()))
         elif label := CARD_LABEL_RE.match(line):
-            warnings.append(f"Cartão {label.group(1)} sem '::' entre frente e verso, ignorado")
+            warnings.append(
+                f"Cartão {label.group(1)} sem frente ou sem '::' antes do verso, ignorado"
+            )
     return cards, warnings
 
 
@@ -450,7 +456,8 @@ def _duplicates(labels: list[str]) -> list[str]:
 FRONTMATTER_KEY_RE = re.compile(r"^\s*\**([\w-]+)\**\s*:")
 COMMENT_RE = re.compile(r"^\s*<!--.*-->\s*$")
 # The request's last line inside the block: what follows it is chat, and its absence a cut.
-END_RE = re.compile(r"^\s*<!--\s*fim\s*-->\s*$", re.MULTILINE | re.IGNORECASE)
+# Spaces only within its own line, so a long run of blank lines is read once.
+END_RE = re.compile(r"^[^\S\n]*<!--[^\S\n]*fim[^\S\n]*-->[^\S\n]*$", re.MULTILINE | re.IGNORECASE)
 # A heading or a line that opens in bold, as chat AIs title each document ("**Subtema 2: Camadas**",
 # "**Subtema 2:** Camadas", "📘 **Subtema 2**", "2. **Camadas**").
 LABEL_RE = re.compile(
@@ -480,6 +487,7 @@ def split_documents(text: str) -> tuple[list[str], list[str], bool]:
     inner = None  # a code fence open inside a document
     outside = True
     closed = None  # how many documents a <!-- fim --> line followed, at the last one
+    seen: dict = {}  # what _heading_ahead learned
     i = 0
     while i < len(lines):
         line = lines[i]
@@ -515,13 +523,22 @@ def split_documents(text: str) -> tuple[list[str], list[str], bool]:
             ignored.append([])
             i += 1
             continue
-        elif fence and wrapper and _is_closer(fence, wrapper) and not _heading_ahead(lines, i + 1):
+        elif (
+            fence
+            and wrapper
+            and _is_closer(fence, wrapper)
+            and not _heading_ahead(lines, i + 1, seen)
+        ):
             wrapper, outside = None, True
             ignored.append([])
             i += 1
             continue
         elif fence and not outside:
-            if wrapper is None and _closes_chat(fence, chat) and not _heading_ahead(lines, i + 1):
+            if (
+                wrapper is None
+                and _closes_chat(fence, chat)
+                and not _heading_ahead(lines, i + 1, seen)
+            ):
                 # A wrapper too far from its first frontmatter to be read at its opening.
                 chat.pop()
                 outside = True
@@ -634,18 +651,27 @@ def _opens_documents(lines: list[str], start: int) -> bool:
     return False
 
 
-def _heading_ahead(lines: list[str], start: int) -> bool:
+def _heading_ahead(lines: list[str], start: int, seen: dict) -> bool:
     """Whether the document goes on after the code the fence at `start - 1` would open.
 
     Inside a ``` wrapper, a bare ``` may open an example as well as close the wrapper. Code it
     opens ends at the next bare fence, and then a contract heading must follow before the next
     frontmatter, outside any later code block: a chat heading ("## Próximos passos") or one in a
-    chat snippet after the wrapper does not keep it open.
+    chat snippet after the wrapper does not keep it open. `seen` keeps the answer of each line
+    read after that code, so a run of fences is read once.
     """
     inner, fence = True, None  # in the code the fence would open; in a later code block
+    path = []  # the states after the code, which all lead to this answer
     for at in range(start, len(lines)):
+        state = (at, fence is None)
+        if not inner:
+            if state in seen:
+                result = seen[state]
+                break
+            path.append(state)
         if fence is None and _frontmatter_end(lines, at) is not None:
-            return False
+            result = False
+            break
         found = FENCE_RE.match(lines[at])
         if found and inner:
             if found[2].strip():
@@ -654,8 +680,12 @@ def _heading_ahead(lines: list[str], start: int) -> bool:
         elif found:
             fence = None if fence else found[1]
         elif not inner and fence is None and contract_heading(lines[at].lstrip()):
-            return True
-    return False
+            result = True
+            break
+    else:
+        result = False
+    seen.update(dict.fromkeys(path, result))
+    return result
 
 
 def contract_heading(line: str) -> bool:

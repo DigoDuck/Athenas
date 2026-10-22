@@ -880,7 +880,9 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
     ChatGPT may write it) is the contract one; such a heading saved before was an extra section, so
     its read mark is lost the next time that subtopic is saved. A stored `nível:` key, ignored
     before, sets the level then. A `P<n>` or `C<n>` label longer than the 10 characters the database
-    holds is a parser error, so the content editor answers 400 where it failed with a 500.
+    holds is a parser error, so the content editor answers 400 where it failed with a 500. A card
+    with a blank front (`- C1: :: Verso`) is not read as one and warns like a card without `::`,
+    where it was saved with a blank front.
   - A re-import never suspends a manual card. `import_content` suspended every card whose label left
     the Markdown, and manual cards have no label there, so filling a subtopic or saving it in the
     content editor suspended Diogo's own cards. It now syncs only the cards that came from the

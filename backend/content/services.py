@@ -2,7 +2,7 @@
 
 import itertools
 import re
-from collections import defaultdict
+from collections import Counter, defaultdict
 from datetime import UTC, datetime, time, timedelta
 
 import fsrs
@@ -312,7 +312,7 @@ def _document_errors(parsed, conceito, subtema):
     if _open_frontmatter(parsed.raw.split("\n")):
         errors.append("O documento termina num frontmatter que não fechou: a resposta foi cortada?")
     kinds = [block.kind for block in parsed.blocks if block.kind != "extra"]
-    for kind in dict.fromkeys(k for k in kinds if kinds.count(k) > 1):
+    for kind in (kind for kind, count in Counter(kinds).items() if count > 1):
         # Two documents run together when the second frontmatter was not recognized.
         errors.append(f"A seção {kind} aparece mais de uma vez: dois documentos se juntaram?")
     return errors

@@ -1324,3 +1324,28 @@ def test_a_long_run_of_marks_in_a_line_previews_at_once(client):
 
     assert time.monotonic() - start < 2
     assert len(report["documents"]) == 2
+
+
+@pytest.mark.django_db
+def test_long_runs_and_thousands_of_lines_preview_at_once(client):
+    exact = "Resposta de referência: O molde."
+    card = ANSWER.replace("uma imagem.\n\n---", "uma imagem.\n- C3: " + " " * 3000 + "x\n\n---")
+    fences = ANSWER.replace("## Explicação\nTexto.\n", "## Explicação\n" + "~~~~\n" * 6000, 1)
+    sections = document("Camadas").replace("## Explicação\n", "## Explicação\n" * 20000)
+    fence_line = document("Camadas", extra="~" * 30000 + "`\n")
+    question = document("Camadas").replace(exact, "### P2: a" + "\t" * 30000 + "b?\n" + exact)
+    blank = "Claro!" + "\n" * 40000 + ANSWER
+    texts = (card, fences, sections, fence_line, question, blank)
+
+    elapsed, reports = [], []
+    for text in texts:
+        start = time.monotonic()
+        reports.append(send(client, text, "/api/themes/preview/").json())
+        elapsed.append(time.monotonic() - start)
+
+    blank_front = parse_markdown(document("Camadas", extra="- C3: :: Verso.\n"))
+
+    assert all(seconds < 1 for seconds in elapsed), elapsed
+    assert all(r["documents"] for r in reports)
+    assert [c.label for c in blank_front.cards] == ["C1", "C2"]
+    assert "Cartão C3 sem frente ou sem '::' antes do verso, ignorado" in blank_front.warnings
