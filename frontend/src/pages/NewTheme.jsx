@@ -557,7 +557,7 @@ function Created({ result, stale }) {
         title={`${names(result.documents)} entrou na trilha.`}
         action={<a href={`#/roadmap/${result.track}`}>Abrir o Roadmap</a>}
       >
-        {stale && next}
+        {next}
       </StateMessage>
     );
   }

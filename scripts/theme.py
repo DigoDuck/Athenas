@@ -228,6 +228,8 @@ def download(url, file):
 
 
 def main():
+    # The check quotes document lines, emoji included; a Windows pipe writes cp1252.
+    sys.stdout.reconfigure(errors="backslashreplace")
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("command", choices=["check", "push", "download"])
     parser.add_argument("folder", type=Path, help="the theme folder; for download, the file")

@@ -5,11 +5,13 @@ Written by the agent; `tests/acceptance/` stays Diogo's.
 
 import textwrap
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 from content.models import Content, Flashcard, ReviewLog
 from content.parser import (
+    Target,
     contract_gaps,
     parse_markdown,
     split_documents,
@@ -1106,3 +1108,72 @@ def test_bold_values_tag_names_and_a_label_mentioned_in_an_intro(client):
     assert names == ["Volumes nomeados"] * 2
     assert [bool(r["documents"][0]["errors"]) for r in reports] == [False, False, True]
     assert not [g for g in gaps if g.startswith("Resposta de referência antes")]
+
+
+# Found by the fourteenth review of PR #45.
+
+
+def test_a_bold_label_keeps_the_answers_own_markers_wherever_the_bold_closes():
+    exact = "Resposta de referência: O molde."
+    answers = {
+        "**Resposta de referência: o molde,\nsó leitura.**": "o molde,\nsó leitura.",
+        "**Resposta de referência:\nO molde.**": "O molde.",
+        "**Resposta de referência: Não.** A imagem é **imutável**": "Não. A imagem é **imutável**",
+        "_Resposta de referência: Não._ O método é __init__": "Não. O método é __init__",
+        "**Resposta de referência: O método é __init__**": "O método é __init__",
+        "**Resposta de referência: **kwargs recebe nomeados.**": "**kwargs recebe nomeados.",
+        "**1. Resposta de referência:** O molde.": "O molde.",
+    }
+
+    stored = [
+        parse_markdown(document("Camadas").replace(exact, label)).questions[0].reference_answer
+        for label in answers
+    ]
+
+    assert stored == list(answers.values())
+
+
+def test_a_quoted_label_unquotes_only_its_own_paragraph_and_a_keycap_run_reads_at_once():
+    exact = "Resposta de referência: O molde."
+    code = f"Assim:\n\n{FENCE}python\n>>> 2 + 2\n4\n{FENCE}"
+    callout = "O molde.\n\n> [!ia] Dica extra."
+    keycaps = "1️⃣" * 22 + " Passos.\n" + exact
+
+    start = time.monotonic()
+    stored = [
+        parse_markdown(document("Camadas").replace(exact, label)).questions[0].reference_answer
+        for label in (
+            f"> **Resposta de referência:** {code}",
+            f"> **Resposta de referência:** {callout}",
+        )
+    ]
+    parse_markdown(document("Camadas").replace(exact, keycaps))
+
+    assert stored == [code, callout]
+    assert time.monotonic() - start < 1
+
+
+@pytest.mark.django_db
+def test_text_after_the_closing_line_is_chat_and_a_bracketed_name_is_the_template(client):
+    remark = "\nEspero que ajude!\n**Subtema:** Imagem e container\n"
+    answer = document("Imagem e container") + "<!-- fim -->" + remark
+    names = ["<Por que usar volumes?>", "<Volumes vs. bind mounts>", "<nome do subtema>: Volumes"]
+    asked = "1. O que é uma imagem? Resposta de referência: O molde.\n\n### P1:"
+
+    reports = [send(client, text, "/api/themes/preview/").json() for text in map(document, names)]
+    report = send(client, answer, "/api/themes/preview/").json()
+    send(client, answer)
+    gaps = contract_gaps(parse_markdown(document("Camadas").replace("### P1:", asked, 1)))
+
+    assert all("modelo do pedido" in r["documents"][0]["errors"][0] for r in reports)
+    assert report["documents"][0]["warnings"] == []
+    assert "Espero" not in Content.objects.get().raw_markdown
+    assert any(g.startswith("Resposta de referência antes") for g in gaps)
+
+
+def test_a_subtopic_named_by_one_quoted_phrase_matches_its_frontmatter():
+    text = document('"Had better"', conceito="Should e had better")
+
+    parsed = parse_markdown(text, Target("Programação", "Should e had better", '"Had better"'))
+
+    assert parsed.warnings == []

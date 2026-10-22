@@ -34,10 +34,11 @@ IMAGE_RE = re.compile(r'^!\[([^\]]*)\]\(/api/images/([a-z0-9][a-z0-9-]*)/?(?:\s+
 # AIs also write it: `**Resposta de referência:**`, `Resposta de Referência:`, `> - ...`, `💡 ...`,
 # `**💡 ...`, `💡**...`, closing bold or italic runs of any mix (`**_..._**`).
 # Never a lowercase mention in a sentence ("compare com a resposta de referência: ...").
-EMOJI = r"(?:\w\ufe0f\u20e3?|[^\w\s*_])+"  # 💡, and ℹ️ or 1️⃣, which start with a word character
+# 💡, and ℹ️ or 1️⃣, which start with a word character; atomic, so a long run never backtracks.
+EMOJI = r"(?>(?:\w\ufe0f\u20e3?|[^\w\s*_])+)"
 REFERENCE_RE = re.compile(
     r"^[ \t]*(?:(?:\*|\d+[.)]|" + EMOJI + r")[ \t]+)*(?:" + EMOJI + r"(?=[*_]))?(?P<m>[*_]+)?"
-    r"(?:" + EMOJI + r"[^\S\n]*)?"
+    r"(?:(?:\d+[.)]|" + EMOJI + r")[^\S\n]*)?"
     r"(?i:resposta de refer[êe]ncia)"
     # The closing run mirrors the opening one or ends before a space, so the answer's own markers
     # (`__init__`, `*args`) stay; `_reference_answer` finds a closer that is not here.
@@ -150,7 +151,7 @@ def parse_markdown(text: str, target: Target | None = None) -> ParsedContent:
         for key in ("area", "conceito", "subtema"):
             found = frontmatter.get(key)
             # Names match ignoring case (D-040), so "docker" is no news for "Docker".
-            expected = _contract_name(getattr(target, key))
+            expected = _contract_name(_unquoted(getattr(target, key)))  # read as the frontmatter
             if found is not None and found.lower() != expected.lower():
                 parsed.warnings.append(
                     f"O frontmatter diz {key}: {found}, mas o conteúdo está sendo salvo em "
@@ -286,19 +287,48 @@ def _reference_answer(lines: list[str]) -> str | None:
     text = "\n".join(lines)
     if not (marker := REFERENCE_RE.search(text)):
         return None
-    line, newline, rest = text[marker.end() :].partition("\n")
+    answer = text[marker.end() :]
     if marker["m"] and not re.search(r"[*_]:?$", marker[0]):
-        # One bold over the label and the answer closes on the label's line: at its end, after
-        # the first words (`Não.** A imagem`) or touching the answer (`:_**O molde`).
-        closer, line = marker["m"][::-1], line.rstrip()
-        run = re.escape(closer)
-        if line.endswith(closer):
-            line = line.removesuffix(closer)
-        else:
-            line = re.sub(rf"^{run}|(?<![\s*_]){run}(?![\w*_])", "", line, count=1)
+        answer = _without_closer(answer, marker["m"])
     if quote := re.match(r"[ \t]*>", text[marker.start() :]):
-        rest = re.sub(rf"(?m)^{re.escape(quote[0])} ?", "", rest)  # an answer quoted line by line
-    return (line + newline + rest).strip() or None
+        # An answer quoted line by line, up to its first unquoted line (code after it keeps `>>>`).
+        lines = answer.split("\n")
+        for n in range(1, len(lines)):
+            if not lines[n].startswith(quote[0]):
+                break
+            lines[n] = lines[n].removeprefix(quote[0]).removeprefix(" ")
+        answer = "\n".join(lines)
+    return answer.strip() or None
+
+
+def _without_closer(answer: str, opener: str) -> str:
+    """The answer without the closer of a bold the label opened and did not close.
+
+    Pairs the runs as Markdown does, so the closer is found after the first words (`Não.** A
+    imagem`), across lines or at the end, past the answer's own bold (`**imutável**`), and keeps
+    the answer's own markers (`__init__`). Inline code holds no markers.
+    """
+    closer = opener[::-1]
+    if answer.startswith(closer):
+        return answer[len(closer) :]  # touching the answer: `:_**O molde`
+    plain = re.sub(r"`[^`\n]*`", lambda code: "x" * len(code[0]), answer)
+    depth = 1
+    for run in re.finditer(r"[*_]+", plain):
+        if run[0] not in (opener, closer):
+            continue
+        before, after = plain[run.start() - 1 : run.start()], plain[run.end() : run.end() + 1]
+        if before.strip() == "" and after.strip():
+            depth += 1
+        elif before.strip() and not after.isalnum():
+            depth -= 1
+            if not depth:
+                return answer[: run.start()] + answer[run.end() :]
+    # Unpaired, so the answer's own markers are literal (`**kwargs`): the closer ends it, alone or
+    # stacked on its last markers (`__init__**`).
+    if last := re.search(r"[*_]+(?=\s*$)", plain):
+        if last[0].endswith(closer):
+            return answer[: last.end() - len(closer)] + answer[last.end() :]
+    return answer
 
 
 def _parse_cards(body: str) -> tuple[list[Card], list[str]]:
@@ -408,6 +438,8 @@ def _duplicates(labels: list[str]) -> list[str]:
 # A frontmatter key as chat AIs write it, sometimes indented or in bold (`**subtema:**`).
 FRONTMATTER_KEY_RE = re.compile(r"^\s*\**([\w-]+)\**\s*:")
 COMMENT_RE = re.compile(r"^\s*<!--.*-->\s*$")
+# The request's last line inside the block: what follows it is chat, and its absence a cut.
+END_RE = re.compile(r"^\s*<!--\s*fim\s*-->\s*$", re.MULTILINE | re.IGNORECASE)
 # A heading or a line that opens in bold, as chat AIs title each document ("**Subtema 2: Camadas**",
 # "**Subtema 2:** Camadas", "📘 **Subtema 2**", "2. **Camadas**").
 LABEL_RE = re.compile(r"^\s*(#{1,6}\s|(?:\d+[.)]\s+|[^\w\s*>|-]+\s*)?\*\*[^*].*\*\*)")
@@ -445,6 +477,11 @@ def split_documents(text: str) -> tuple[list[str], list[str], bool]:
             if wrapper and (closer := _closes(lines, i, wrapper)) is not None:
                 # A fence around the frontmatter alone (Gemini writes ```yaml): not a wrapper.
                 i, wrapper = closer + 1, None
+            continue
+        if inner is None and not outside and END_RE.match(line):
+            outside = True
+            ignored.append([])
+            i += 1
             continue
         if fence and inner is not None:
             inner = None if fence[1][:3] == inner else inner
@@ -659,12 +696,10 @@ def contract_gaps(parsed: ParsedContent) -> list[str]:
                 between.append(label)
             if in_fence:
                 continue
-            if (
-                label is None
-                and (found := REFERENCE_RE.search(line))
-                and not line[: found.start()].strip()
-            ):
-                orphan.append(line)  # its question is in another format: the reading shows it
+            # A label opening the line, or after a question in another format; not an intro.
+            if label is None and (found := REFERENCE_RE.search(line)):
+                if not line[: found.start()].strip() or "?" in line[: found.start()]:
+                    orphan.append(line)  # its question is in another format: the reading shows it
             # An answer may have its own sub-headings (`#### Passo 1`), never a question's level.
             heading = HEADING_RE.match(line) and (not answer or line.startswith("### "))
             if QUESTION_LIKE_RE.match(line) or heading:

@@ -113,9 +113,11 @@ export function buildCorrection(report) {
     ...(report.complete || !report.documents.length ? [] : report.errors),
     // A subtopic that keeps its own text is Diogo's to change; only a broken split is the AI's.
     // Reusing a concept the request listed is right, so its note is not a problem either.
+    // A cut is the AI's to fix even there: the document it was writing did not arrive.
     ...report.documents.flatMap((d) =>
-      [...d.errors, ...(d.action === "keep" || d.action === "same" ? [] : d.warnings)]
+      [...d.errors, ...d.warnings]
         .filter((p) => p !== d.joins_track)
+        .filter((p) => !["keep", "same"].includes(d.action) || p.includes("pode ter sido cortada"))
         .map((p) => `${d.subtema || "Documento sem subtema"}: ${p}`),
     ),
   ];

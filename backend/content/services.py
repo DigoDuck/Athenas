@@ -16,6 +16,7 @@ from organization.serializers import StepSerializer, SubtopicSerializer
 from . import images
 from .models import Block, Content, Flashcard, Image, PracticeQuestion, ReviewLog
 from .parser import (
+    END_RE,
     FRONTMATTER_KEY_RE,
     ParsedContent,
     Target,
@@ -242,13 +243,13 @@ def import_theme(*, area, track, origem, markdown, save=False) -> dict:
             }
         )
     # The chat's copy button drops the fences, so the request's last line is how a cut shows.
-    ends = list(re.finditer(r"^\s*<!--\s*fim\s*-->\s*$", markdown, re.M | re.I))
+    ends = list(END_RE.finditer(markdown))
     if cut:
         report["documents"][-1]["warnings"].append(
             "O bloco de código da resposta não fechou: ela pode ter sido cortada. Confira o fim "
             "deste documento."
         )
-    elif not ends or re.search(r"^\s*\**subtema\**\s*:", markdown[ends[-1].end() :], re.M | re.I):
+    elif not ends or split_documents(markdown[ends[-1].end() :])[0]:
         report["documents"][-1]["warnings"].append(
             "A resposta não termina com a linha <!-- fim --> do pedido: ela pode ter sido cortada. "
             "Confira o fim deste documento."
@@ -282,7 +283,7 @@ def _document_errors(parsed, conceito, subtema):
     if len(conceito) > NAME_MAX or len(subtema) > NAME_MAX:
         errors.append(f"Nome de conceito ou subtema com mais de {NAME_MAX} caracteres")
     # The request's `<nome do subtema>`, or a real name the AI left inside its brackets.
-    template = r"<\s*(?:nome\b.*|[^\W\d_][\w -]*\s[\w -]*)>"
+    template = r"<\s*nome\b.*|<[^<>=\"'/!]*\s[^<>=\"'/!]*>"  # never markup: <input type="file">
     if any(re.fullmatch(template, name, re.IGNORECASE) for name in (conceito, subtema)):
         errors.append(
             "Nome entre < e >: é o modelo do pedido, não um nome. Troque pelo nome real, ou "
