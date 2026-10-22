@@ -207,6 +207,9 @@ def push(folder, base, first, replace):
             text = (folder / entry["file"]).read_text(encoding="utf-8")
             url = f"/api/subtopics/{subtopic['id']}/content/"
             status, current = api(base, "GET", url)
+            if status not in (200, 404):
+                # A 502 while the backend restarts is not "no content": never overwrite on it.
+                sys.exit(f"GET {url}: HTTP {status} {current}")
             if status == 200 and current["raw_markdown"] == text:
                 unchanged += 1
                 continue
