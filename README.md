@@ -70,9 +70,10 @@ D-030). Open Claude Code in this folder and type, for example:
 ```
 
 It writes `temas/<slug>/` (git-ignored) from sources it opened, checks it with
-`python scripts/theme.py check`, and saves it into use mode with `python scripts/theme.py push`. A subtopic already in the app
-is replaced only when its file is named, `--replace <file>`, and the app's copy is kept beside
-it as `<file>.app.md`.
+`python scripts/theme.py check`, and saves it into use mode with `python scripts/theme.py push`.
+A subtopic already in the app is replaced only when its file is named after the folder,
+`push temas/<slug> --replace <file>`, and the app's copy is kept beside it as
+`<file>.app-<time>.md`.
 Cards enter pending and wait for approval in the app. To try it without touching the experiment,
 point it at a disposable copy with `--base http://127.0.0.1:8472`.
 

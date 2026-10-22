@@ -27,7 +27,8 @@ export default function ContentEditor({ subtopic, draft, onDraft, onClose }) {
   const url = `/api/subtopics/${subtopic.id}/content/`;
   const [markdown, setMarkdown] = useState(draft?.text ?? "");
   // The saved text this editor started from: null when there was none, undefined until known.
-  const [base, setBase] = useState(draft?.base);
+  // A draft whose base was never known counts as having seen nothing, so it never adopts newer text.
+  const [base, setBase] = useState(draft ? (draft.base ?? null) : undefined);
   const [loadError, setLoadError] = useState(null);
   const [preview, setPreview] = useState(null);
   const [busy, setBusy] = useState(null);
@@ -92,7 +93,7 @@ export default function ContentEditor({ subtopic, draft, onDraft, onClose }) {
 
   const save = () =>
     act("save", async () => {
-      const content = await api.put(url, { markdown, base });
+      const content = await api.put(url, { markdown, base: base ?? null });
       setBase(content.raw_markdown);
       setSaved(content.state);
       setGeneratedBy(content.generated_by);

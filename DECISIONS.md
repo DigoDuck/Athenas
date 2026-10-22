@@ -749,13 +749,13 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
     none). When the stored text differs, the save answers 409 with the stored text and changes
     nothing; the editor keeps Diogo's text, and saving again overwrites on purpose. theme.py
     sends no `base`. The content editor's drafts now live in `localStorage`
-    (`athenas:conteudo`) with their `base`, so a reload or a click elsewhere keeps them and an
+    (`athenas:conteudo:<id>`) with their `base`, so a reload or a click elsewhere keeps them and an
     old draft cannot silently replace newer text.
   - In practice and review, a 409 on saving means an earlier send was saved and its answer was
     lost: the screen reloads instead of offering a retry that would record the attempt twice.
   - `scripts/theme.py push --replace` names the files it may overwrite (paths as in
-    `tema.json`) and saves the app's copy of a replaced subtopic as `<file>.app.md`; as one flag
-    it overwrote every subtopic Diogo had edited in the app. A failed content read (502 while
+    `tema.json`) and saves the app's copy of each replaced subtopic as `<file>.app-<time>.md`;
+    as one flag it overwrote every subtopic Diogo had edited in the app. A failed content read (502 while
     the backend restarts) stops the push instead of counting as "no content". This supersedes
     the `--replace` lines of D-030 and D-033.
   - The README restore adds one step that derives `generated_by` again from the saved Markdown,

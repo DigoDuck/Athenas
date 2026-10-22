@@ -19,6 +19,7 @@ import json
 import sys
 import urllib.error
 import urllib.request
+from datetime import UTC, datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -163,13 +164,15 @@ def push(folder, base, first, replace):
     for name, path, credit in theme_images(folder, theme):
         data = path.read_bytes()
         stored = image_bytes(base, name)
-        if stored == data:
+        file = path.relative_to(folder).as_posix()
+        if stored == data and file not in replace:
             continue
         if stored is not None:
-            if path.relative_to(folder).as_posix() not in replace:
+            if file not in replace:
                 # Another theme or an earlier push owns this name: replacing it is on purpose.
-                images_kept.append(name)
+                images_kept.append(file)
                 continue
+            # Named: sent even with the same bytes, so a corrected credit reaches the app.
             print(f"replaced image {name}")
         body = {"data": base64.b64encode(data).decode(), **credit}
         status, answer = api(base, "PUT", f"/api/images/{name}/", body)
@@ -219,8 +222,9 @@ def push(folder, base, first, replace):
                 kept.append(entry["file"])
                 continue
             if status == 200:
-                # The app keeps no past Markdown: its copy stays beside the file, recoverable.
-                copy = folder / f"{entry['file']}.app.md"
+                # The app keeps no past Markdown: its copy stays beside the file, one per replace.
+                stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S")
+                copy = folder / f"{entry['file']}.app-{stamp}.md"
                 copy.write_text(current["raw_markdown"], encoding="utf-8")
                 print(f"replaced {entry['file']} (the app's copy is in {copy.name})")
             call(base, "PUT", url, {"markdown": text})
