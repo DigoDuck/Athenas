@@ -182,7 +182,8 @@ def import_theme(*, area, track, origem, markdown, save=False) -> dict:
         )
         report["errors" if lost else "warnings"].append(
             f"Um trecho com títulos ficou fora dos documentos: {_excerpt(stretch)}. Confira se a "
-            "resposta veio inteira, no formato pedido."
+            "resposta veio inteira, no formato pedido; se for um exemplo na conversa em volta dos "
+            "documentos, apague-o do texto colado."
             if lost
             else f"Texto fora dos documentos, ignorado: {_excerpt(stretch)}"
         )
@@ -281,9 +282,9 @@ def import_theme(*, area, track, origem, markdown, save=False) -> dict:
     return report
 
 
-# A tag: lowercase name and attributes (`<script setup>`, `<input type="file">`), or `<!`, `</`.
+# A tag: lowercase name and attributes (`<script setup>`, `<li *ngFor="...">`), or `<!`, `</`.
 TAG_RE = re.compile(
-    r"<(?:[!?/].*|[a-z][a-z0-9-]*(?:\s+[a-z@:#.-][\w@:#.-]*"
+    r"<(?:[!?/].*|[a-z][a-z0-9-]*(?:\s+[a-z@:#.*(\[-][\w@:#.*()\[\]-]*"
     r"(?:=(?:\"[^\"]*\"|'[^']*'|[^\s\"'>]+))?)*\s*/?>)"
 )
 
@@ -292,7 +293,7 @@ def _template(name):
     """The request's `<nome do subtema>`, or a real name the AI left inside its brackets."""
     if re.fullmatch(r"<\s*nome\b.*", name, re.IGNORECASE):
         return True
-    return bool(re.fullmatch(r"<[^<>]*\s[^<>]*>", name)) and not TAG_RE.fullmatch(name)
+    return bool(re.fullmatch(r"<[^<>\s]*\s[^<>]*>", name)) and not TAG_RE.fullmatch(name)
 
 
 def _document_errors(parsed, conceito, subtema):

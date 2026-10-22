@@ -311,10 +311,14 @@ def _without_closer(answer: str, opener: str) -> str:
     the answer's own markers (`__init__`). Inline code holds no markers.
     """
     closer = opener[::-1]
-    # Touching the answer (`:_**O molde`), or alone before it (`: **` with the answer below).
-    if start := re.match(rf"{re.escape(closer)}|[ \t]*{re.escape(closer)}(?=\s|$)", answer):
-        return answer[start.end() :]
     plain = re.sub(r"`[^`\n]*`", lambda code: "x" * len(code[0]), answer)
+    if answer.startswith(closer):
+        return answer[len(closer) :]  # touching the answer: `:_**O molde`
+    # Alone before the answer (`: **` with the answer below), unless the answer ends with it
+    # (`: _ guarda o resultado._`, about Python's `_`).
+    alone = re.match(rf"[ \t]+{re.escape(closer)}(?=\s|$)", answer)
+    if alone and not plain.rstrip().endswith(closer):
+        return answer[alone.end() :]
     depth = 1
     for run in re.finditer(r"[*_]+", plain):
         if run[0] not in (opener, closer):
@@ -328,11 +332,12 @@ def _without_closer(answer: str, opener: str) -> str:
                 return answer[: run.start()] + answer[run.end() :]
     # Unpaired, so the answer's own markers are literal (`**kwargs`): the closer ends the answer,
     # alone or stacked on its last markers (`__init__**`), or else it is the first one on the
-    # label's line that opens nothing (`Use **kwargs.** Ele`).
-    if (last := re.search(r"[*_]+(?=\s*$)", plain)) and last[0].endswith(closer):
-        return answer[: last.end() - len(closer)] + answer[last.end() :]
-    line = plain.split("\n", 1)[0]
-    if lone := re.search(rf"(?<![\s*_]){re.escape(closer)}(?![\w*_])", line):
+    # label's line that closes a sentence (`Use **kwargs.** Ele`).
+    end = len(plain.rstrip())
+    if plain[:end].endswith(closer):
+        return answer[: end - len(closer)] + answer[end:]
+    line = plain.split("\n", 1)[0]  # a sentence end, never a word's own bold (`**imutável**`)
+    if lone := re.search(rf"(?<=[.!?;:,)]){re.escape(closer)}(?![\w*_])", line):
         return answer[: lone.start()] + answer[lone.end() :]
     return answer
 
@@ -448,7 +453,9 @@ COMMENT_RE = re.compile(r"^\s*<!--.*-->\s*$")
 END_RE = re.compile(r"^\s*<!--\s*fim\s*-->\s*$", re.MULTILINE | re.IGNORECASE)
 # A heading or a line that opens in bold, as chat AIs title each document ("**Subtema 2: Camadas**",
 # "**Subtema 2:** Camadas", "📘 **Subtema 2**", "2. **Camadas**").
-LABEL_RE = re.compile(r"^\s*(#{1,6}\s|(?:\d+[.)]\s+|[^\w\s*>|-]+\s*)?(\*\*[^*].*\*\*|__[^_].*__))")
+LABEL_RE = re.compile(
+    r"^\s*(#{1,6}\s|(?:\d+[.)]\s+|[^\w\s*>|`-]+\s*)?(\*\*[^*].*\*\*|__[^_\s:]*[\s:][^_]*__))"
+)
 FRONTMATTER_MAX = 40  # lines; the contract's frontmatter has five
 
 
@@ -466,13 +473,13 @@ def split_documents(text: str) -> tuple[list[str], list[str], bool]:
     lines = text.split("\n")
     documents: list[list[str]] = []
     heads: list[int] = []  # frontmatter length of each document, which trimming never cuts
-    late: list[bool] = []  # whether it starts after a <!-- fim --> line
+    late: list[bool] = []  # whether a <!-- fim --> line came before each document
     ignored: list[list[str]] = [[]]
     wrapper = None  # the fence wrapping the documents: its character and length
     chat = []  # fences open in the chat, innermost last: one may be a wrapper read late
     inner = None  # a code fence open inside a document
     outside = True
-    ended = False
+    closed = None  # how many documents a <!-- fim --> line followed, at the last one
     i = 0
     while i < len(lines):
         line = lines[i]
@@ -480,18 +487,22 @@ def split_documents(text: str) -> tuple[list[str], list[str], bool]:
         if inner is None and (end := _frontmatter_end(lines, i)) is not None:
             documents.append(lines[i : end + 1])
             heads.append(end + 1 - i)
-            late.append(ended)
+            late.append(closed is not None)
             outside = False
             i = end + 1
             if wrapper and (closer := _closes(lines, i, wrapper)) is not None:
                 # A fence around the frontmatter alone (Gemini writes ```yaml): not a wrapper.
                 i, wrapper = closer + 1, None
             continue
-        if inner is None and not outside and END_RE.match(line):
-            outside = ended = True
-            ignored.append([])
-            i += 1
-            continue
+        # The line ends the documents before it, inside the wrapper or after its closer; one in
+        # a code snippet of the chat does not count.
+        if inner is None and (not outside or not chat) and END_RE.match(line):
+            closed = len(documents)
+            if not outside:
+                outside = True
+                ignored.append([])
+                i += 1
+                continue
         if fence and inner is not None:
             inner = None if fence[1][:3] == inner else inner
         elif (
@@ -524,7 +535,7 @@ def split_documents(text: str) -> tuple[list[str], list[str], bool]:
         i += 1
 
     texts = []
-    for n, (document, head, after_end) in enumerate(zip(documents, heads, late, strict=True)):
+    for n, (document, head) in enumerate(zip(documents, heads, strict=True)):
         labels = []
         while len(document) > head:
             last, plain = document[-1], document[-1].lstrip()
@@ -547,9 +558,12 @@ def split_documents(text: str) -> tuple[list[str], list[str], bool]:
         indent = document[0][: len(document[0]) - len(document[0].lstrip())]
         prose = [line for line, in_fence in _outside_fences(document) if not in_fence]
         headings = [line for line in prose if contract_heading(line.lstrip())]
-        if after_end and not headings:
-            # A frontmatter in the chat after the answer ended (the next round's header, shown as
-            # an example): never a document. The import blocks on it as a frontmatter left out.
+        if (closed is not None and n >= closed) or (
+            not headings and (late[n] or n < len(documents) - 1)
+        ):
+            # After the last <!-- fim --> line, or with no contract heading after one or before
+            # another document: a header or a skeleton the chat shows as an example, never a
+            # document. The import blocks on it as content left out.
             ignored.append(document)
             continue
         if indent and headings and all(line.startswith(indent) for line in headings):
@@ -713,7 +727,8 @@ def contract_gaps(parsed: ParsedContent) -> list[str]:
             # A label opening the line, or right after a question in another format; not an intro.
             if label is None and (found := REFERENCE_RE.search(line)):
                 before = line[: found.start()]
-                if not before.strip() or re.sub(r"[\s*_\u2013\u2014-]+$", "", before).endswith("?"):
+                # Read backwards, so a long run of marks is scanned once.
+                if not before.strip() or "?" in re.match(r"[\W_]*", before[::-1])[0]:
                     orphan.append(line)  # its question is in another format: the reading shows it
             # An answer may have its own sub-headings (`#### Passo 1`), never a question's level.
             heading = HEADING_RE.match(line) and (not answer or line.startswith("### "))

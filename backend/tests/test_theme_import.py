@@ -1251,3 +1251,76 @@ def test_names_in_brackets_titles_in_underscores_and_a_quoted_stored_name(client
     assert blocked == [True, True, False]
     assert "__Subtema 2: Camadas__" in ignored and "__Subtema" not in documents[0]
     assert action["action"] == "fill"
+
+
+# Found by the sixteenth review of PR #45.
+
+
+@pytest.mark.django_db
+def test_a_header_or_skeleton_shown_around_the_documents_blocks_and_creates_nothing(client):
+    header = "---\narea: Programação\nconceito: Redes\nsubtema: Bridge\n---\n"
+    skeleton = header + "## Objetivo\n...\n## Flashcards\n- C1: ... :: ...\n"
+    after_closer = ANSWER.replace("<!-- fim -->\n~~~~\n", "~~~~\n<!-- fim -->\n" + header)
+    after_fim = ANSWER.replace(
+        "~~~~\n\nQuer", f"~~~~\n\nA próxima:\n{FENCE}markdown\n{skeleton}{FENCE}\nQuer"
+    )
+    before = f"Todos começam assim:\n{FENCE}yaml\n{header}{FENCE}\nAgora os documentos:\n" + ANSWER
+    # The header ends with the line too, as every document of this answer does.
+    each = ANSWER.replace("<!-- fim -->\n~~~~\n", f"<!-- fim -->\n{header}<!-- fim -->\n~~~~\n")
+    texts = (after_closer, after_fim, before, each)
+
+    reports = [send(client, text, "/api/themes/preview/").json() for text in texts]
+    saves = [send(client, text).status_code for text in texts]
+
+    assert [[d["subtema"] for d in r["documents"]] for r in reports] == [
+        ["Imagem e container", "Camadas"]
+    ] * 4
+    assert all("apague-o do texto colado" in r["errors"][0] for r in reports)
+    assert saves == [400] * 4 and not Concept.objects.exists()
+
+
+@pytest.mark.django_db
+def test_label_markers_orphans_tag_names_and_a_dunder_line_read_as_written(client):
+    exact = "Resposta de referência: O molde."
+    answers = {
+        "**Resposta de referência: Sim, **imutável** conta. Depois fica.": (
+            "Sim, **imutável** conta. Depois fica."
+        ),
+        "_Resposta de referência: _ guarda o último resultado._": "_ guarda o último resultado.",
+    }
+    asked = "1. O que é uma imagem? 👉 **Resposta de referência:** O molde.\n\n### P1:"
+    dunder = ANSWER.replace(
+        "uma imagem.\n\n---", "uma imagem.\n`__init__` cria; `__repr__` mostra.\n---"
+    )
+
+    stored = [
+        parse_markdown(document("Camadas").replace(exact, label)).questions[0].reference_answer
+        for label in answers
+    ]
+    gaps = contract_gaps(parse_markdown(document("Camadas").replace("### P1:", asked, 1)))
+    tag = send(client, document('<li *ngFor="let item of itens">'), "/api/themes/preview/").json()
+    documents, *_ = split_documents(dunder)
+
+    assert stored == list(answers.values())
+    assert any(g.startswith("Resposta de referência antes") for g in gaps)
+    assert not tag["documents"][0]["errors"]
+    assert "`__init__` cria" in documents[0]
+
+
+@pytest.mark.django_db
+def test_a_long_run_of_marks_in_a_line_previews_at_once(client):
+    run = 30_000
+    exact = "Resposta de referência: O molde."
+    first = document("Imagem e container").replace(
+        exact, "**Resposta de referência: " + "*" * run + "x"
+    )
+    first = first.replace(
+        "## Prática\n", "## Prática\n" + "?" * run + "a Resposta de referência: X.\n"
+    )
+    answer = first + "__" + "a " * run + "\n" + document("<" + "a " * run)
+
+    start = time.monotonic()
+    report = send(client, answer, "/api/themes/preview/").json()
+
+    assert time.monotonic() - start < 2
+    assert len(report["documents"]) == 2
