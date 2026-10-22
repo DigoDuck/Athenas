@@ -771,9 +771,9 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
     no notice: a running break shows as a break, and a timer whose break also passed is gone.
     Open tabs share it: a start or a stop in one shows in the others, and each tab gives its
     own notice when a phase ends.
-  - On the screens without a panorama (reading, practice, reviews and the rest) the page gets
-    room at its end while a notice shows, so the last action can be scrolled out from under
-    it.
+  - On the screens without a panorama (reading, practice, reviews and the rest) the page always
+    keeps room at its end for the notice, so the last action can be scrolled out from under it
+    and the page never jumps when a notice comes or goes.
   - The pomodoro records no `SessionEvent`: it is not a study activity (spec 3.1, Activity) and
     the day 28 metric does not read it.
   - Over the panoramas of Início and Roadmap the foot of the navigation sits on the board's
@@ -785,4 +785,5 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
 - Cost: with the window under 1200 px the navigation folds behind "Menu", so the time left is
   hidden until it opens; the notice still shows. Until it is closed, the notice covers what
   sits in the bottom right corner of the window: on a study screen that can be scrolled away,
-  on Início and Roadmap it cannot.
+  on Início and Roadmap it cannot. The study screens end with about 90 px of empty space, so a
+  page that just fit the window now scrolls a little.

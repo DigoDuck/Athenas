@@ -73,6 +73,8 @@ export default function Pomodoro() {
       // Another tab settled the phase this tab settles on its next tick: that tick gives the notice.
       if (stored?.phase === own?.phase && stored?.endsAt === own?.endsAt) return;
       setNow(at);
+      setNotice(null);
+      setError(null);
       setTimer(stored);
     }
     window.addEventListener("storage", onStorage);

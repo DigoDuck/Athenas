@@ -96,7 +96,8 @@
   outline-offset: 2px;
 }
 
-/* Room to scroll the end of a study page out from under the notice (spec 4.9: never blocks). */
-body:has(.pomodoro-notice__body) .ui-shell:not([data-scene]) .ui-shell__main {
+/* Room to scroll the end of a study page out from under the notice (spec 4.9: never blocks),
+   kept even without one, so the page never jumps when it comes or goes. */
+.ui-shell:not([data-scene]) .ui-shell__main {
   padding-bottom: calc(var(--target-size) + 2 * var(--space-3) + 2 * var(--space-6));
 }
