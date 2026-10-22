@@ -462,8 +462,17 @@ COMMENT_RE = re.compile(r"^\s*<!--.*-->\s*$")
 # The request's last line inside the block: what follows it is chat, and its absence a cut.
 # Spaces only within its own line, so a long run of blank lines is read once.
 END_RE = re.compile(r"^[^\S\n]*<!--[^\S\n]*fim[^\S\n]*-->[^\S\n]*$", re.MULTILINE | re.IGNORECASE)
-# What a skeleton's lines may hold besides placeholders: labels, a reference answer, a link.
-SKELETON_RE = re.compile(r"\b[PC]\d+\b|resposta de refer[êe]ncia|fonte|\[!ia\]|https?://\S*", re.I)
+# What a skeleton's lines may hold besides placeholders: labels, a reference answer, a link, and
+# a phrase in brackets standing for the text (`(uma frase)`, `<objetivo>`, `[pergunta]`).
+SKELETON_RE = re.compile(
+    r"\b[PC]\d+\b|resposta de refer[êe]ncia|fonte|\[!ia\]|https?://\S*"
+    r"|\([^()\n]*\)|<[^<>\n]*>|\[[^\[\]\n]*\]",
+    re.I,
+)
+# A fence as wide as the one around the request's answer block (themeRequest.js), any language.
+WIDE_FENCE_RE = re.compile(r"^ {0,3}~{4,}[^`~]*$")
+# A rule chat AIs put between documents, in any CommonMark spelling or ChatGPT's `⸻`.
+RULE_RE = re.compile(r"^ {0,3}(?:([-*_])(?:[ \t]*\1){2,}|⸻)[ \t]*$")
 # A heading or a line that opens in bold, as chat AIs title each document ("**Subtema 2: Camadas**",
 # "**Subtema 2:** Camadas", "📘 **Subtema 2**", "2. **Camadas**").
 LABEL_RE = re.compile(
@@ -577,7 +586,7 @@ def split_documents(text: str) -> tuple[list[str], list[str], bool, bool]:
                 and not (n == len(documents) - 1 and FRONTMATTER_KEY_RE.match(last))
             ):
                 labels.insert(0, last)
-            elif not (last.strip() in ("", "---", "***", "___") or COMMENT_RE.match(last)):
+            elif not (not last.strip() or RULE_RE.match(last) or COMMENT_RE.match(last)):
                 break
             document.pop()  # blank lines, rules and comments chat AIs put between documents
         prose = [line for line, in_fence in _outside_fences(document) if not in_fence]
@@ -607,6 +616,34 @@ def split_documents(text: str) -> tuple[list[str], list[str], bool, bool]:
     # A real document after the last line: the AI ended each one with it, and the last was cut.
     ended = closed is not None and not any(item[3] for item in read[closed:])
     return texts, [stretch for stretch in stretches if stretch], cut, ended
+
+
+def continued(text: str) -> bool:
+    """Whether the request's block opens again inside a document: a cut answer pasted with the AI's
+    continuation, whose block closes after the documents.
+
+    Inside a ``` block, a `~~~~` line left unpaired when it closes; in the prose, a `~~~~` block
+    over a contract heading or the <!-- fim --> line. An example shown in a block pairs its own
+    fences and holds neither, and a ``` block that never closes may hold the wrapper's own closer,
+    which the cut check reports.
+    """
+    fence, tildes, wide = None, 0, False
+    for line in text.split("\n"):
+        marker = _fence_marker(line)
+        if fence == "```" and marker == "```":
+            if tildes % 2:
+                return True
+            fence = None
+        elif fence == "```":
+            tildes += bool(WIDE_FENCE_RE.match(line))
+        elif fence == "~~~" and marker == "~~~":
+            fence = None
+        elif fence == "~~~":
+            if wide and (contract_heading(line.lstrip()) or END_RE.match(line)):
+                return True
+        elif marker:
+            fence, tildes, wide = marker, 0, bool(WIDE_FENCE_RE.match(line))
+    return False
 
 
 def _skeleton(body: list[str]) -> bool:
@@ -647,8 +684,20 @@ def _dedented(lines: list[str], indent: str) -> list[str]:
     return out
 
 
-def _frontmatter_end(lines: list[str], start: int, chained: bool = True) -> int | None:
-    """The closing `---` of a frontmatter naming a `subtema` that opens at `start`, if one does.
+def _frontmatter_end(lines: list[str], start: int) -> int | None:
+    """The closing `---` of a frontmatter naming a `subtema` that opens at `start`, if one does."""
+    if (found := _frontmatter_keys(lines, start)) is None:
+        return None
+    end, keys = found
+    # A closer that opens a whole frontmatter repeating these keys: this one was cut, and the
+    # answer restarted the document after it. A title card under it (`**Subtema:** X` and a rule)
+    # names fewer keys.
+    restart = _frontmatter_keys(lines, end)
+    return None if restart and keys <= restart[1] else end
+
+
+def _frontmatter_keys(lines: list[str], start: int) -> tuple[int, set] | None:
+    """The closing `---` and the keys of a frontmatter naming a `subtema` that opens at `start`.
 
     Blank, comment, indented and list lines may sit between the keys, as `_split_frontmatter`
     reads them; anything else means a `---` rule, not a frontmatter.
@@ -660,11 +709,7 @@ def _frontmatter_end(lines: list[str], start: int, chained: bool = True) -> int 
         line = lines[end]
         stripped = line.strip()
         if stripped == "---":
-            if "subtema" not in keys:
-                return None
-            # A closer that opens a whole frontmatter of its own: this one was cut, and the answer
-            # restarted the document after it.
-            return None if chained and _frontmatter_end(lines, end, False) is not None else end
+            return (end, keys) if "subtema" in keys else None
         if match := FRONTMATTER_KEY_RE.match(line):
             keys.add(match[1].lower())
         elif stripped and line[0] not in " \t" and not stripped.startswith(("# ", "- ")):

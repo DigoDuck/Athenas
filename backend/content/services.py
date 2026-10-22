@@ -16,9 +16,12 @@ from organization.serializers import StepSerializer, SubtopicSerializer
 from . import images
 from .models import Block, Content, Flashcard, Image, PracticeQuestion, ReviewLog
 from .parser import (
+    CARD_LABEL_RE,
     FRONTMATTER_KEY_RE,
+    QUESTION_RE,
     ParsedContent,
     Target,
+    continued,
     contract_gaps,
     contract_heading,
     parse_markdown,
@@ -116,8 +119,6 @@ def _sync_cards(subtopic, parsed):
 NAME_MAX = 160  # Concept.name and Subtopic.name
 FRONTMATTER_KEYS = {"area", "conceito", "subtema", "nivel", "origem"}
 THEME_LOCK = 4045  # any constant: the advisory lock key for saving a round
-# The line that opens the request's answer block (themeRequest.js), which a document never holds.
-CONTINUED_RE = re.compile(r"^[ \t]*~{4,}[ \t]*(?:markdown|md)[ \t]*$", re.M | re.I)
 KEPT = (
     "O subtema já tem outro texto, que fica como está. Para trocar, cole este documento no "
     "subtema, na Biblioteca."
@@ -167,11 +168,17 @@ def import_theme(*, area, track, origem, markdown, save=False) -> dict:
         )
         return report
     for stretch in ignored:
-        # A contract heading, or a `---` with a `subtema` key, outside every document is content
-        # the split lost; a chat line such as "**Subtema:** Volumes" is not.
+        # A contract heading, a card or a question (a continuation read as a wrapper leaves them
+        # out), or a `---` with a `subtema` key, outside every document is content the split lost;
+        # a chat line such as "**Subtema:** Volumes" is not.
         lines = stretch.split("\n")
         lost = (
-            any(contract_heading(line.lstrip()) for line in lines)
+            any(
+                contract_heading(line.lstrip())
+                or CARD_LABEL_RE.match(line)
+                or QUESTION_RE.match(line)
+                for line in lines
+            )
             or _open_frontmatter(lines)
             or (
                 any(line.strip() == "---" for line in lines)
@@ -306,11 +313,11 @@ def _document_errors(parsed, conceito, subtema):
         errors.append("Documento sem texto depois do frontmatter: a resposta foi cortada?")
     if _open_frontmatter(parsed.raw.split("\n")):
         errors.append("O documento termina num frontmatter que não fechou: a resposta foi cortada?")
-    if CONTINUED_RE.search(parsed.raw):
-        # The request's own wrapper inside a document: a cut answer pasted with its continuation.
+    if continued(parsed.raw):
         errors.append(
-            "Uma linha ~~~~markdown dentro do documento: a resposta parece cortada e continuada "
-            "num bloco novo. Peça a resposta inteira de novo, ou apague a conversa e a emenda."
+            "Um bloco ~~~~ aberto de novo dentro do documento: a resposta parece cortada e "
+            "continuada num bloco novo. Peça a resposta inteira de novo, ou apague a conversa e a "
+            "emenda."
         )
     kinds = [block.kind for block in parsed.blocks if block.kind != "extra"]
     for kind in (kind for kind, count in Counter(kinds).items() if count > 1):
