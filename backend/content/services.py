@@ -156,7 +156,7 @@ def import_theme(*, area, track, origem, markdown, save=False) -> dict:
         # Never a heading: "## Trilha completa" titles a plan.
         report["complete"] = any(
             # Bold, a period, an emoji go; a colon, a question or a list marker make it a title.
-            re.sub(r"[^\w\s:?|-]", "", line).strip().upper() == "TRILHA COMPLETA"
+            re.sub(r"[^\w\s:?|-]|_", "", line).strip().upper() == "TRILHA COMPLETA"
             for line in markdown.split("\n")
             if not re.match(r"\s*(#|[*+]\s)", line)
         )
@@ -274,7 +274,7 @@ def _document_errors(parsed, conceito, subtema):
         errors.append("O frontmatter precisa de conceito e subtema")
     if len(conceito) > NAME_MAX or len(subtema) > NAME_MAX:
         errors.append(f"Nome de conceito ou subtema com mais de {NAME_MAX} caracteres")
-    if any(name.startswith("<") and name.endswith(">") for name in (conceito, subtema)):
+    if any(name.lower().startswith("<nome") for name in (conceito, subtema)):
         errors.append(
             "Nome entre < e >: é o modelo do pedido, não um nome. Troque pelo nome real, ou "
             "apague o trecho se a IA só repetiu o modelo."
@@ -300,13 +300,15 @@ def _open_frontmatter(lines):
     """Whether the lines end in the next document's frontmatter, cut before its closing `---`.
 
     Its keys follow the last rule: one is `subtema`, or all are frontmatter keys with `area` first
-    as the request asks, the last one maybe cut in the middle of its name.
+    as the request asks, the last one maybe cut in the middle of its name, even the first.
     """
     tail = list(itertools.takewhile(lambda ln: ln.strip() != "---", reversed(lines)))
     filled = [line for line in reversed(tail) if line.strip()]
     if len(tail) == len(lines) or not filled:
         return False  # no rule, or nothing after it
-    if len(filled) > 1 and re.fullmatch(r"\s*\**[\w-]+", filled[-1]):
+    if fragment := re.fullmatch(r"\s*\**([\w-]+)", filled[-1]):
+        if len(filled) == 1:
+            return len(fragment[1]) > 1 and "area".startswith(fragment[1].lower())
         filled.pop()
     keys = [FRONTMATTER_KEY_RE.match(line) for line in filled]
     if not all(keys):

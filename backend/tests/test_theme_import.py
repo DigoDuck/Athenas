@@ -943,3 +943,53 @@ def test_frontmatter_keys_indented_with_a_tab_are_read():
     parsed = parse_markdown(text)
 
     assert (parsed.level, parsed.generated_by) == ("avancado", "claude")
+
+
+# Found by the eleventh review of PR #45.
+
+
+def test_code_written_at_the_margin_of_a_nested_document_keeps_its_own_indentation():
+    examples = {
+        "Camadas": "def tamanho(caminho):\n    total = 0\n        return total\n",
+        "Volumes": "## Objetivo\nUm exemplo.\n",  # a Markdown example, not a heading
+    }
+    documents = [document(n).replace("docker run hello-world\n", c) for n, c in examples.items()]
+    answer = "".join(
+        f"{n}.  **Subtema {n}**\n"
+        + textwrap.indent(text, "    ").replace(textwrap.indent(code, "    "), code)
+        for n, (text, code) in enumerate(zip(documents, examples.values(), strict=True), start=1)
+    )
+
+    assert split_documents(answer)[0] == documents
+
+
+@pytest.mark.django_db
+def test_a_name_in_angle_brackets_that_is_not_the_template_is_a_name(client):
+    report = send(client, document("<canvas> e <video>"), "/api/themes/preview/").json()
+
+    assert report["documents"][0]["errors"] == []
+
+
+def test_yaml_quotes_keys_closed_in_bold_and_mixed_answer_markers_are_read():
+    escaped = document("'Teachers'' tips'")
+    bold_key = document("Camadas").replace("subtema: Camadas", "**subtema**: **kwargs na prática")
+    exact = "Resposta de referência: O molde."
+    mixed = [
+        document("Camadas").replace(exact, label + " O molde.")
+        for label in ("**_Resposta de referência:_**", "_**Resposta de referência**_:")
+    ]
+
+    assert parse_markdown(escaped).frontmatter["subtema"] == "Teachers' tips"
+    assert parse_markdown(bold_key).frontmatter["subtema"] == "**kwargs na prática"
+    assert [parse_markdown(m).questions[0].reference_answer for m in mixed] == ["O molde."] * 2
+
+
+@pytest.mark.django_db
+def test_a_cut_at_the_first_letters_of_area_blocks_and_trilha_in_underscores_ends_the_track(
+    client,
+):
+    report = send(client, document("Camadas") + "\n---\nar", "/api/themes/preview/").json()
+    done = send(client, "__TRILHA COMPLETA__", "/api/themes/preview/").json()
+
+    assert any("não fechou" in e for e in report["documents"][0]["errors"])
+    assert done["complete"]

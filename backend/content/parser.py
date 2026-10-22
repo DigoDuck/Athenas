@@ -1,5 +1,6 @@
 """Pure parser for the subtopic Markdown contract (spec 4.1 and 4.2). No Django, no database."""
 
+import os
 import re
 import unicodedata
 from dataclasses import dataclass, field
@@ -36,7 +37,7 @@ IMAGE_RE = re.compile(r'^!\[([^\]]*)\]\(/api/images/([a-z0-9][a-z0-9-]*)/?(?:\s+
 REFERENCE_RE = re.compile(
     r"^[ \t]*(?:(?:\*|\d+[.)]|[^\w\s*_]+)[ \t]+)*(?P<m>[*_]+)?(?:[^\w\s*_]+[^\S\n]*)?"
     r"(?i:resposta de refer[êe]ncia)"
-    r"(?:(?P=m):|:(?P=m)|:)"
+    r"(?(m)[*_]{0,3}:[*_]{0,3}|:)"
     r"|Resposta de referência:",
     re.MULTILINE,
 )
@@ -197,8 +198,9 @@ def _split_frontmatter(text: str) -> tuple[dict[str, str], str]:
 
 
 def _value(key: str, value: str) -> str:
-    # `**subtema:** Nome` leaves the bold marker on the value; `*args e **kwargs` is a name.
-    if "*" in key:
+    # `**subtema:** Nome` leaves the bold marker on the value; `*args e **kwargs` is a name, and so
+    # is `**kwargs` after `**subtema**:`.
+    if "*" in key and not key.rstrip().endswith("*"):
         return value.strip().removeprefix("**").removesuffix("**").strip()
     return value.strip()
 
@@ -209,7 +211,9 @@ def _unquoted(value: str) -> str:
     # word (`'Don't panic'`) is not a quote.
     quote = value[:1]
     if len(value) > 1 and quote in "\"'" and value[-1] == quote:
-        inner = value[1:-1].replace("''", "'") if quote == "'" else value[1:-1]  # YAML's escape
+        inner = value[1:-1]
+        if quote == "'" and re.fullmatch(r"(?:[^']|'')*", inner):
+            return inner.replace("''", "'").strip()  # YAML's escape: `'Teachers'' tips'`
         if not re.search(rf"(?<!\w){quote}|{quote}(?!\w)", inner):
             return inner.strip()
     return value
@@ -476,13 +480,36 @@ def split_documents(text: str) -> tuple[list[str], list[str], bool]:
         # an indentation, which the parser reads from the margin. A frontmatter indented alone
         # leaves the body as written.
         indent = document[0][: len(document[0]) - len(document[0].lstrip())]
-        headings = [line for line in document if contract_heading(line.lstrip())]
+        prose = [line for line, in_fence in _outside_fences(document) if not in_fence]
+        headings = [line for line in prose if contract_heading(line.lstrip())]
         if indent and headings and all(line.startswith(indent) for line in headings):
-            document = [line.removeprefix(indent) for line in document]
+            document = _dedented(document, indent)
         texts.append("\n".join(document) + "\n")
     stretches = ("\n".join(stretch).strip() for stretch in ignored)
     cut = wrapper is not None or (bool(chat) and not outside)
     return texts, [stretch for stretch in stretches if stretch], cut
+
+
+def _dedented(lines: list[str], indent: str) -> list[str]:
+    """The lines without `indent`, but a code block loses only what all its filled lines share, so
+    code written at the margin keeps its own nesting."""
+    out, code, fence = [], [], None
+
+    def flush():
+        cut = len(os.path.commonprefix([indent, *(line for line in code if line.strip())]))
+        out.extend(line[cut:] for line in code)
+        code.clear()
+
+    for line in lines:
+        marker = _fence_marker(line)
+        if fence and marker != fence:
+            code.append(line)
+            continue
+        flush()
+        fence = None if fence else marker
+        out.append(line.removeprefix(indent))
+    flush()  # a code block the document never closed
+    return out
 
 
 def _frontmatter_end(lines: list[str], start: int) -> int | None:
