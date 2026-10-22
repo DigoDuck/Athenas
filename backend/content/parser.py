@@ -34,13 +34,14 @@ IMAGE_RE = re.compile(r'^!\[([^\]]*)\]\(/api/images/([a-z0-9][a-z0-9-]*)/?(?:\s+
 # AIs also write it: `**Resposta de referência:**`, `Resposta de Referência:`, `> - ...`, `💡 ...`,
 # `**💡 ...`, `💡**...`, closing bold or italic runs of any mix (`**_..._**`).
 # Never a lowercase mention in a sentence ("compare com a resposta de referência: ...").
+EMOJI = r"(?:\w\ufe0f\u20e3?|[^\w\s*_])+"  # 💡, and ℹ️ or 1️⃣, which start with a word character
 REFERENCE_RE = re.compile(
-    r"^[ \t]*(?:(?:\*|\d+[.)]|[^\w\s*_]+)[ \t]+)*(?:[^\w\s*_]+(?=[*_]))?(?P<m>[*_]+)?"
-    r"(?:[^\w\s*_]+[^\S\n]*)?"
+    r"^[ \t]*(?:(?:\*|\d+[.)]|" + EMOJI + r")[ \t]+)*(?:" + EMOJI + r"(?=[*_]))?(?P<m>[*_]+)?"
+    r"(?:" + EMOJI + r"[^\S\n]*)?"
     r"(?i:resposta de refer[êe]ncia)"
-    # The closing run mirrors the opening one, or is followed by a space: the answer's own
-    # markers (`__init__`, `*args`) stay.
-    r"(?(m)(?:(?P=m):|:(?P=m)|[*_]{0,3}:(?:[*_]{1,3}(?=\s|$))?)|:)"
+    # The closing run mirrors the opening one or ends before a space, so the answer's own markers
+    # (`__init__`, `*args`) stay; `_reference_answer` finds a closer that is not here.
+    r"(?(m)(?:(?P=m):|[*_]{0,3}:[*_]{1,3}(?=\s|$)|:(?P=m)|[*_]{0,3}:)|:)"
     r"|Resposta de referência:",
     re.MULTILINE,
 )
@@ -201,13 +202,11 @@ def _split_frontmatter(text: str) -> tuple[dict[str, str], str]:
 
 
 def _value(key: str, value: str) -> str:
-    # `**subtema:** Nome` leaves the bold marker on the value and `**subtema**: **Nome**` bolds it
+    # `**subtema:** Nome` leaves the key's closing marker on the value, and `**Nome**` bolds it
     # whole; `*args e **kwargs` is a name, and so is `**kwargs` after `**subtema**:`.
     value = value.strip()
-    if "*" not in key:
-        return value
-    if not key.rstrip().endswith("*"):
-        return value.removeprefix("**").removesuffix("**").strip()
+    if "*" in key and not key.rstrip().endswith("*"):  # the key's bold closes after the colon
+        value = value[2:].strip() if value.startswith("**") else value.removesuffix("**").strip()
     whole = len(value) > 4 and value[:2] == value[-2:] == "**" and "**" not in value[2:-2]
     return value[2:-2].strip() if whole else value
 
@@ -287,10 +286,19 @@ def _reference_answer(lines: list[str]) -> str | None:
     text = "\n".join(lines)
     if not (marker := REFERENCE_RE.search(text)):
         return None
-    answer = text[marker.end() :].strip()
+    line, newline, rest = text[marker.end() :].partition("\n")
     if marker["m"] and not re.search(r"[*_]:?$", marker[0]):
-        answer = answer.removesuffix(marker["m"][::-1]).rstrip()  # one bold over label and answer
-    return answer or None
+        # One bold over the label and the answer closes on the label's line: at its end, after
+        # the first words (`Não.** A imagem`) or touching the answer (`:_**O molde`).
+        closer, line = marker["m"][::-1], line.rstrip()
+        run = re.escape(closer)
+        if line.endswith(closer):
+            line = line.removesuffix(closer)
+        else:
+            line = re.sub(rf"^{run}|(?<![\s*_]){run}(?![\w*_])", "", line, count=1)
+    if quote := re.match(r"[ \t]*>", text[marker.start() :]):
+        rest = re.sub(rf"(?m)^{re.escape(quote[0])} ?", "", rest)  # an answer quoted line by line
+    return (line + newline + rest).strip() or None
 
 
 def _parse_cards(body: str) -> tuple[list[Card], list[str]]:
@@ -651,7 +659,11 @@ def contract_gaps(parsed: ParsedContent) -> list[str]:
                 between.append(label)
             if in_fence:
                 continue
-            if label is None and REFERENCE_RE.search(line):
+            if (
+                label is None
+                and (found := REFERENCE_RE.search(line))
+                and not line[: found.start()].strip()
+            ):
                 orphan.append(line)  # its question is in another format: the reading shows it
             # An answer may have its own sub-headings (`#### Passo 1`), never a question's level.
             heading = HEADING_RE.match(line) and (not answer or line.startswith("### "))

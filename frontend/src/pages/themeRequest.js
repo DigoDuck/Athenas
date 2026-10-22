@@ -48,7 +48,7 @@ Divida o conceito em 2 a 4 subtemas, cada um para uma sessão de 20 a 40 minutos
 
 # Formato da resposta
 
-Responda com um único bloco de código que abre com a linha ~~~~markdown e fecha com a linha ~~~~, sem nada antes nem depois dele. Dentro do bloco, os documentos um depois do outro. Cada documento começa com este cabeçalho, substituindo cada <...> inteiro pelo nome real, sem os sinais < e >:
+Responda com um único bloco de código que abre com a linha ~~~~markdown e fecha com a linha ~~~~, sem nada antes nem depois dele. Dentro do bloco, os documentos um depois do outro e, depois do último, a linha <!-- fim -->, que mostra ao app que a resposta chegou inteira. Cada documento começa com este cabeçalho, substituindo cada <...> inteiro pelo nome real, sem os sinais < e >:
 
 ---
 area: ${area}
@@ -124,5 +124,5 @@ export function buildCorrection(report) {
 
 ${lines.map((line) => `- ${line}`).join("\n")}
 
-Corrija-os e mande de novo todos os documentos, completos, no mesmo formato: um único bloco de código que abre com ~~~~markdown e fecha com ~~~~.`;
+Corrija-os e mande de novo todos os documentos, completos, no mesmo formato: um único bloco de código que abre com ~~~~markdown, termina com a linha <!-- fim --> e fecha com ~~~~.`;
 }

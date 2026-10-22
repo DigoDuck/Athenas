@@ -51,7 +51,8 @@ ANSWER = f"""Claro! Aqui está o conceito.
 ~~~~markdown
 {document("Imagem e container")}
 ---
-{document("Camadas")}~~~~
+{document("Camadas")}<!-- fim -->
+~~~~
 
 Quer que eu continue com o próximo conceito?
 """
@@ -1051,3 +1052,57 @@ def test_an_unknown_level_is_not_reported_missing_and_an_underscore_origin_is_on
 
     assert "O frontmatter não diz o nivel" not in gaps
     assert Content.objects.get().generated_by == "gemini-pro"
+
+
+# Found by the thirteenth review of PR #45.
+
+
+@pytest.mark.django_db
+def test_an_answer_without_the_closing_line_of_the_request_may_have_been_cut(client):
+    whole = document("Imagem e container") + "<!-- fim -->\n" + document("Camadas") + "<!-- fim -->"
+    cut = whole.removesuffix(" uma imagem.\n<!-- fim -->")  # the last card stops at "De"
+
+    reports = [send(client, text, "/api/themes/preview/").json() for text in (whole, cut)]
+
+    assert [d["warnings"] for d in reports[0]["documents"]] == [[], []]
+    assert "<!-- fim -->" in reports[1]["documents"][-1]["warnings"][0]
+
+
+def test_answer_labels_close_where_chat_ais_close_them():
+    exact = "Resposta de referência: O molde."
+    answers = {
+        "**Resposta de referência: Não.** A imagem fica.": "Não. A imagem fica.",
+        "**Resposta de referência: O molde.**\nEla gera containers.\n**Resumo: molde.**": (
+            "O molde.\nEla gera containers.\n**Resumo: molde.**"
+        ),
+        "**_Resposta de referência:_**O molde.": "O molde.",
+        "*Resposta de referência:** O molde.": "O molde.",
+        "ℹ️ **Resposta de referência:** O molde.": "O molde.",
+        "> **Resposta de referência:**\n> O molde,\n> só leitura.": "O molde,\nsó leitura.",
+    }
+
+    stored = [
+        parse_markdown(document("Camadas").replace(exact, label)).questions[0].reference_answer
+        for label in answers
+    ]
+
+    assert stored == list(answers.values())
+
+
+@pytest.mark.django_db
+def test_bold_values_tag_names_and_a_label_mentioned_in_an_intro(client):
+    bold = [
+        document("Camadas").replace("subtema: Camadas", key + " **Volumes nomeados**")
+        for key in ("**subtema:**", "subtema:")
+    ]
+    tags = [document("<!DOCTYPE html>"), document('<input type="file">')]
+    spaced = document("< nome do subtema >")
+    intro = "Para cada pergunta há uma Resposta de referência: compare depois.\n\n### P1:"
+
+    names = [parse_markdown(text).frontmatter["subtema"] for text in bold]
+    reports = [send(client, text, "/api/themes/preview/").json() for text in [*tags, spaced]]
+    gaps = contract_gaps(parse_markdown(document("Camadas").replace("### P1:", intro, 1)))
+
+    assert names == ["Volumes nomeados"] * 2
+    assert [bool(r["documents"][0]["errors"]) for r in reports] == [False, False, True]
+    assert not [g for g in gaps if g.startswith("Resposta de referência antes")]

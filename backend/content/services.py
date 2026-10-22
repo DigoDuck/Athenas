@@ -241,10 +241,17 @@ def import_theme(*, area, track, origem, markdown, save=False) -> dict:
                 "errors": errors,
             }
         )
+    # The chat's copy button drops the fences, so the request's last line is how a cut shows.
+    ends = list(re.finditer(r"^\s*<!--\s*fim\s*-->\s*$", markdown, re.M | re.I))
     if cut:
         report["documents"][-1]["warnings"].append(
             "O bloco de código da resposta não fechou: ela pode ter sido cortada. Confira o fim "
             "deste documento."
+        )
+    elif not ends or re.search(r"^\s*\**subtema\**\s*:", markdown[ends[-1].end() :], re.M | re.I):
+        report["documents"][-1]["warnings"].append(
+            "A resposta não termina com a linha <!-- fim --> do pedido: ela pode ter sido cortada. "
+            "Confira o fim deste documento."
         )
     blocked = report["errors"] or any(d["errors"] for d in report["documents"])
     if not save or blocked:
@@ -275,10 +282,8 @@ def _document_errors(parsed, conceito, subtema):
     if len(conceito) > NAME_MAX or len(subtema) > NAME_MAX:
         errors.append(f"Nome de conceito ou subtema com mais de {NAME_MAX} caracteres")
     # The request's `<nome do subtema>`, or a real name the AI left inside its brackets.
-    if any(
-        name.lower().startswith("<nome") or re.fullmatch(r"<[^<>]*\s[^<>]*>", name)
-        for name in (conceito, subtema)
-    ):
+    template = r"<\s*(?:nome\b.*|[^\W\d_][\w -]*\s[\w -]*)>"
+    if any(re.fullmatch(template, name, re.IGNORECASE) for name in (conceito, subtema)):
         errors.append(
             "Nome entre < e >: é o modelo do pedido, não um nome. Troque pelo nome real, ou "
             "apague o trecho se a IA só repetiu o modelo."
