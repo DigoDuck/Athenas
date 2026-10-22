@@ -176,3 +176,17 @@ class ReviewLog(models.Model):
 
     def __str__(self):
         return f"{self.flashcard_id} {self.rating}"
+
+
+class DailyReviewQueue(models.Model):
+    """The largest capped queue offered on a Bahia day, for spec 4.11.3 (DECISIONS.md D-041)."""
+
+    day = models.DateField(unique=True)
+    # Distinct cards: those already rated that day plus those still to see (D-022).
+    offered = models.PositiveIntegerField()
+
+    class Meta:
+        ordering = ["day"]
+
+    def __str__(self):
+        return f"{self.day} {self.offered}"

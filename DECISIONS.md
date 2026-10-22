@@ -731,3 +731,53 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
   mockups ask for and what "começar e retomar sem esforço" needs.
 - Cost: a long track scrolls sideways on the board. Text on the panorama depends on the fade:
   a new landscape needs a light left side, or its opening lines need a panel.
+
+### D-041: The app keeps the day's review queue and a subtopic's completion date for spec 4.11.3
+
+- Date: 2026-10-21. Source: the day 28 metric slice (D-038) found two support metrics that the
+  stored data cannot give; the agent took the recommended options.
+- Context: spec 4.11.3 asks for the fraction of the day's reviews done and the accuracy on cards
+  from concepts completed more than 14 days earlier. The queue was computed on every read and
+  never stored (D-011 says the fraction must be read against the capped queue, not the backlog),
+  and a subtopic kept its status without a date.
+- Decision:
+  - `Subtopic.completed_at`: set when Diogo confirms completion, emptied when he reopens it, set
+    again on the next confirmation. A concept's completion date is its last subtopic's, and only
+    while all of them are completed (spec 4.4.6). Subtopics completed before this entry have no
+    date, and their concept stays out of the accuracy metric: a made-up date would bias it.
+  - `DailyReviewQueue`, one row per Bahia day: the largest queue built that day, in distinct
+    cards (those rated that day plus those still to see, same-day repeats once). It is written
+    whenever the queue is built, by the home screen's N or by Revisões. Rating a card leaves the
+    number as it was; approving cards or leaving a return session can raise it, never lower it.
+  - The metrics, in `activity/services.py`, over the Bahia days from `start` to `end`:
+    - `open_to_start`: seconds from each `app_opened` to the next activity started before
+      another opening, the same Bahia day; the median, and how many openings led to none.
+    - `reviews_done`: distinct cards rated over the day's queue, per day and summed. A day the
+      queue was never built, or built empty, is not a review day.
+    - `late_card_accuracy`: the first rating of each card (on a subtopic or manual on a concept)
+      on each Bahia day more than 14 days after its concept's completion date. A same-day repeat
+      comes right after the answer was shown, so it is left out. This follows the app's Bahia
+      day (D-022), not Py-FSRS's optimizer, which needs 24 hours since the last rating and would
+      drop the next morning's review of a card due that day; the cost is that an Again just
+      before midnight and its repeat just after count as two days.
+      Hard counts as recalled, as in Py-FSRS; the three counts are kept so the reading can be
+      redone without Hard.
+  - None of this changes completion, the caps, the queue order or Py-FSRS. The metrics inform
+    the day 28 verdict and decide nothing (D-038). When `day28` (D-038) is on `main`, it prints
+    them between the blocks and the reading, over the closed days of the window: day 1 to the
+    earlier of the window's last day (day 28, or the last extension block) and the day before
+    the date it reads on. Today is not over, and day 29 is not in the window.
+- Why: the smallest stored data that answers the spec's questions. A row per day with one number
+  is enough for a fraction; a full copy of each day's queue would only be needed to ask which
+  cards were left out, and spec 4.6 keeps that out of view anyway.
+- Risk: the queue is only known on days the app was opened; a day away has no row, which is
+  the right reading for "the day's reviews" but means days away do not lower the fraction (the
+  sessions lost to being away are written by hand, D-010). Each load of Início writes an
+  `app_opened`, so going back to Início mid-visit restarts the open-to-start clock. On day 28,
+  concepts completed after 2026-10-29 cannot have reviews 15 days later inside the window, so
+  the accuracy metric will rest on few cards. The accuracy reads each concept's completion as
+  it stands when the metric runs: reopening a subtopic, or adding one to a completed concept,
+  takes that concept's late reviews out, so read it as soon as the window closes (2026-11-14
+  for the four blocks), without editing the roadmap first. Days before this release
+  reached use mode have no queue row, so the fraction of reviews done starts at that release,
+  not at day 1.
