@@ -993,3 +993,61 @@ def test_a_cut_at_the_first_letters_of_area_blocks_and_trilha_in_underscores_end
 
     assert any("não fechou" in e for e in report["documents"][0]["errors"])
     assert done["complete"]
+
+
+# Found by the twelfth review of PR #45.
+
+
+def test_a_reference_answer_before_the_first_question_is_listed():
+    loose = "**Pergunta 1:** O que é uma imagem?\n**Resposta de referência:** O molde.\n\n"
+    text = document("Camadas").replace("### P1:", loose + "### P1:", 1)
+
+    gaps = contract_gaps(parse_markdown(text))
+
+    assert any(g.startswith("Resposta de referência antes da primeira pergunta") for g in gaps)
+
+
+@pytest.mark.django_db
+def test_a_bold_value_after_a_bold_key_and_a_real_name_in_brackets(client):
+    bold = document("Camadas")
+    for key in ("conceito", "subtema", "nivel"):
+        bold = bold.replace(f"\n{key}: ", f"\n**{key}**: **", 1)
+    bold = bold.replace("containers\n", "containers**\n").replace("Camadas\n", "Camadas**\n", 1)
+    bold = bold.replace("iniciante\n", "iniciante**\n", 1)
+    bracketed = document("<Volumes no Docker>")
+
+    parsed = parse_markdown(bold)
+    report = send(client, bracketed, "/api/themes/preview/").json()
+
+    assert (parsed.frontmatter["subtema"], parsed.level) == ("Camadas", "iniciante")
+    assert "modelo do pedido" in report["documents"][0]["errors"][0]
+
+
+def test_an_answer_written_against_its_label_keeps_its_own_markers():
+    exact = "Resposta de referência: O molde."
+    answers = {
+        "**Resposta de referência:**__init__ roda.": "__init__ roda.",
+        "*Resposta de referência*:*args roda.": "*args roda.",
+        "💡**Resposta de referência:** O molde.": "O molde.",
+        "**Resposta de referência: O molde.**": "O molde.",
+    }
+
+    stored = [
+        parse_markdown(document("Camadas").replace(exact, label)).questions[0].reference_answer
+        for label in answers
+    ]
+
+    assert stored == list(answers.values())
+    assert without_reference_answers("### P1: Qual?\n💡**Resposta de referência:** X") == (
+        "### P1: Qual?"
+    )
+
+
+@pytest.mark.django_db
+def test_an_unknown_level_is_not_reported_missing_and_an_underscore_origin_is_one_word(client):
+    gaps = contract_gaps(parse_markdown(document("Camadas").replace("iniciante", "básico")))
+
+    send(client, document("Camadas"), origem="gemini_pro")
+
+    assert "O frontmatter não diz o nivel" not in gaps
+    assert Content.objects.get().generated_by == "gemini-pro"

@@ -32,12 +32,15 @@ FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})([^`]*)$")
 IMAGE_RE = re.compile(r'^!\[([^\]]*)\]\(/api/images/([a-z0-9][a-z0-9-]*)/?(?:\s+"([^"]*)")?\)$')
 # The label of spec 4.1 anywhere, as the parser always read it, or at the start of a line as chat
 # AIs also write it: `**Resposta de referência:**`, `Resposta de Referência:`, `> - ...`, `💡 ...`,
-# `**💡 ...`.
+# `**💡 ...`, `💡**...`, closing bold or italic runs of any mix (`**_..._**`).
 # Never a lowercase mention in a sentence ("compare com a resposta de referência: ...").
 REFERENCE_RE = re.compile(
-    r"^[ \t]*(?:(?:\*|\d+[.)]|[^\w\s*_]+)[ \t]+)*(?P<m>[*_]+)?(?:[^\w\s*_]+[^\S\n]*)?"
+    r"^[ \t]*(?:(?:\*|\d+[.)]|[^\w\s*_]+)[ \t]+)*(?:[^\w\s*_]+(?=[*_]))?(?P<m>[*_]+)?"
+    r"(?:[^\w\s*_]+[^\S\n]*)?"
     r"(?i:resposta de refer[êe]ncia)"
-    r"(?(m)[*_]{0,3}:[*_]{0,3}|:)"
+    # The closing run mirrors the opening one, or is followed by a space: the answer's own
+    # markers (`__init__`, `*args`) stay.
+    r"(?(m)(?:(?P=m):|:(?P=m)|[*_]{0,3}:(?:[*_]{1,3}(?=\s|$))?)|:)"
     r"|Resposta de referência:",
     re.MULTILINE,
 )
@@ -198,11 +201,15 @@ def _split_frontmatter(text: str) -> tuple[dict[str, str], str]:
 
 
 def _value(key: str, value: str) -> str:
-    # `**subtema:** Nome` leaves the bold marker on the value; `*args e **kwargs` is a name, and so
-    # is `**kwargs` after `**subtema**:`.
-    if "*" in key and not key.rstrip().endswith("*"):
-        return value.strip().removeprefix("**").removesuffix("**").strip()
-    return value.strip()
+    # `**subtema:** Nome` leaves the bold marker on the value and `**subtema**: **Nome**` bolds it
+    # whole; `*args e **kwargs` is a name, and so is `**kwargs` after `**subtema**:`.
+    value = value.strip()
+    if "*" not in key:
+        return value
+    if not key.rstrip().endswith("*"):
+        return value.removeprefix("**").removesuffix("**").strip()
+    whole = len(value) > 4 and value[:2] == value[-2:] == "**" and "**" not in value[2:-2]
+    return value[2:-2].strip() if whole else value
 
 
 def _unquoted(value: str) -> str:
@@ -278,8 +285,12 @@ def _parse_questions(body: str) -> list[Question]:
 def _reference_answer(lines: list[str]) -> str | None:
     # Everything after the marker, up to the next question; text before it is ignored.
     text = "\n".join(lines)
-    marker = REFERENCE_RE.search(text)
-    return (text[marker.end() :].strip() or None) if marker else None
+    if not (marker := REFERENCE_RE.search(text)):
+        return None
+    answer = text[marker.end() :].strip()
+    if marker["m"] and not re.search(r"[*_]:?$", marker[0]):
+        answer = answer.removesuffix(marker["m"][::-1]).rstrip()  # one bold over label and answer
+    return answer or None
 
 
 def _parse_cards(body: str) -> tuple[list[Card], list[str]]:
@@ -626,12 +637,12 @@ def contract_gaps(parsed: ParsedContent) -> list[str]:
         gaps.append("Há seção fora do contrato, ou texto antes do primeiro ##")
     if parsed.state != "ready":
         gaps.append("Rascunho: falta Ideia central ou uma pergunta com resposta de referência")
-    if parsed.level is None:
+    if not parsed.frontmatter.get("nivel"):  # an unknown one already warns
         gaps.append("O frontmatter não diz o nivel")
     if not any(b.kind == "Fontes" and "http" in b.body for b in parsed.blocks):
         gaps.append("Fontes sem nenhum link")
     for block in (b for b in parsed.blocks if b.kind == "Prática"):
-        odd, between, answer, label = [], [], False, None
+        odd, orphan, between, answer, label = [], [], [], False, None
         for line, in_fence in _outside_fences(block.body.split("\n")):
             if not in_fence and (question := QUESTION_RE.match(line)):
                 answer, label = False, question[1]
@@ -640,6 +651,8 @@ def contract_gaps(parsed: ParsedContent) -> list[str]:
                 between.append(label)
             if in_fence:
                 continue
+            if label is None and REFERENCE_RE.search(line):
+                orphan.append(line)  # its question is in another format: the reading shows it
             # An answer may have its own sub-headings (`#### Passo 1`), never a question's level.
             heading = HEADING_RE.match(line) and (not answer or line.startswith("### "))
             if QUESTION_LIKE_RE.match(line) or heading:
@@ -647,6 +660,11 @@ def contract_gaps(parsed: ParsedContent) -> list[str]:
             answer = answer or bool(REFERENCE_RE.search(line))
         if odd:
             gaps.append(f"Pergunta fora do formato ### P1: ...: {odd[0].strip()[:80]}")
+        if orphan:
+            gaps.append(
+                "Resposta de referência antes da primeira pergunta ### P1: ...: "
+                f"{orphan[0].strip()[:80]}"
+            )
         if between:
             # Practice shows only the question's line (spec 4.2.4): code under it would be lost.
             gaps.append(

@@ -274,7 +274,11 @@ def _document_errors(parsed, conceito, subtema):
         errors.append("O frontmatter precisa de conceito e subtema")
     if len(conceito) > NAME_MAX or len(subtema) > NAME_MAX:
         errors.append(f"Nome de conceito ou subtema com mais de {NAME_MAX} caracteres")
-    if any(name.lower().startswith("<nome") for name in (conceito, subtema)):
+    # The request's `<nome do subtema>`, or a real name the AI left inside its brackets.
+    if any(
+        name.lower().startswith("<nome") or re.fullmatch(r"<[^<>]*\s[^<>]*>", name)
+        for name in (conceito, subtema)
+    ):
         errors.append(
             "Nome entre < e >: é o modelo do pedido, não um nome. Troque pelo nome real, ou "
             "apague o trecho se a IA só repetiu o modelo."

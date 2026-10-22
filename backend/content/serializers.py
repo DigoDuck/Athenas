@@ -69,7 +69,7 @@ class ThemeSerializer(serializers.Serializer):
 
     def validate_origem(self, value):
         # Written into each frontmatter line, so one word: no line break can sneak a key in.
-        value = re.sub(r"\s+", "-", value.lower())
+        value = re.sub(r"[\s_]+", "-", value.lower())
         if not re.fullmatch(r"[\w.-]{1,30}", value):
             raise serializers.ValidationError(
                 "IA usada: até 30 letras, números, ponto ou hífen, como gemini ou chatgpt."
