@@ -1,5 +1,6 @@
 """Pure parser for the subtopic Markdown contract (spec 4.1 and 4.2). No Django, no database."""
 
+import os
 import re
 import unicodedata
 from dataclasses import dataclass, field
@@ -182,8 +183,13 @@ def _split_frontmatter(text: str) -> tuple[dict[str, str], str]:
     for end, line in enumerate(lines[1:], start=1):
         if line.strip() == "---":
             pairs = (item.partition(":") for item in lines[1:end])
-            # Lowercase keys and plain values, as chat AIs also write `Subtema:` or `**subtema:**`.
-            data = {k.strip(" *").lower(): _unquoted(_value(k, v)) for k, sep, v in pairs if sep}
+            # Lowercase keys and plain values, as chat AIs also write `Subtema:`, `**subtema:**`,
+            # `nível:` or a non-breaking hyphen in a name.
+            data = {
+                _without_accents(k.strip(" *")).lower(): _contract_name(_unquoted(_value(k, v)))
+                for k, sep, v in pairs
+                if sep
+            }
             return data, "\n".join(lines[end + 1 :])
     return {}, text
 
@@ -201,8 +207,9 @@ def _unquoted(value: str) -> str:
     # word (`'Don't panic'`) is not a quote.
     quote = value[:1]
     if len(value) > 1 and quote in "\"'" and value[-1] == quote:
-        if not re.search(rf"(?<!\w){quote}|{quote}(?!\w)", value[1:-1]):
-            return value[1:-1].strip()
+        inner = value[1:-1].replace("''", "'") if quote == "'" else value[1:-1]  # YAML's escape
+        if not re.search(rf"(?<!\w){quote}|{quote}(?!\w)", inner):
+            return inner.strip()
     return value
 
 
@@ -400,16 +407,13 @@ def split_documents(text: str) -> tuple[list[str], list[str], bool]:
     wrapper = None  # the fence wrapping the documents: its character and length
     chat = []  # fences open in the chat, innermost last: one may be a wrapper read late
     inner = None  # a code fence open inside a document
-    indent = ""  # the current document's own indentation
     outside = True
     i = 0
     while i < len(lines):
         line = lines[i]
         fence = FENCE_RE.match(line)
         if inner is None and (end := _frontmatter_end(lines, i)) is not None:
-            # A document nested in a list item: the parser reads it from the margin.
-            indent = lines[i][: len(lines[i]) - len(lines[i].lstrip())]
-            documents.append([ln.removeprefix(indent) for ln in lines[i : end + 1]])
+            documents.append(lines[i : end + 1])
             heads.append(end + 1 - i)
             outside = False
             i = end + 1
@@ -445,13 +449,15 @@ def split_documents(text: str) -> tuple[list[str], list[str], bool]:
             inner = fence[1][:3]
         elif fence:
             chat.pop() if _closes_chat(fence, chat) else chat.append((fence[1][0], len(fence[1])))
-        (ignored[-1] if outside else documents[-1]).append(
-            line if outside else line.removeprefix(indent)
-        )
+        (ignored[-1] if outside else documents[-1]).append(line)
         i += 1
 
     texts = []
     for document, head in zip(documents, heads, strict=True):
+        # A document nested in a list item is read from its own margin.
+        filled = [line[: len(line) - len(line.lstrip())] for line in document if line.strip()]
+        margin = os.path.commonprefix(filled)
+        document = [line.removeprefix(margin) for line in document]
         labels = []
         while len(document) > head:
             last = document[-1]
@@ -460,6 +466,7 @@ def split_documents(text: str) -> tuple[list[str], list[str], bool]:
                 and not contract_heading(last)
                 and not QUESTION_RE.match(last)
                 and " :: " not in last  # a card, even in bold
+                and not FRONTMATTER_KEY_RE.match(last)  # a cut frontmatter, even in bold
             ):
                 labels.insert(0, last)
             elif not (last.strip() in ("", "---", "***", "___") or COMMENT_RE.match(last)):
@@ -500,7 +507,11 @@ def _opens_documents(lines: list[str], start: int) -> bool:
         start = _next_filled(lines, start)
         if _frontmatter_end(lines, start) is not None:
             return True
-        if start >= len(lines) or FENCE_RE.match(lines[start]) or contract_heading(lines[start]):
+        if (
+            start >= len(lines)
+            or FENCE_RE.match(lines[start])
+            or contract_heading(lines[start].lstrip())
+        ):
             return False
         start += 1
     return False
@@ -525,7 +536,7 @@ def _heading_ahead(lines: list[str], start: int) -> bool:
             inner = False
         elif found:
             fence = None if fence else found[1]
-        elif not inner and fence is None and contract_heading(lines[at]):
+        elif not inner and fence is None and contract_heading(lines[at].lstrip()):
             return True
     return False
 
@@ -620,19 +631,20 @@ def contract_gaps(parsed: ParsedContent) -> list[str]:
             "### P1: ... entrou nela"
         )
     for block in (b for b in parsed.blocks if b.kind == "Flashcards"):
-        stray = []
+        stray, callout = [], False
         for raw in block.body.split("\n"):
             line = raw.strip()
-            if not line or (CARD_LABEL_RE.match(raw) and not CARD_RE.match(raw)):
-                continue  # empty, or a label without `::`, which already warns
+            # A `> [!ia]` callout may sit anywhere; anything else here would vanish from the cards.
+            callout = line.startswith("> [!ia]") or (callout and line.startswith(">"))
+            if callout or not line or (CARD_LABEL_RE.match(raw) and not CARD_RE.match(raw)):
+                continue  # a callout, empty, or a label without `::`, which already warns
             if CARD_RE.match(raw):
                 # The parser cuts at the first `::`: one in code (`std::vector`, `[::2]`) or a
                 # second spaced one means the front may end in the wrong place.
                 before, _, after = raw.partition("::")
                 if not (before[-1:].isspace() and after[:1].isspace()) or " :: " in after:
                     gaps.append(f"Cartão com '::' fora do separador ' :: ': {line[:80]}")
-            # A `> [!ia]` callout may sit anywhere; anything else here would vanish from the cards.
-            elif line[0] != ">" or CARD_LABEL_RE.match(line.lstrip("> ")):
+            else:
                 stray.append(line)
         if stray:
             gaps.append(f"Linha em Flashcards fora do formato - C1: ... :: ...: {stray[0][:80]}")

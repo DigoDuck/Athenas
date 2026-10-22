@@ -830,3 +830,57 @@ def test_a_starred_plan_item_or_a_long_label_is_not_taken_for_something_else(cli
     assert not plan["complete"]
     assert response.status_code == 400
     assert "Rótulo com mais de 10 caracteres: C12345678901" in str(response.json())
+
+
+# Found by the ninth review of PR #45.
+
+
+@pytest.mark.django_db
+def test_an_answer_cut_inside_a_frontmatter_with_bold_keys_blocks(client):
+    cut = "\n---\n**area:** Programação\n**conceito:** Volumes no Docker"
+
+    report = send(client, document("Camadas") + cut, "/api/themes/preview/").json()
+
+    assert any("não fechou" in e for e in report["documents"][0]["errors"])
+
+
+def test_an_indented_frontmatter_alone_leaves_the_body_as_written():
+    code = "services:\n  web:\n    image: nginx\n"
+    body = document("Camadas").replace("docker run hello-world\n", code)
+    head, rest = body.split("---\n\n", 1)
+    indented = textwrap.indent(head + "---\n", "  ") + "\n" + rest
+
+    documents, _, _ = split_documents(f"~~~~markdown\n{indented}~~~~\n")
+
+    assert code in documents[0]
+
+
+def test_a_nested_document_keeps_its_sections_after_a_bare_code_fence():
+    bare = document("Camadas").replace(f"{FENCE}bash\n", f"{FENCE}\n")
+    answer = "1.  **Subtema 1**\n" + textwrap.indent(f"{FENCE}markdown\n{bare}{FENCE}\n", "    ")
+
+    documents, _, cut = split_documents(answer)
+
+    assert documents == [bare] and not cut
+
+
+def test_a_quoted_chat_line_in_flashcards_is_listed_but_an_ia_callout_is_not():
+    chat = document("Camadas", extra="> 💡 Quer que eu prepare o próximo conceito?\n")
+    callout = document("Camadas", extra="> [!ia] Cartões gerados\n> confira as Fontes\n")
+
+    gaps = [contract_gaps(parse_markdown(text)) for text in (chat, callout)]
+
+    assert any(g.startswith("Linha em Flashcards fora do formato") for g in gaps[0])
+    assert not [g for g in gaps[1] if "Flashcards" in g]
+
+
+def test_accented_keys_yaml_escapes_and_hyphen_variants_read_as_written_in_the_template():
+    text = document("'Don''t panic'", conceito="Copy‑on‑write").replace(
+        "nivel: iniciante", "nível: intermediário"
+    )
+
+    parsed = parse_markdown(text)
+
+    assert parsed.frontmatter["subtema"] == "Don't panic"
+    assert parsed.frontmatter["conceito"] == "Copy-on-write"
+    assert parsed.level == "intermediario"

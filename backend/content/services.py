@@ -168,7 +168,7 @@ def import_theme(*, area, track, origem, markdown, save=False) -> dict:
         # the split lost; a chat line such as "**Subtema:** Volumes" is not.
         lines = stretch.split("\n")
         lost = (
-            any(contract_heading(line) for line in lines)
+            any(contract_heading(line.lstrip()) for line in lines)
             or _open_frontmatter(lines)
             or (
                 any(line.strip() == "---" for line in lines)

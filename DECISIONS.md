@@ -749,14 +749,17 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
     "* Trilha completa" or "Trilha completa?" open a plan). Nothing calls an AI from the app (D-030).
   - The answer comes back in one code block fenced with `~~~~`, so the code inside it survives and
     the chat's copy button gives the raw Markdown. The server cuts it into documents at each
-    frontmatter that names a `subtema` (keys in any case, values with or without quotes; a name
-    that only starts and ends with quoted words, `"Since" e "for"`, keeps them; an apostrophe
-    inside a word, `'Don't panic'`, is not a quote), drops a
-    fence wrapped around everything or around each document, and shows the chat text around them
-    as ignored, never saved: a heading or a line that opens in bold and titles the next document
-    ("### Subtema 2", "**Subtema 2:** Camadas", "📘 **Subtema 2**") is chat too, unless it holds a
-    card's ` :: `. A document nested in a list item, its fence indented, is read from its own
-    margin. Only a contract heading means a document goes on, so a chat
+    frontmatter that names a `subtema` (keys in any case and with or without accents, `nível`;
+    values with or without quotes, `'Don''t panic'` as YAML escapes it; a name that only starts
+    and ends with quoted words, `"Since" e "for"`, keeps them; an apostrophe inside a word,
+    `'Don't panic'`, is not a quote; a non-breaking hyphen in a name is a hyphen, so the name
+    matches the row that exists), drops a fence wrapped around everything or around each
+    document, and shows the chat text around them as ignored, never saved: a heading or a line
+    that opens in bold and titles the next document ("### Subtema 2", "**Subtema 2:** Camadas",
+    "📘 **Subtema 2**") is chat too, unless it holds a card's ` :: ` or reads as a frontmatter key
+    (`**area:** ...`, maybe the start of a cut document). A document nested in a list item is read
+    from the margin all its lines share, so a frontmatter indented alone leaves the body as
+    written. Only a contract heading, indented or not, means a document goes on, so a chat
     heading after the wrapper never keeps it open. A frontmatter inside a code example in the body
     does not start a document, and a code fence with any language name (```` ```c# ````) stays
     one. The split, the parser and the reading share that fence rule, so "```` ```docker ps``` ````
@@ -799,7 +802,8 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
     `---` with a `subtema` key, left outside every document. A chat line such as "**Subtema:**
     Volumes" is not.
   - Everything else the skill's check refuses (missing headings, extra headings, draft, no `nivel`,
-    no link under Fontes, a line in Flashcards that is not a card, no card at all) is listed per
+    no link under Fontes, a line in Flashcards that is not a card, quoted chat included unless it
+    belongs to a `> [!ia]` callout, no card at all) is listed per
     document and does not block. So is what the parser would read wrong without a word: a question
     line in Prática that is not `### P<n>:` (a heading before an answer, a `###` heading or a
     `P<n>` line anywhere; an answer may have deeper sub-headings, `#### Passo 1`), two reference
@@ -837,7 +841,9 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
     frontmatter key loses its markers; a value keeps its own (`*args e **kwargs`). A contract
     heading written with a non-breaking hyphen ("Pré‑requisitos", as ChatGPT may write it) is the
     contract one; such a heading saved before was an extra section, so its read mark is lost the
-    next time that subtopic is saved.
+    next time that subtopic is saved. A stored `nível:` key, ignored before, sets the level then.
+    A `P<n>` or `C<n>` label longer than the 10 characters the database holds is a parser error,
+    so the content editor answers 400 where it failed with a 500.
   - A re-import never suspends a manual card. `import_content` suspended every card whose label
     left the Markdown, and manual cards have no label there, so filling a subtopic or saving it in
     the content editor suspended Diogo's own cards. It now syncs only the cards that came from
@@ -853,8 +859,9 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
   fence stays in it and shows as a gap; a frontmatter example inside an unfenced document starts
   a false document, listed on its own; a body fenced apart from its frontmatter lands as one code
   block, with all ten sections listed as missing; a chat opening with a `---` rule and a
-  "**Subtema:**" line blocks as a possibly cut frontmatter, since the two look the same; a chat
-  fence that never closes before documents the AI did not fence (a decorative "~~~ Resumo ~~~"
-  line) warns that the answer may have been cut; a line that opens in bold at the very end of a
-  document is taken for the title of the next one and listed as ignored. A `> [!IA]` callout in
-  capitals is not read as one, as everywhere else in the app.
+  "**Subtema:**" line, or a chat footer after a rule whose lines all read as frontmatter keys
+  with an unaccented `area:` first, blocks as a possibly cut frontmatter, since the two look the
+  same; a chat fence that never closes before documents the AI did not fence (a decorative "~~~
+  Resumo ~~~" line) warns that the answer may have been cut; a line that opens in bold at the
+  very end of a document is taken for the title of the next one and listed as ignored. A
+  `> [!IA]` callout in capitals is not read as one, as everywhere else in the app.
