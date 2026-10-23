@@ -1928,3 +1928,84 @@ def test_an_example_of_its_own_sections_source_keeps_the_document(client):
     reports = [send(client, text, "/api/themes/preview/").json() for text in texts]
 
     assert [[d["errors"] for d in r["documents"]] for r in reports] == [[[], []]] * 2
+
+
+# Found by the twenty-third review of PR #45.
+
+
+@pytest.mark.django_db
+def test_marks_or_an_underline_as_wide_as_the_continuations_fence_never_close_it(client):
+    console = (
+        f"{FENCE}console\n$ npx tsc\nsrc/app.ts:6:1 - error TS2304: Cannot find name 'soma'.\n"
+        f"6 soma(1, 2);\n  ~~~~\nFound 1 error.\n{FENCE}\n"
+    )
+    rst = f"{FENCE}rst\nInstalação\n{'~' * 10}\n\nChame a função.\n\nGuia\n~~~~\n\nLeia.\n{FENCE}\n"
+    code = f"{FENCE}bash\ndocker run hello-world\n{FENCE}\n"
+    chat = "\n\nClaro! Continuando de onde parei:\n\n"
+    texts = []
+    for example, line, kept, fence in (
+        (console, "src/app.ts:6:1 - error TS2304: Cannot find name 'soma'.\n", 20, "~~~~markdown"),
+        (console, "6 soma(1, 2);\n", 0, "~~~~"),
+        (rst, "Chame a função.\n", 9, "~~~~markdown"),
+    ):
+        head, tail = ANSWER.replace(code, example).rsplit(line, 1)
+        texts.append(f"{head}{line[:kept]}{chat}{fence}\n{line[kept:]}{tail}")
+
+    reports = [send(client, text, "/api/themes/preview/").json() for text in texts]
+    saves = [send(client, text).status_code for text in texts]
+
+    assert all("não fecha onde deveria" in r["documents"][-1]["errors"][0] for r in reports)
+    assert saves == [400] * 3 and not Concept.objects.exists()
+
+
+@pytest.mark.django_db
+def test_a_section_restarted_over_its_own_bare_code_or_pasted_onto_the_cut_blocks(client):
+    copied = f"{document('Imagem e container')}\n---\n{document('Camadas')}<!-- fim -->\n"
+    code = f"{FENCE}bash\ndocker run hello-world\n{FENCE}\n"
+    bare = f"Rode no terminal:\n{FENCE}\ndocker run hello-world\n{FENCE}\nA saída mostra algo.\n"
+    head, tail = copied.replace(code, bare).rsplit(bare, 1)
+    texts = [
+        f"{head}Rode no terminal:{chat}{opener}\n## Exemplo\n{bare}{FENCE}\n{tail}"
+        for chat in ("\n", "\n\nClaro! Continuando de onde parei:\n\n")
+        for opener in (f"{FENCE}markdown", FENCE)
+    ]
+    head, tail = copied.rsplit("Texto.\n", 1)
+    for chat in ("Claro! Continuando de onde parei:\n\n", "Claro!\nContinuando:\n\n"):
+        texts.append(f"{head}Tex{chat}~~~~markdown\n## Explicação\nTexto.\n~~~~\n{tail}")
+
+    reports = [send(client, text, "/api/themes/preview/").json() for text in texts]
+    saves = [send(client, text).status_code for text in texts]
+
+    assert all("não fecha onde deveria" in r["documents"][-1]["errors"][0] for r in reports)
+    assert saves == [400] * 6 and not Concept.objects.exists()
+
+
+@pytest.mark.django_db
+def test_an_overlined_title_or_a_sections_source_before_its_code_keeps_the_document(client):
+    bash = f"{FENCE}bash\ndocker run hello-world\n{FENCE}\n"
+    code = f"## Exemplo\n{bash}"
+    overline = f"## Exemplo\n{FENCE}\n{'~' * 6}\nTítulo\n{'~' * 6}\n\nTexto.\n{FENCE}\n"
+    lines = "Rode o container:\n"
+    source = f"## Exemplo\n{lines}Em Markdown:\n{FENCE}markdown\n## Exemplo\n{lines}{FENCE}\n"
+    texts = [ANSWER.replace(code, overline), ANSWER.replace(code, f"{source}{bash}")]
+
+    reports = [send(client, text, "/api/themes/preview/").json() for text in texts]
+
+    assert [[d["errors"] for d in r["documents"]] for r in reports] == [[[], []]] * 2
+
+
+@pytest.mark.django_db
+def test_a_sections_source_copied_with_a_line_edited_keeps_the_document(client):
+    resumo = "## Resumo para o caderno\nImagem: molde.\n"
+    heading = "## Resumo para o caderno\n"
+    bullets = ["- Imagem: molde\n", "- Container: instância\n", "- Volume: dados\n"]
+    copied = f"{document('Imagem e container')}\n---\n{document('Camadas')}<!-- fim -->\n"
+    texts = []
+    for k, edited in ((0, "- Imagem: molde (só leitura)\n"), (2, "- Volume: os dados ficam\n")):
+        lines = "".join(edited if i == k else line for i, line in enumerate(bullets))
+        paste = f"Para colar no caderno:\n{FENCE}markdown\n{heading}{lines}{FENCE}\n"
+        texts.append(copied.replace(resumo, f"{heading}{''.join(bullets)}{paste}"))
+
+    reports = [send(client, text, "/api/themes/preview/").json() for text in texts]
+
+    assert [[d["errors"] for d in r["documents"]] for r in reports] == [[[], []]] * 2

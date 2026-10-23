@@ -632,7 +632,7 @@ def continued(text: str) -> bool:
     block = None  # the open code block's fence
     filled = []  # its filled lines
     held = None  # the request's lines in it: "cards", or "more" for any other
-    inner = None  # a fence of the other character open in it: (whether it is the request's, width)
+    inner = None  # a fence of the other character open in it: (the request's?, width, indent, line)
     after = None  # the code block just closed, while only blank lines follow it
     left = False  # a closed block held the rest of the answer: no contract heading came after it
     wrapped = False  # whether cards in a block here are the AI's own, fenced under "## Flashcards"
@@ -663,12 +663,12 @@ def continued(text: str) -> bool:
         if line.strip():
             filled.append(line)
         if found:
-            width = len(found[1])
             if inner is None:
                 kind = _reopens(found, lines[i - 1])
-                inner = None if kind is None else (kind, width)
-            elif not found[2].strip() and (width == inner[1] or width > inner[1] and not inner[0]):
-                inner = None  # the request's block closes as wide as it opened
+                pad = len(line) - len(plain)
+                inner = None if kind is None else (kind, len(found[1]), pad, i)
+            elif _ends_inner(inner, found, lines[i - 1], i):
+                inner = None
         elif CARD_LABEL_RE.match(plain):
             held = held or "cards"
         elif QUESTION_RE.match(plain) or END_RE.match(line) or contract_heading(plain):
@@ -693,8 +693,23 @@ def _reopens(fence, before: str) -> bool | None:
         return False
     if not before.strip():
         return True
-    title = len(fence[1]) >= len(before.strip()) and re.search(r"\w", before)
-    return None if not info and (title or fence[0][0] in " \t") else True
+    return None if not info and (_underlines(fence, before) or fence[0][0] in " \t") else True
+
+
+def _underlines(fence, before: str) -> bool:
+    """Whether a bare fence reads as the underline of the title above it, as long or longer."""
+    return len(fence[1]) >= len(before.strip()) > 0 and bool(re.search(r"\w", before))
+
+
+def _ends_inner(inner, fence, before: str, at: int) -> bool:
+    """Whether a bare fence closes the inner block: a nest of another language at its width or
+    wider, the request's only as wide and as indented as it opened, never at a compiler's marks or
+    a title's underline unless it opened right above that title, as its overline."""
+    if fence[2].strip() or len(fence[1]) < inner[1]:
+        return False
+    pad = len(fence[0]) - len(fence[0].lstrip())
+    same = (len(fence[1]), pad) == inner[1:3]
+    return not inner[0] or same and (at - 2 == inner[3] or not _underlines(fence, before))
 
 
 def _restarted(closed, old, closer, seam, fence, lines, at) -> bool:
@@ -726,23 +741,53 @@ def _restarts_section(section, opened, lines, at) -> bool:
     """Whether the code block opening at `at` opens the section it sits in again: its contract
     heading, then the section's lines before the block up to one it carries on, the line the cut
     stopped in, with chat lines under it; or, from a cut at a line's end with up to two chat lines
-    under it, up to that line and on past it. An example of the section's source closes there."""
+    under it, up to that line and on past it. An example of the section's source closes there, and
+    one that rewrites a line goes on repeating the lines under it, which chat lines never are."""
     if not contract_heading(section[0].lstrip()):
         return False
     fence, k = FENCE_RE.match(lines[at]), 0
-    for line in (lines[j] for j in range(at + 1, len(lines))):
+    for j in range(at + 1, len(lines)):
+        line = lines[j]
         if not line.strip():
             continue
         if not k and line.strip() != section[0].strip():
             return False
         if k and (k >= opened or line != section[k]):
-            if k < opened and line.startswith(section[k]):
+            after = next((lines[m] for m in range(j + 1, len(lines)) if lines[m].strip()), "")
+            copied = k + 1 < opened and after.startswith(section[k + 1])  # chat never comes back
+            if k < opened and _carries(line, section[k]) and not copied:
                 return True
-            end = FENCE_RE.match(line)
-            closes = end and not end[2].strip() and end[1][0] == fence[1][0]
-            return k > 1 and opened - k <= 2 and not (closes and len(end[1]) >= len(fence[1]))
+            if 1 < k < opened and re.search(r"\w", os.path.commonprefix([line, section[k]])):
+                k += 1  # a line an example of the section rewrites
+                continue
+            return k > 1 and opened - k <= 2 and not _ends_example(fence, lines, j)
         k += 1
     return False
+
+
+def _carries(line: str, cut: str) -> bool:
+    """Whether `line` carries on `cut`, the line a cut stopped in: it goes on from it, or the chat
+    was pasted onto the cut with no break (`TexClaro!` against `Texto.`)."""
+    same = os.path.commonprefix([line, cut])
+    if same == cut:
+        return True
+    if FENCE_RE.match(line) or FENCE_RE.match(cut) or not re.search(r"\w", same):
+        return False
+    return len(same) > 1 and not same[-1].isspace() and not cut[len(same)].isspace()
+
+
+def _ends_example(fence, lines, at) -> bool:
+    """Whether the line at `at` closes the example `fence` opened: a bare fence of its character
+    as wide or wider, and not the opener of a bare block of the section's own code, whose closer
+    is the next fence of that character before the next contract heading."""
+    end = FENCE_RE.match(lines[at])
+    if not end or end[2].strip() or end[1][0] != fence[1][0] or len(end[1]) < len(fence[1]):
+        return False
+    for j in range(at + 1, len(lines)):
+        found = FENCE_RE.match(lines[j])
+        if contract_heading(lines[j].lstrip()) or (found and found[1][0] == fence[1][0]):
+            return not found or bool(found[2].strip())
+    return True
 
 
 def _skeleton(body: list[str]) -> bool:
