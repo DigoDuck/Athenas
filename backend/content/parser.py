@@ -625,32 +625,36 @@ def continued(text: str) -> bool:
     holding the rest of the answer (a card, a question, a contract heading or the <!-- fim -->
     line) with no contract heading after it; a fence of the other character still open when a
     code block closes, written as the request's; or the cut code block opened again right after a
-    fence closes it. An example shown in a block pairs its own fences, and the sections after it
-    follow it.
+    fence closes it, or the section the cut fell in opened again in a code block of its own. An
+    example shown in a block pairs its own fences, and the sections after it follow it.
     """
     lines = text.split("\n")
     block = None  # the open code block's fence
     filled = []  # its filled lines
     held = None  # the request's lines in it: "cards", or "more" for any other
-    inner = None  # a fence of the other character open in it: whether it is the request's
+    inner = None  # a fence of the other character open in it: (whether it is the request's, width)
     after = None  # the code block just closed, while only blank lines follow it
     left = False  # a closed block held the rest of the answer: no contract heading came after it
     wrapped = False  # whether cards in a block here are the AI's own, fenced under "## Flashcards"
+    section = []  # the filled lines since the last contract heading outside code, it first
+    opened = 0  # how many of the section's lines came before the open code block
     for i, line in enumerate(lines):
         found, plain = FENCE_RE.match(line), line.lstrip()
+        section += [line] if line.strip() else []
         if block is None:
             if found and after and _restarted(*after, found, lines, i):
                 return True
             if found:
-                block, filled, held, inner = found, [], None, None
+                block, filled, held, inner, opened = found, [], None, None, len(section) - 1
             elif contract_heading(plain):
                 wrapped, left = _contract_name(plain[3:]) == "Flashcards", False
+                section = [line]
             elif CARD_LABEL_RE.match(plain):
                 wrapped = False  # the cards a block holds after these are the answer's rest
             after = None if line.strip() and not found else after
             continue
         if found and found[1][0] == block[1][0]:
-            if inner:
+            if (inner and inner[0]) or _restarts_section(section, opened, filled):
                 return True
             left = left or _holds_rest(held, wrapped)
             block, after = None, (block, filled, found, not lines[i - 1].strip())
@@ -659,14 +663,14 @@ def continued(text: str) -> bool:
             filled.append(line)
         if found:
             if inner is None:
-                inner = _reopens(found, lines[i - 1])
-            elif not found[2].strip():
+                inner = (_reopens(found, lines[i - 1]), len(found[1]))
+            elif not found[2].strip() and len(found[1]) >= inner[1]:
                 inner = None
         elif CARD_LABEL_RE.match(plain):
             held = held or "cards"
         elif QUESTION_RE.match(plain) or END_RE.match(line) or contract_heading(plain):
             held = "more"
-    return left or (block is not None and (bool(inner) or _holds_rest(held, wrapped)))
+    return left or (block is not None and (bool(inner and inner[0]) or _holds_rest(held, wrapped)))
 
 
 def _holds_rest(held, wrapped) -> bool:
@@ -675,8 +679,8 @@ def _holds_rest(held, wrapped) -> bool:
 
 def _reopens(fence, before: str) -> bool:
     """Whether a fence inside a code block of the other character opens the request's block again:
-    with its language, bare after the chat's blank line, or as wide as the request's under a line
-    it does not underline (a reST title as long as the tildes, a compiler's indented marks)."""
+    with its language, or bare under a line it does not underline (a reST title as long as the
+    tildes, a compiler's indented marks)."""
     info = fence[2].strip().lower()
     if info in ("markdown", "md"):
         return True
@@ -686,15 +690,16 @@ def _reopens(fence, before: str) -> bool:
         return True
     title = len(fence[1]) >= len(before.strip()) and re.search(r"\w", before)
     underline = not info and (title or fence[0][0] in " \t")
-    return len(fence[1]) > 3 and not underline
+    return not underline
 
 
 def _restarted(closed, old, closer, seam, fence, lines, at) -> bool:
     """Whether the fence at `at`, right after a code block closed, opens the cut block again: the
     closer had a language or was wider than the block's own, so it was the continuation's fence;
     or the block opens as written after an empty one, or repeats the closed one's lines and carries
-    on the line the cut stopped in. A blank line before the closer is the seam of two pastes: the
-    chat line above it may sit under the cut, and the cut may fall at the end of a line."""
+    on the line the cut stopped in, as a one-line block may when it opens right under the closer.
+    A blank line before a closer that the new block opens right under is the seam of two pastes:
+    the chat line above it may sit under the cut, and the cut may fall at the end of a line."""
     if closer[2].strip() or len(closer[1]) > len(closed[1]):
         return True
     if fence[0].strip() != closed[0].strip():
@@ -705,13 +710,31 @@ def _restarted(closed, old, closer, seam, fence, lines, at) -> bool:
     while j < len(lines) and len(new) < len(old) and _fence_marker(lines[j]) != fence[1][:3]:
         new += [lines[j]] if lines[j].strip() else []
         j += 1
-    cuts = (old, old[:-1]) if seam else (old,) if len(old) > 1 else ()
+    tight = bool(lines[at - 1].strip())  # the new block opens right under the closer
+    cuts = (old, old[:-1]) if seam and tight else (old,) if len(old) > 1 or tight else ()
+    return _carries_on(cuts, new, seam and tight)
+
+
+def _restarts_section(section, opened, filled) -> bool:
+    """Whether a code block opens the section it sits in again: its contract heading, then the
+    section's lines before the block, carrying on the line the cut stopped in or the one above a
+    chat line."""
+    if opened > len(filled) + 1:  # too short to hold the section's lines before it
+        return False
+    if not (filled and section and filled[0].strip() == section[0].strip()):
+        return False
+    old = section[1:opened]
+    return contract_heading(section[0].lstrip()) and _carries_on((old, old[:-1]), filled[1:], True)
+
+
+def _carries_on(cuts, new, equal: bool) -> bool:
+    """Whether `new` repeats one of the cuts' lines and carries on its last, or equals it."""
     return any(
         cut
-        and new[: len(cut) - 1] == cut[:-1]
         and len(new) >= len(cut)
+        and new[: len(cut) - 1] == cut[:-1]
         and new[len(cut) - 1].startswith(cut[-1])
-        and (seam or new[len(cut) - 1] != cut[-1])
+        and (equal or new[len(cut) - 1] != cut[-1])
         for cut in cuts
     )
 

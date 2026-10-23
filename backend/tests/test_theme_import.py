@@ -1746,3 +1746,77 @@ def test_a_title_card_set_apart_from_the_frontmatter_or_between_documents_keeps_
     assert [[d["errors"] for d in r["documents"]] for r in reports] == [[[], []]] * 3
     assert [r["documents"][1]["subtema"] for r in reports] == ["Camadas"] * 3
     assert not any(r["errors"] for r in reports)
+
+
+# Found by the twenty-first review of PR #45.
+
+
+@pytest.mark.django_db
+def test_a_nest_of_the_other_character_or_blocks_set_apart_by_a_blank_line_keep_the_document(
+    client,
+):
+    examples = (
+        f'~~~markdown\n````markdown\n{FENCE}js\nconsole.log("oi")\n{FENCE}\n````\n~~~\n',
+        f"{FENCE}markdown\n~~~~markdown\n~~~bash\nls\n~~~\n~~~~\n{FENCE}\n",
+        f"{FENCE}console\n$ kubectl get pods\nNo resources found.\n\n{FENCE}\n\n"
+        f"{FENCE}console\n$ kubectl get pods -n loja\nNAME   READY\n{FENCE}\n",
+        f"{FENCE}python\n%%time\ntotal = sum(range(9))\n\n{FENCE}\n\n"
+        f"{FENCE}python\n%%time\ntotal = 0\nfor n in range(9):\n    total += n\n{FENCE}\n",
+        f"{FENCE}bash\ngit status\ngit add .\n\n{FENCE}\n\n"
+        f"{FENCE}bash\ngit status --short\n{FENCE}\n",
+        f"{FENCE}bash\ngit log\n{FENCE}\n\n{FENCE}bash\ngit log --oneline\n{FENCE}\n",
+    )
+    camadas = document("Camadas")
+    code = f"{FENCE}bash\ndocker run hello-world\n{FENCE}\n"
+    texts = [ANSWER.replace(camadas, camadas.replace(code, example)) for example in examples]
+
+    reports = [send(client, text, "/api/themes/preview/").json() for text in texts]
+
+    assert [[d["errors"] for d in r["documents"]] for r in reports] == [[[], []]] * 6
+
+
+@pytest.mark.django_db
+def test_a_one_line_block_or_a_section_restarted_under_the_cut_blocks(client):
+    code = "docker run hello-world\n"
+    copied = f"{document('Imagem e container')}\n---\n{document('Camadas')}<!-- fim -->\n"
+    texts = []
+    for answer in (copied, ANSWER):
+        head, tail = answer.rsplit(code, 1)
+        texts.append(f"{head}docker ru\n{FENCE}\n{FENCE}bash\n{code}{tail}")
+    head, tail = copied.rsplit("Texto.\n", 1)
+    section = "~~~~markdown\n## Explicação\nTexto.\n~~~~\n"
+    for cut, chat in (
+        ("Tex", "\n\nClaro! Continuando de onde parei:\n\n"),
+        ("Tex", "\n"),
+        ("Texto.", "\n\nContinuando:\n\n"),
+    ):
+        texts.append(f"{head}{cut}{chat}{section}{tail}")
+
+    reports = [send(client, text, "/api/themes/preview/").json() for text in texts]
+    saves = [send(client, text).status_code for text in texts]
+
+    assert all("não fecha onde deveria" in r["documents"][-1]["errors"][0] for r in reports)
+    assert saves == [400] * 5 and not Concept.objects.exists()
+
+
+@pytest.mark.django_db
+def test_a_bare_three_wide_fence_right_under_the_cut_blocks(client):
+    code = "docker run hello-world\n"
+    backticks = ANSWER.replace("~~~~markdown\n", f"{FENCE}markdown\n")
+    backticks = backticks.replace("\n~~~~\n", f"\n{FENCE}\n")
+    backticks = backticks.replace(f"{FENCE}bash\n{code}{FENCE}\n", f"~~~bash\n{code}~~~\n")
+    head, tail = backticks.rsplit(code, 1)
+    texts = [
+        f"{head}{code}{FENCE}\n{tail}",
+        f"{head}docker ru\n{FENCE}\nn hello-world\n{tail}",
+        f"{head}docker ru\nContinuando de onde parei:\n{FENCE}\n{code}{tail}",
+    ]
+    copied = f"{document('Imagem e container')}\n---\n{document('Camadas')}<!-- fim -->\n"
+    head, tail = copied.rsplit(code, 1)
+    texts.append(f"{head}{code}~~~\n{tail}~~~\n")
+
+    reports = [send(client, text, "/api/themes/preview/").json() for text in texts]
+    saves = [send(client, text).status_code for text in texts]
+
+    assert all("não fecha onde deveria" in r["documents"][-1]["errors"][0] for r in reports)
+    assert saves == [400] * 4 and not Concept.objects.exists()
