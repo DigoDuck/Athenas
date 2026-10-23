@@ -637,7 +637,7 @@ def continued(text: str) -> bool:
     left = False  # a closed block held the rest of the answer: no contract heading came after it
     wrapped = False  # whether cards in a block here are the AI's own, fenced under "## Flashcards"
     section = []  # the filled lines since the last contract heading outside code, it first
-    opened = 0  # how many of the section's lines came before the open code block
+    opened = start = 0  # how many of the section's lines came before the open code block; its line
     for i, line in enumerate(lines):
         found, plain = FENCE_RE.match(line), line.lstrip()
         section += [line] if line.strip() else []
@@ -645,7 +645,8 @@ def continued(text: str) -> bool:
             if found and after and _restarted(*after, found, lines, i):
                 return True
             if found:
-                block, filled, held, inner, opened = found, [], None, None, len(section) - 1
+                block, filled, held, inner = found, [], None, None
+                opened, start = len(section) - 1, i
             elif contract_heading(plain):
                 wrapped, left = _contract_name(plain[3:]) == "Flashcards", False
                 section = [line]
@@ -654,7 +655,7 @@ def continued(text: str) -> bool:
             after = None if line.strip() and not found else after
             continue
         if found and found[1][0] == block[1][0]:
-            if (inner and inner[0]) or _restarts_section(section, opened, filled):
+            if (inner and inner[0]) or _restarts_section(section, opened, lines, start):
                 return True
             left = left or _holds_rest(held, wrapped)
             block, after = None, (block, filled, found, not lines[i - 1].strip())
@@ -662,10 +663,12 @@ def continued(text: str) -> bool:
         if line.strip():
             filled.append(line)
         if found:
+            width = len(found[1])
             if inner is None:
-                inner = (_reopens(found, lines[i - 1]), len(found[1]))
-            elif not found[2].strip() and len(found[1]) >= inner[1]:
-                inner = None
+                kind = _reopens(found, lines[i - 1])
+                inner = None if kind is None else (kind, width)
+            elif not found[2].strip() and (width == inner[1] or width > inner[1] and not inner[0]):
+                inner = None  # the request's block closes as wide as it opened
         elif CARD_LABEL_RE.match(plain):
             held = held or "cards"
         elif QUESTION_RE.match(plain) or END_RE.match(line) or contract_heading(plain):
@@ -677,20 +680,21 @@ def _holds_rest(held, wrapped) -> bool:
     return held == "more" or (held == "cards" and not wrapped)
 
 
-def _reopens(fence, before: str) -> bool:
+def _reopens(fence, before: str) -> bool | None:
     """Whether a fence inside a code block of the other character opens the request's block again:
-    with its language, or bare under a line it does not underline (a reST title as long as the
-    tildes, a compiler's indented marks)."""
+    with its language, or bare under a line it does not underline; False for a block of another
+    language, and None for no fence at all: a banner, marks, or a reST title's underline."""
     info = fence[2].strip().lower()
     if info in ("markdown", "md"):
         return True
+    if fence[1][0] in info or (info and not re.search(r"\w", info)):
+        return None  # "~~~ Iniciando ~~~", or a traceback's "~~~~^^^^"
     if info not in ("", "text"):
         return False
     if not before.strip():
         return True
     title = len(fence[1]) >= len(before.strip()) and re.search(r"\w", before)
-    underline = not info and (title or fence[0][0] in " \t")
-    return not underline
+    return None if not info and (title or fence[0][0] in " \t") else True
 
 
 def _restarted(closed, old, closer, seam, fence, lines, at) -> bool:
@@ -711,32 +715,34 @@ def _restarted(closed, old, closer, seam, fence, lines, at) -> bool:
         new += [lines[j]] if lines[j].strip() else []
         j += 1
     tight = bool(lines[at - 1].strip())  # the new block opens right under the closer
-    cuts = (old, old[:-1]) if seam and tight else (old,) if len(old) > 1 or tight else ()
-    return _carries_on(cuts, new, seam and tight)
+    same = next((k for k in range(len(new)) if new[k] != old[k]), len(new))  # new is never longer
+    carried = same < len(old) and same < len(new) and new[same].startswith(old[same])
+    if seam and tight:
+        return carried or same >= max(1, len(old) - 1)
+    return carried and same == len(old) - 1 and (len(old) > 1 or tight)
 
 
-def _restarts_section(section, opened, filled) -> bool:
-    """Whether a code block opens the section it sits in again: its contract heading, then the
-    section's lines before the block, carrying on the line the cut stopped in or the one above a
-    chat line."""
-    if opened > len(filled) + 1:  # too short to hold the section's lines before it
+def _restarts_section(section, opened, lines, at) -> bool:
+    """Whether the code block opening at `at` opens the section it sits in again: its contract
+    heading, then the section's lines before the block up to one it carries on, the line the cut
+    stopped in, with chat lines under it; or, from a cut at a line's end with up to two chat lines
+    under it, up to that line and on past it. An example of the section's source closes there."""
+    if not contract_heading(section[0].lstrip()):
         return False
-    if not (filled and section and filled[0].strip() == section[0].strip()):
-        return False
-    old = section[1:opened]
-    return contract_heading(section[0].lstrip()) and _carries_on((old, old[:-1]), filled[1:], True)
-
-
-def _carries_on(cuts, new, equal: bool) -> bool:
-    """Whether `new` repeats one of the cuts' lines and carries on its last, or equals it."""
-    return any(
-        cut
-        and len(new) >= len(cut)
-        and new[: len(cut) - 1] == cut[:-1]
-        and new[len(cut) - 1].startswith(cut[-1])
-        and (equal or new[len(cut) - 1] != cut[-1])
-        for cut in cuts
-    )
+    fence, k = FENCE_RE.match(lines[at]), 0
+    for line in (lines[j] for j in range(at + 1, len(lines))):
+        if not line.strip():
+            continue
+        if not k and line.strip() != section[0].strip():
+            return False
+        if k and (k >= opened or line != section[k]):
+            if k < opened and line.startswith(section[k]):
+                return True
+            end = FENCE_RE.match(line)
+            closes = end and not end[2].strip() and end[1][0] == fence[1][0]
+            return k > 1 and opened - k <= 2 and not (closes and len(end[1]) >= len(fence[1]))
+        k += 1
+    return False
 
 
 def _skeleton(body: list[str]) -> bool:
