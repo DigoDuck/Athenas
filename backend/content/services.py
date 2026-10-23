@@ -315,9 +315,9 @@ def _document_errors(parsed, conceito, subtema):
         errors.append("O documento termina num frontmatter que não fechou: a resposta foi cortada?")
     if continued(parsed.raw):
         errors.append(
-            "Um bloco ~~~~ aberto de novo dentro do documento: a resposta parece cortada e "
-            "continuada num bloco novo. Peça a resposta inteira de novo, ou apague a conversa e a "
-            "emenda."
+            "Um bloco de código dentro do documento não fecha onde deveria: a resposta parece "
+            "cortada e continuada num bloco novo, ou um bloco ficou sem fechar. Peça a resposta "
+            "inteira de novo, ou corrija o texto colado."
         )
     kinds = [block.kind for block in parsed.blocks if block.kind != "extra"]
     for kind in (kind for kind, count in Counter(kinds).items() if count > 1):

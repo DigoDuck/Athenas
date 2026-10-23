@@ -1420,7 +1420,7 @@ def test_a_cut_answer_pasted_with_its_continuation_blocks(client):
     reports = [send(client, text, "/api/themes/preview/").json() for text in (in_code, in_prose)]
     saves = [send(client, text).status_code for text in (in_code, in_prose)]
 
-    assert all("bloco ~~~~ aberto de novo" in r["documents"][-1]["errors"][0] for r in reports)
+    assert all("não fecha onde deveria" in r["documents"][-1]["errors"][0] for r in reports)
     assert saves == [400, 400] and not Concept.objects.exists()
 
 
@@ -1492,7 +1492,7 @@ def test_a_continuation_in_any_tilde_block_blocks_and_an_example_block_does_not(
     blocked = [send(client, text, "/api/themes/preview/").json() for text in resumed]
     shown = [send(client, text, "/api/themes/preview/").json() for text in examples]
 
-    assert all("bloco ~~~~ aberto de novo" in r["documents"][-1]["errors"][0] for r in blocked)
+    assert all("não fecha onde deveria" in r["documents"][-1]["errors"][0] for r in blocked)
     assert [d["errors"] for r in shown for d in r["documents"]] == [[]] * 3
 
 
@@ -1538,3 +1538,113 @@ def test_a_skeleton_with_bracketed_placeholders_blocks_and_creates_nothing(clien
 
     assert all("ficou fora dos documentos" in r["errors"][0] for r in reports)
     assert saves == [400] * 3 and not Concept.objects.exists()
+
+
+# Found by the nineteenth review of PR #45.
+
+
+@pytest.mark.django_db
+def test_a_line_of_tildes_in_a_code_example_keeps_the_document(client):
+    examples = (
+        f"{FENCE}rst\nInstalação\n~~~~~~~~~~\n\nRode ``pip install x``.\n{FENCE}\n",
+        f"{FENCE}text\napp.ts:3:1 - error TS2304: Cannot find name.\n3 nome\n  ~~~~\n{FENCE}\n",
+        f"{FENCE}console\nRelatório\n~~~~~~~~~\ntotal: 3\n{FENCE}\n",
+        f"{FENCE}markdown\nAbra o bloco com:\n~~~~python\n{FENCE}\n",
+    )
+    camadas = document("Camadas")
+    texts = [
+        ANSWER.replace(
+            camadas, camadas.replace(f"{FENCE}bash\ndocker run hello-world\n{FENCE}\n", example)
+        )
+        for example in examples
+    ]
+
+    reports = [send(client, text, "/api/themes/preview/").json() for text in texts]
+
+    assert [[d["errors"] for d in r["documents"]] for r in reports] == [[[], []]] * 4
+
+
+@pytest.mark.django_db
+def test_a_title_card_between_documents_is_chat_and_one_under_the_frontmatter_stays(client):
+    between = (
+        "**Subtema:** Camadas\n**Nível:** iniciante\n",
+        "**Subtema:** Camadas\n**Duração:** 30 minutos\n",
+        "**Conceito:** Imagens e containers  \n**Subtema:** Camadas  \n**Nível:** Iniciante\n",
+    )
+    texts = [ANSWER.replace("\n---\n---\narea", f"\n---\n\n{card}\n---\narea") for card in between]
+    head, tail = ANSWER.rsplit("nivel: iniciante\n---\n", 1)
+    mirror = "**area:** Programação\n**conceito:** Imagens e containers\n**subtema:** Camadas\n"
+    under = f"{head}nivel: iniciante\n---\n\n{mirror}**nivel:** iniciante\n\n---\n{tail}"
+
+    reports = [send(client, text, "/api/themes/preview/").json() for text in (*texts, under)]
+
+    assert [[d["errors"] for d in r["documents"]] for r in reports] == [[[], []]] * 4
+    assert all(any("«**" in w for w in r["warnings"]) for r in reports[:3])
+    assert not any(
+        "fora do contrato" in w for r in reports[:3] for d in r["documents"] for w in d["warnings"]
+    )
+    assert [r["documents"][1]["conceito"] for r in reports] == ["Imagens e containers"] * 4
+
+
+@pytest.mark.django_db
+def test_a_cut_code_block_restarted_or_resumed_in_the_continuation_blocks(client):
+    code = "docker run hello-world\n"
+    chat = "\n\nContinuando de onde parei:\n\n"
+    tilde = ANSWER.replace(
+        f"{FENCE}bash\n{code}{FENCE}\n", f"~~~bash\ndocker pull alpine\n{code}~~~\n"
+    )
+    head, tail = tilde.rsplit(code, 1)
+    in_tilde = [
+        f"{head}{chat}{fence}\n~~~bash\ndocker pull alpine\n{code}{tail}"
+        for fence in ("~~~~markdown", "~~~~")
+    ]
+    four = ANSWER.replace("~~~~markdown\n", "````markdown\n").replace("\n~~~~\n", "\n````\n")
+    head, tail = four.rsplit(code, 1)
+    in_backticks = f"{head}docker ru{chat}````markdown\n{FENCE}bash\n{code}{tail}"
+    copied = f"{document('Imagem e container')}\n---\n{document('Camadas')}<!-- fim -->\n"
+    head, tail = copied.rsplit(code, 1)
+    resumed = f"{head}docker ru{chat}~~~markdown\nn hello-world\n{tail}~~~\n"
+    restarted = f"{head}docker ru{chat}{FENCE}markdown\n{FENCE}bash\n{code}{tail}{FENCE}\n"
+    texts = (*in_tilde, in_backticks, resumed, restarted)
+
+    reports = [send(client, text, "/api/themes/preview/").json() for text in texts]
+    saves = [send(client, text).status_code for text in texts]
+
+    assert all("não fecha onde deveria" in r["documents"][-1]["errors"][0] for r in reports)
+    assert saves == [400] * 5 and not Concept.objects.exists()
+
+
+@pytest.mark.django_db
+def test_a_continuation_holding_only_cards_or_the_sections_after_a_cut_code_block_blocks(client):
+    head = ANSWER.rsplit("- C2: De onde nasce", 1)[0]
+    cards = (
+        f"{head}\nClaro! Continuando:\n\n~~~~markdown\n"
+        "- C2: De onde nasce um container? :: De uma imagem.\n~~~~\n\n<!-- fim -->\n"
+    )
+    head, tail = ANSWER.rsplit("docker run hello-world\n", 1)
+    sections = f"{head}docker ru\n\nContinuando:\n\n~~~~markdown\n{tail.split(FENCE, 1)[1]}"
+
+    reports = [send(client, text, "/api/themes/preview/").json() for text in (cards, sections)]
+
+    assert all("não fecha onde deveria" in r["documents"][-1]["errors"][0] for r in reports)
+
+
+def test_a_rule_between_documents_nested_at_four_spaces_is_left_out():
+    answer = "".join(
+        f"{n}.  **Subtema {n}**\n\n" + textwrap.indent(document(name), "    ") + "\n    ---\n\n"
+        for n, name in ((1, "Imagem e container"), (2, "Camadas"))
+    )
+
+    documents, *_ = split_documents(answer)
+
+    assert documents == [document("Imagem e container"), document("Camadas")]
+
+
+@pytest.mark.django_db
+def test_a_code_block_left_open_over_the_next_document_blocks(client):
+    opened = ANSWER.replace(f"hello-world\n{FENCE}\n## Confusões", "hello-world\n## Confusões", 1)
+
+    report = send(client, opened, "/api/themes/preview/").json()
+
+    assert "não fecha onde deveria" in report["documents"][0]["errors"][0]
+    assert send(client, opened).status_code == 400 and not Concept.objects.exists()

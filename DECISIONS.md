@@ -823,15 +823,22 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
     answer was cut inside the next document: keys with `subtema`, or starting with an unaccented
     `area:` as the request writes them, the last maybe cut in the middle of its name, down to a lone
     `ar`; a whole frontmatter right after the cut one that repeats its keys, the AI restarting that
-    document, does not close it, while a title card under a whole frontmatter, `**Subtema:** X` and
-    a rule, names fewer keys and stays in the body), the request's block opened again inside a
-    document, which is how a cut answer pasted with the AI's continuation looks (a `~~~~` line, with
-    or without a language, left unpaired inside a ```` ``` ```` block, or a `~~~~` block in the
-    prose that runs over a contract heading or the `<!-- fim -->` line; an example shown in a block
-    pairs its own fences and holds neither, so it passes), and a contract heading, a card or
-    question line, or a `---` with a `subtema` key, left outside every document, whose message asks
-    to check that the answer came whole and, if the stretch is an example in the chat around the
-    documents, to delete it from the paste. A chat line such as "**Subtema:** Volumes" is not.
+    document, does not close it, while a title card in bold beside a frontmatter of plain keys is
+    the card wherever it sits: under the frontmatter, `**Subtema:** X` and a rule, it stays in the
+    body, and between the rule and the next document it is ignored), a code block that does not
+    close where it should, which is how a cut answer pasted with the AI's continuation looks, or a
+    code block the AI left open over the rest of the answer (with the fences paired as the parser
+    pairs them: a block that holds a card, a question, two contract headings, or under a `~~~~`
+    fence one heading or the `<!-- fim -->` line; a fence of the other character written as the
+    request's, `~~~~markdown` or a bare `~~~~` after a blank line, still open when the code block
+    around it closes; or a cut code block opened again right after it closes, when the closing fence
+    has a language or is wider than the block's own, or when the block starts over on its own first
+    line; an example shown in a block pairs its own fences and holds no line of the request, and a
+    tilde underline sits right under its text, so reST titles, a console banner and a compiler's
+    marks pass), and a contract heading, a card or question line, or a `---` with a `subtema` key,
+    left outside every document, whose message asks to check that the answer came whole and, if the
+    stretch is an example in the chat around the documents, to delete it from the paste. A chat line
+    such as "**Subtema:** Volumes" is not.
   - Everything else the skill's check refuses (missing headings, extra headings, draft, no `nivel`,
     no link under Fontes, a line in Flashcards that is not a card, quoted chat included unless it
     belongs to a `> [!ia]` callout, and a quoted card even there, no card at all) is listed per
@@ -915,24 +922,27 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
   document, listed on its own, and so does one in a bare ```` ``` ```` example inside
   a ```` ``` ```` wrapper, which ends the wrapper there so the documents after it show as broken; a
   body fenced apart from its frontmatter lands as one code block, with all ten sections listed as
-  missing; a chat opening with a `---` rule and a "**Subtema:**" line, or a chat footer after a rule
-  whose lines all read as frontmatter keys with an unaccented `area:` first, blocks as a possibly
-  cut frontmatter, since the two look the same; a chat fence that never closes before documents the
-  AI did not fence (a decorative "~~~ Resumo ~~~" line) warns that the answer may have been cut; a
-  line that opens in bold at the very end of a document is taken for the title of the next one and
-  listed as ignored. The second: when an AI writes `<!-- fim -->` after every document, not only the
-  last, a cut in a document that others follow goes unseen, since only the end of the answer is
-  checked; a cut last document comes after the last of those lines, so it blocks as content left
-  out, and so does a whole one whose line the AI forgot, until the line is added; a cut right after
-  the next document's block opens leaves only that opening, shown as ignored. The third: a cut
-  answer joined by hand to its continuation, with the chat and the new block deleted, is read as
-  written, so a line the continuation repeats is saved twice; a continuation the AI did not fence
-  keeps its chat line too, in the section where the cut fell. A `<!-- fim -->` written at the end of
-  the last card's line, not on its own, warns that the answer may have been cut and stays in that
-  card's back. A lesson that nests fences of one character (five backticks around three) is read
-  with the first closer, as everywhere in the app, and blocks as a continued answer when a `~~~~`
-  line sits in between. An answer that mixes documents with the contract's headings and documents
-  with other ones blocks the latter as content left out, with the message that also suggests an
-  example. A contract heading in the chat after the block (more cards offered under "## Flashcards")
-  blocks as content left out; deleting it from the paste fixes the round. A `> [!IA]` callout in
-  capitals is not read as one, as everywhere else in the app.
+  missing, and blocks as a code block that does not close where it should; a chat opening with a
+  `---` rule and a "**Subtema:**" line, or a chat footer after a rule whose lines all read as
+  frontmatter keys with an unaccented `area:` first, blocks as a possibly cut frontmatter, since the
+  two look the same; a chat fence that never closes before documents the AI did not fence (a
+  decorative "~~~ Resumo ~~~" line) warns that the answer may have been cut; a line that opens in
+  bold at the very end of a document is taken for the title of the next one and listed as ignored.
+  The second: when an AI writes `<!-- fim -->` after every document, not only the last, a cut in a
+  document that others follow goes unseen, since only the end of the answer is checked; a cut last
+  document comes after the last of those lines, so it blocks as content left out, and so does a
+  whole one whose line the AI forgot, until the line is added; a cut right after the next document's
+  block opens leaves only that opening, shown as ignored. The third: a cut answer joined by hand to
+  its continuation, with the chat and the new block deleted, is read as written, so a line the
+  continuation repeats is saved twice; a continuation the AI did not fence keeps its chat line too,
+  in the section where the cut fell, and so does one in a bare three-backtick fence that restarts a
+  code block cut right after its opening line, in a code block of its own. A bare `~~~~` after a
+  blank line inside a code example, read as the request's fence, blocks as a continued answer. A
+  `<!-- fim -->` written at the end of the last card's line, not on its own, warns that the answer
+  may have been cut and stays in that card's back. A lesson that nests fences of one character (five
+  backticks around three) is read with the first closer, as everywhere in the app, and blocks as a
+  continued answer when a `~~~~markdown` line sits in between. An answer that mixes documents with
+  the contract's headings and documents with other ones blocks the latter as content left out, with
+  the message that also suggests an example. A contract heading in the chat after the block (more
+  cards offered under "## Flashcards") blocks as content left out; deleting it from the paste fixes
+  the round. A `> [!IA]` callout in capitals is not read as one, as everywhere else in the app.

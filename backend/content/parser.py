@@ -469,10 +469,9 @@ SKELETON_RE = re.compile(
     r"|\([^()\n]*\)|<[^<>\n]*>|\[[^\[\]\n]*\]",
     re.I,
 )
-# A fence as wide as the one around the request's answer block (themeRequest.js), any language.
-WIDE_FENCE_RE = re.compile(r"^ {0,3}~{4,}[^`~]*$")
-# A rule chat AIs put between documents, in any CommonMark spelling or ChatGPT's `⸻`.
-RULE_RE = re.compile(r"^ {0,3}(?:([-*_])(?:[ \t]*\1){2,}|⸻)[ \t]*$")
+# A rule chat AIs put between documents, in any CommonMark spelling or ChatGPT's `⸻`, at any
+# indentation, as a nested document's own.
+RULE_RE = re.compile(r"^(?:([-*_])(?:[ \t]*\1){2,}|⸻)$")
 # A heading or a line that opens in bold, as chat AIs title each document ("**Subtema 2: Camadas**",
 # "**Subtema 2:** Camadas", "📘 **Subtema 2**", "2. **Camadas**").
 LABEL_RE = re.compile(
@@ -586,7 +585,7 @@ def split_documents(text: str) -> tuple[list[str], list[str], bool, bool]:
                 and not (n == len(documents) - 1 and FRONTMATTER_KEY_RE.match(last))
             ):
                 labels.insert(0, last)
-            elif not (not last.strip() or RULE_RE.match(last) or COMMENT_RE.match(last)):
+            elif not (not last.strip() or RULE_RE.match(last.strip()) or COMMENT_RE.match(last)):
                 break
             document.pop()  # blank lines, rules and comments chat AIs put between documents
         prose = [line for line, in_fence in _outside_fences(document) if not in_fence]
@@ -622,28 +621,71 @@ def continued(text: str) -> bool:
     """Whether the request's block opens again inside a document: a cut answer pasted with the AI's
     continuation, whose block closes after the documents.
 
-    Inside a ``` block, a `~~~~` line left unpaired when it closes; in the prose, a `~~~~` block
-    over a contract heading or the <!-- fim --> line. An example shown in a block pairs its own
-    fences and holds neither, and a ``` block that never closes may hold the wrapper's own closer,
-    which the cut check reports.
+    With the fences paired as the parser pairs them, the continuation's fence leaves a code block
+    holding the rest of the answer (a card, a question, two contract headings, or under a `~~~~`
+    fence one heading or the <!-- fim --> line); a fence of the other character still open when a
+    code block closes, written as the request's (`~~~~markdown`, or a bare `~~~~` after the chat's
+    blank line); or the cut code block opened again right after a fence closes it. An example
+    shown in a block pairs its own fences and holds none of the request's lines.
     """
-    fence, tildes, wide = None, 0, False
-    for line in text.split("\n"):
-        marker = _fence_marker(line)
-        if fence == "```" and marker == "```":
-            if tildes % 2:
+    lines = text.split("\n")
+    block = None  # the open code block's fence
+    first = None  # its first filled line
+    held = set()  # the contract headings in it
+    inner = None  # a fence of the other character open in it: whether it is the request's
+    after = None  # the code block just closed, while only blank lines follow it
+    for i, line in enumerate(lines):
+        found, plain = FENCE_RE.match(line), line.lstrip()
+        if block is None:
+            if found and after and _restarted(*after, found, lines, i):
                 return True
-            fence = None
-        elif fence == "```":
-            tildes += bool(WIDE_FENCE_RE.match(line))
-        elif fence == "~~~" and marker == "~~~":
-            fence = None
-        elif fence == "~~~":
-            if wide and (contract_heading(line.lstrip()) or END_RE.match(line)):
+            if found:
+                block, first, held, inner = found, None, set(), None
+            after = None if line.strip() else after
+            continue
+        if found and found[1][0] == block[1][0]:
+            if inner:
                 return True
-        elif marker:
-            fence, tildes, wide = marker, 0, bool(WIDE_FENCE_RE.match(line))
+            block, after = None, (block, first, found)
+            continue
+        first = first or (line if line.strip() else None)
+        if found:
+            if inner is None:
+                inner = _reopens(found, lines[i - 1])
+            elif not found[2].strip():
+                inner = None
+            continue
+        wide = block[1][0] == "~" and len(block[1]) > 3
+        if CARD_LABEL_RE.match(plain) or QUESTION_RE.match(plain) or (wide and END_RE.match(line)):
+            return True
+        if contract_heading(plain):
+            held.add(_contract_name(plain[3:]))
+            if wide or len(held) > 1:
+                return True
     return False
+
+
+def _reopens(fence, before: str) -> bool:
+    """Whether a fence inside a code block of the other character opens the request's block again:
+    with its language, or as wide as the request's and bare after the chat's blank line. A tilde
+    underline sits under its text (reST, a compiler's marks), and an example names its own
+    language."""
+    info = fence[2].strip().lower()
+    return info in ("markdown", "md") or (
+        len(fence[1]) > 3 and info in ("", "text") and not before.strip()
+    )
+
+
+def _restarted(closed, first, closer, fence, lines, at) -> bool:
+    """Whether the fence at `at`, right after a code block closed, opens the cut block again: the
+    closer had a language or was wider than the block's own, so it was the continuation's fence,
+    or the block restarts as written after an empty one."""
+    if closer[2].strip() or len(closer[1]) > len(closed[1]):
+        return True
+    if fence[0].strip() != closed[0].strip():
+        return False
+    start = _next_filled(lines, at + 1)
+    return first is None or (start < len(lines) and lines[start] == first)
 
 
 def _skeleton(body: list[str]) -> bool:
@@ -688,30 +730,35 @@ def _frontmatter_end(lines: list[str], start: int) -> int | None:
     """The closing `---` of a frontmatter naming a `subtema` that opens at `start`, if one does."""
     if (found := _frontmatter_keys(lines, start)) is None:
         return None
-    end, keys = found
+    end, keys, bold = found
     # A closer that opens a whole frontmatter repeating these keys: this one was cut, and the
     # answer restarted the document after it. A title card under it (`**Subtema:** X` and a rule)
-    # names fewer keys.
-    restart = _frontmatter_keys(lines, end)
-    return None if restart and keys <= restart[1] else end
+    # names fewer keys, and one in bold beside plain keys is the card, wherever it sits.
+    if (restart := _frontmatter_keys(lines, end)) is None:
+        return end
+    if bold != restart[2]:
+        return None if bold else end
+    return None if keys <= restart[1] else end
 
 
-def _frontmatter_keys(lines: list[str], start: int) -> tuple[int, set] | None:
-    """The closing `---` and the keys of a frontmatter naming a `subtema` that opens at `start`.
+def _frontmatter_keys(lines: list[str], start: int) -> tuple[int, set, bool] | None:
+    """The closing `---`, the keys and whether all are in bold, of a frontmatter naming a `subtema`
+    that opens at `start`.
 
     Blank, comment, indented and list lines may sit between the keys, as `_split_frontmatter`
     reads them; anything else means a `---` rule, not a frontmatter.
     """
     if start >= len(lines) or lines[start].strip() != "---":
         return None
-    keys = set()
+    keys, bold = set(), True
     for end in range(start + 1, min(start + FRONTMATTER_MAX, len(lines))):
         line = lines[end]
         stripped = line.strip()
         if stripped == "---":
-            return (end, keys) if "subtema" in keys else None
+            return (end, keys, bold) if "subtema" in keys else None
         if match := FRONTMATTER_KEY_RE.match(line):
-            keys.add(match[1].lower())
+            keys.add(_without_accents(match[1].lower()))
+            bold = bold and stripped.startswith("*")
         elif stripped and line[0] not in " \t" and not stripped.startswith(("# ", "- ")):
             return None
     return None
