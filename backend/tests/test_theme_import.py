@@ -2001,7 +2001,7 @@ def test_a_sections_source_copied_with_a_line_edited_keeps_the_document(client):
     bullets = ["- Imagem: molde\n", "- Container: instância\n", "- Volume: dados\n"]
     copied = f"{document('Imagem e container')}\n---\n{document('Camadas')}<!-- fim -->\n"
     texts = []
-    for k, edited in ((0, "- Imagem: molde (só leitura)\n"), (2, "- Volume: os dados ficam\n")):
+    for k, edited in ((0, "- Imagem: molde (só leitura)\n"), (1, "- Container: instância viva\n")):
         lines = "".join(edited if i == k else line for i, line in enumerate(bullets))
         paste = f"Para colar no caderno:\n{FENCE}markdown\n{heading}{lines}{FENCE}\n"
         texts.append(copied.replace(resumo, f"{heading}{''.join(bullets)}{paste}"))
@@ -2009,3 +2009,49 @@ def test_a_sections_source_copied_with_a_line_edited_keeps_the_document(client):
     reports = [send(client, text, "/api/themes/preview/").json() for text in texts]
 
     assert [[d["errors"] for d in r["documents"]] for r in reports] == [[[], []]] * 2
+
+
+# Found by the twenty-fourth review of PR #45.
+
+
+@pytest.mark.django_db
+def test_a_section_restarted_with_a_new_line_or_its_first_line_rewritten_blocks(client):
+    copied = f"{document('Imagem e container')}\n---\n{document('Camadas')}<!-- fim -->\n"
+    head, tail = copied.rsplit("Texto.\n", 1)
+    texts = [
+        f"{head}Texto.\n\n{chat}\n\n~~~~markdown\n## Explicação\nTexto.\n{line}\n~~~~\n{tail}"
+        for chat, line in (
+            ("Claro! Continuando de onde parei:", "Cada camada é só leitura."),
+            ("Ok, continuando:", "Os dados ficam no volume."),
+            ("Aqui está a continuação:", "A camada de cima grava."),
+        )
+    ]
+    lines = "Uma imagem é um molde.\nO container a executa.\n"
+    for first in ("Uma imagem é um molde. Ela nunca muda.", "Uma imagem funciona como molde."):
+        rest = f"{first}\nO container a executa.\nCada container ganha uma camada.\n"
+        texts.append(
+            f"{head}{lines}Cada container ganha uma cam\n\nClaro! Continuando de onde parei:\n\n"
+            f"~~~~markdown\n## Explicação\n{rest}~~~~\n{tail}"
+        )
+
+    reports = [send(client, text, "/api/themes/preview/").json() for text in texts]
+    saves = [send(client, text).status_code for text in texts]
+
+    assert all("não fecha onde deveria" in r["documents"][-1]["errors"][0] for r in reports)
+    assert saves == [400] * 5 and not Concept.objects.exists()
+
+
+@pytest.mark.django_db
+def test_a_short_last_line_never_hides_an_examples_closing_fence(client):
+    code = f"## Exemplo\n{FENCE}bash\ndocker run hello-world\n{FENCE}\n"
+    examples = [
+        f"{FENCE}markdown\nPara ver onde você está:\n\n~~~\ncd projeto\npwd\n~~~\n{FENCE}\n",
+        f"~~~markdown\nUm bloco sem linguagem:\n\n{FENCE}\ncd site\nls\n{FENCE}\n~~~\n",
+        f"~~~markdown\n## Testes\n\n{FENCE}text\nRan 4 tests in 0.003s\n\nOK\n{FENCE}\n~~~\n",
+        f"{FENCE}markdown\n~~~md\n# Notas\nOi\n~~~\n{FENCE}\n",
+    ]
+    texts = [ANSWER.replace(code, f"## Exemplo\n{example}") for example in examples]
+
+    reports = [send(client, text, "/api/themes/preview/").json() for text in texts]
+
+    assert [[d["errors"] for d in r["documents"]] for r in reports] == [[[], []]] * 4

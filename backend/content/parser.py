@@ -632,7 +632,7 @@ def continued(text: str) -> bool:
     block = None  # the open code block's fence
     filled = []  # its filled lines
     held = None  # the request's lines in it: "cards", or "more" for any other
-    inner = None  # a fence of the other character open in it: (the request's?, width, indent, line)
+    inner = None  # a fence of the other character open in it: (the request's?, width, indent)
     after = None  # the code block just closed, while only blank lines follow it
     left = False  # a closed block held the rest of the answer: no contract heading came after it
     wrapped = False  # whether cards in a block here are the AI's own, fenced under "## Flashcards"
@@ -666,8 +666,8 @@ def continued(text: str) -> bool:
             if inner is None:
                 kind = _reopens(found, lines[i - 1])
                 pad = len(line) - len(plain)
-                inner = None if kind is None else (kind, len(found[1]), pad, i)
-            elif _ends_inner(inner, found, lines[i - 1], i):
+                inner = None if kind is None else (kind, len(found[1]), pad)
+            elif _ends_inner(inner, found, lines, i):
                 inner = None
         elif CARD_LABEL_RE.match(plain):
             held = held or "cards"
@@ -701,15 +701,16 @@ def _underlines(fence, before: str) -> bool:
     return len(fence[1]) >= len(before.strip()) > 0 and bool(re.search(r"\w", before))
 
 
-def _ends_inner(inner, fence, before: str, at: int) -> bool:
+def _ends_inner(inner, fence, lines, at: int) -> bool:
     """Whether a bare fence closes the inner block: a nest of another language at its width or
-    wider, the request's only as wide and as indented as it opened, never at a compiler's marks or
-    a title's underline unless it opened right above that title, as its overline."""
+    wider, the request's only as wide and as indented as it opened, so never at a compiler's
+    indented marks, and never as a title's tilde underline, under a short line after a blank one."""
     if fence[2].strip() or len(fence[1]) < inner[1]:
         return False
     pad = len(fence[0]) - len(fence[0].lstrip())
-    same = (len(fence[1]), pad) == inner[1:3]
-    return not inner[0] or same and (at - 2 == inner[3] or not _underlines(fence, before))
+    same = (len(fence[1]), pad) == inner[1:]
+    title = fence[1][0] == "~" and not lines[at - 2].strip() and _underlines(fence, lines[at - 1])
+    return not inner[0] or same and not title
 
 
 def _restarted(closed, old, closer, seam, fence, lines, at) -> bool:
@@ -742,7 +743,7 @@ def _restarts_section(section, opened, lines, at) -> bool:
     heading, then the section's lines before the block up to one it carries on, the line the cut
     stopped in, with chat lines under it; or, from a cut at a line's end with up to two chat lines
     under it, up to that line and on past it. An example of the section's source closes there, and
-    one that rewrites a line goes on repeating the lines under it, which chat lines never are."""
+    one that rewrites a line goes on with the line under it, which chat lines never come back to."""
     if not contract_heading(section[0].lstrip()):
         return False
     fence, k = FENCE_RE.match(lines[at]), 0
@@ -754,12 +755,11 @@ def _restarts_section(section, opened, lines, at) -> bool:
             return False
         if k and (k >= opened or line != section[k]):
             after = next((lines[m] for m in range(j + 1, len(lines)) if lines[m].strip()), "")
-            copied = k + 1 < opened and after.startswith(section[k + 1])  # chat never comes back
-            if k < opened and _carries(line, section[k]) and not copied:
-                return True
-            if 1 < k < opened and re.search(r"\w", os.path.commonprefix([line, section[k]])):
+            if k + 1 < opened and after.startswith(section[k + 1]):
                 k += 1  # a line an example of the section rewrites
                 continue
+            if k < opened and _carries(line, section[k]):
+                return True
             return k > 1 and opened - k <= 2 and not _ends_example(fence, lines, j)
         k += 1
     return False
