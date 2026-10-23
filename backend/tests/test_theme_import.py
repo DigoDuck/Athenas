@@ -2055,3 +2055,24 @@ def test_a_short_last_line_never_hides_an_examples_closing_fence(client):
     reports = [send(client, text, "/api/themes/preview/").json() for text in texts]
 
     assert [[d["errors"] for d in r["documents"]] for r in reports] == [[[], []]] * 4
+
+
+@pytest.mark.django_db
+def test_chat_glued_onto_a_cut_after_a_space_blocks(client):
+    copied = f"{document('Imagem e container')}\n---\n{document('Camadas')}<!-- fim -->\n"
+    ideia = "Uma imagem é o molde; o container, a execução.\n"
+    chat = "Claro! Continuando de onde parei:\n\n"
+    texts = []
+    for seam in (" ", " 👍 ", " - "):
+        head, tail = copied.rsplit(ideia, 1)
+        restart = f"~~~~markdown\n## Ideia central\n{ideia}~~~~\n"
+        texts.append(f"{head}Uma imagem é o mo{seam}{chat}{restart}{tail}")
+        head, tail = copied.rsplit("Texto.\n", 1)
+        restart = "~~~~markdown\n## Explicação\nTexto.\nMais texto com parênteses.\n~~~~\n"
+        texts.append(f"{head}Texto.\nMais texto com parên{seam}{chat}{restart}{tail}")
+
+    reports = [send(client, text, "/api/themes/preview/").json() for text in texts]
+    saves = [send(client, text).status_code for text in texts]
+
+    assert all("não fecha onde deveria" in r["documents"][-1]["errors"][0] for r in reports)
+    assert saves == [400] * 6 and not Concept.objects.exists()

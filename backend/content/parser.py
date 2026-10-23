@@ -767,13 +767,15 @@ def _restarts_section(section, opened, lines, at) -> bool:
 
 def _carries(line: str, cut: str) -> bool:
     """Whether `line` carries on `cut`, the line a cut stopped in: it goes on from it, or the chat
-    was pasted onto the cut with no break (`TexClaro!` against `Texto.`)."""
+    was pasted onto the cut inside a word (`TexClaro!` or `Tex Claro!` against `Texto.`)."""
     same = os.path.commonprefix([line, cut])
     if same == cut:
         return True
     if FENCE_RE.match(line) or FENCE_RE.match(cut) or not re.search(r"\w", same):
         return False
-    return len(same) > 1 and not same[-1].isspace() and not cut[len(same)].isspace()
+    if len(same) < 2 or same[-1].isspace():
+        return False
+    return not cut[len(same)].isspace() or same[-1].isalnum() and line[len(same) :][:1].isalnum()
 
 
 def _ends_example(fence, lines, at) -> bool:

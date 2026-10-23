@@ -957,9 +957,10 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
   in the middle of a fence line, which chat AIs write as one token, or inside a lesson that nests
   fences of one character, or inside a code block that a lesson shows within a block of the other
   character, or one that opens the cut section again in a block of its own closed at that section's
-  end, when the cut fell at the end of the heading line or of the section's last line, as an example
-  may open with the heading it sits under or show the Markdown of the section it sits in, when more
-  than two chat lines sit under a cut at a line's end, or when it restarts only the section's text.
+  end, when the cut fell at the end of the heading line or of the section's last line, or at a
+  word's end in its first line with the chat pasted after a space, as an example may open with the
+  heading it sits under or show the Markdown of the section it sits in, when more than two chat
+  lines sit under a cut at a line's end, or when it restarts only the section's text.
   A copy-button paste cut inside a card of a document before the last and continued at the exact
   character in a new block shows the resumed text only among the chat left out, and the card keeps
   its cut back. A bare fence of the other character inside a code example (`~~~~`, `~~~` or three
