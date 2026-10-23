@@ -632,7 +632,7 @@ def continued(text: str) -> bool:
     block = None  # the open code block's fence
     filled = []  # its filled lines
     held = None  # the request's lines in it: "cards", or "more" for any other
-    inner = None  # a fence of the other character open in it: (the request's?, width, indent)
+    inner = None  # a fence of the other character open in it: (the request's?, width, indent, line)
     after = None  # the code block just closed, while only blank lines follow it
     left = False  # a closed block held the rest of the answer: no contract heading came after it
     wrapped = False  # whether cards in a block here are the AI's own, fenced under "## Flashcards"
@@ -666,7 +666,7 @@ def continued(text: str) -> bool:
             if inner is None:
                 kind = _reopens(found, lines[i - 1])
                 pad = len(line) - len(plain)
-                inner = None if kind is None else (kind, len(found[1]), pad)
+                inner = None if kind is None else (kind, len(found[1]), pad, i)
             elif _ends_inner(inner, found, lines, i):
                 inner = None
         elif CARD_LABEL_RE.match(plain):
@@ -704,12 +704,14 @@ def _underlines(fence, before: str) -> bool:
 def _ends_inner(inner, fence, lines, at: int) -> bool:
     """Whether a bare fence closes the inner block: a nest of another language at its width or
     wider, the request's only as wide and as indented as it opened, so never at a compiler's
-    indented marks, and never as a title's tilde underline, under a short line after a blank one."""
+    indented marks, and never as a title's tilde underline, under a short line after a blank one
+    or a fence other than the inner block's opener."""
     if fence[2].strip() or len(fence[1]) < inner[1]:
         return False
     pad = len(fence[0]) - len(fence[0].lstrip())
-    same = (len(fence[1]), pad) == inner[1:]
-    title = fence[1][0] == "~" and not lines[at - 2].strip() and _underlines(fence, lines[at - 1])
+    same = (len(fence[1]), pad) == inner[1:3]
+    above = not lines[at - 2].strip() or (FENCE_RE.match(lines[at - 2]) and at - 2 != inner[3])
+    title = fence[1][0] == "~" and above and _underlines(fence, lines[at - 1])
     return not inner[0] or same and not title
 
 
@@ -740,13 +742,17 @@ def _restarted(closed, old, closer, seam, fence, lines, at) -> bool:
 
 def _restarts_section(section, opened, lines, at) -> bool:
     """Whether the code block opening at `at` opens the section it sits in again: its contract
-    heading, then the section's lines before the block up to one it carries on, the line the cut
-    stopped in, with chat lines under it; or, from a cut at a line's end with up to two chat lines
-    under it, up to that line and on past it. An example of the section's source closes there, and
-    one that rewrites a line goes on with the line under it, which chat lines never come back to."""
+    heading, then the section's lines before the block, some of them reworded, up to one it carries
+    on, the line the cut stopped in, with chat lines under it; or, from a cut at a line's end with
+    up to two chat lines under it, up to that line and on past it. An example of the section's
+    source closes there: one that rewrites a line goes on with the line under it, which chat lines
+    never come back to, and its last line changes as the line above it did, or, reworded, keeps
+    the section's last word or follows a rewritten first line, which a cut line with the chat
+    pasted after a word does not."""
     if not contract_heading(section[0].lstrip()):
         return False
     fence, k = FENCE_RE.match(lines[at]), 0
+    marked, top = None, False  # the last rewrite's change; whether the first line was rewritten
     for j in range(at + 1, len(lines)):
         line = lines[j]
         if not line.strip():
@@ -754,28 +760,69 @@ def _restarts_section(section, opened, lines, at) -> bool:
         if not k and line.strip() != section[0].strip():
             return False
         if k and (k >= opened or line != section[k]):
-            after = next((lines[m] for m in range(j + 1, len(lines)) if lines[m].strip()), "")
-            if k + 1 < opened and after.startswith(section[k + 1]):
-                k += 1  # a line an example of the section rewrites
+            m = next((m for m in range(j + 1, len(lines)) if lines[m].strip()), None)
+            after, last = ("", True) if m is None else (lines[m], _ends_example(fence, lines, m))
+            change = k < opened and _change(line, section[k])
+            if k + 1 < opened and _repeats(after, section[k + 1]):
+                marked, top, k = change, top or k == 1, k + 1  # a line an example rewrites
                 continue
-            if k < opened and _carries(line, section[k]):
+            if k < opened and _carries(line, section[k]) and change != marked:
                 return True
+            if 1 < k < opened and (
+                change == marked
+                or _alike(line, section[k])
+                and (not last or top or _same_end(line, section[k]))
+            ):
+                marked, k = change, k + 1  # reworded, as the one above, or the cut line with chat
+                continue
             return k > 1 and opened - k <= 2 and not _ends_example(fence, lines, j)
         k += 1
     return False
 
 
+def _change(line: str, other: str) -> tuple[str, str]:
+    """How `line` changes `other` after their common start: what replaces the rest, with the rest
+    itself as a placeholder when it is kept (`**{}**`), so every line marked alike changes alike."""
+    same = len(os.path.commonprefix([line, other]))
+    new, old = line[same:], other[same:]
+    return (new.replace(old, "\0", 1), "") if old and old in new else (new, old)
+
+
+def _repeats(line: str, other: str) -> bool:
+    return line.startswith(other) or _carries(line, other) or _alike(line, other)
+
+
+def _alike(line: str, other: str) -> bool:
+    """Whether `line` rewords `other`: it keeps its first two words, or half of its words."""
+    if len(re.findall(r"\w+(?=\W)", os.path.commonprefix([line, other]))) >= 2:
+        return True
+    words, others = _words(line), _words(other)
+    return 2 * len(words & others) >= min(len(words), len(others)) > 0
+
+
+def _same_end(line: str, other: str) -> bool:
+    """Whether two lines end with the same whole word, as a rewritten line, and a cut line with the
+    chat pasted onto it never does."""
+    return bool(re.search(r"\w\W", os.path.commonprefix([line[::-1], other[::-1]])))
+
+
+def _words(text: str) -> set[str]:
+    return set(re.findall(r"\w{3,}", text.casefold()))
+
+
 def _carries(line: str, cut: str) -> bool:
     """Whether `line` carries on `cut`, the line a cut stopped in: it goes on from it, or the chat
-    was pasted onto the cut inside a word (`TexClaro!` or `Tex Claro!` against `Texto.`)."""
+    was pasted onto the cut inside a word (`TexClaro!` or `Tex Claro!` against `Texto.`, `You
+    Claro!` against `You'd`), so `line` does not end with the words after the cut, as a rewrite."""
     same = os.path.commonprefix([line, cut])
     if same == cut:
         return True
     if FENCE_RE.match(line) or FENCE_RE.match(cut) or not re.search(r"\w", same):
         return False
-    if len(same) < 2 or same[-1].isspace():
+    chat, rest = cut[len(same) :], line[len(same) :]
+    if len(same) < 2 or same[-1].isspace() or not rest or _same_end(line, cut):
         return False
-    return not cut[len(same)].isspace() or same[-1].isalnum() and line[len(same) :][:1].isalnum()
+    return not chat[0].isspace() or same[-1].isalnum() and bool(re.match(r"[^\s\w]?\w", rest))
 
 
 def _ends_example(fence, lines, at) -> bool:

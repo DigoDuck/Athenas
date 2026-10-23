@@ -2076,3 +2076,105 @@ def test_chat_glued_onto_a_cut_after_a_space_blocks(client):
 
     assert all("não fecha onde deveria" in r["documents"][-1]["errors"][0] for r in reports)
     assert saves == [400] * 6 and not Concept.objects.exists()
+
+
+# Found by the twenty-fifth review of PR #45.
+
+EXPLICACAO = [
+    "Uma imagem é um molde só de leitura.\n",
+    "O container roda a partir dela.\n",
+    "Cada container ganha uma camada gravável.\n",
+    "Ao remover o container, a camada gravável some.\n",
+    "Os dados que ficam vão para um volume.\n",
+]
+
+
+def restarted(lines, cut, kept, seam, edits=()):
+    """A cut inside line `cut` of a longer Explicação, at character `kept`, then `seam` (the chat)
+    and the section restarted in its own block, with `edits` ({line: new text}) applied to it."""
+    copied = f"{document('Imagem e container')}\n---\n{document('Camadas')}<!-- fim -->\n"
+    head, tail = copied.rsplit("Texto.\n", 1)
+    restart = "".join(dict(edits).get(i, line) for i, line in enumerate(lines))
+    cut_at = "".join(lines[:cut]) + lines[cut][:kept]
+    return f"{head}{cut_at}{seam}~~~~markdown\n## Explicação\n{restart}~~~~\n{tail}"
+
+
+@pytest.mark.django_db
+def test_a_section_restarted_with_lines_reworded_in_a_row_or_above_a_glued_cut_blocks(client):
+    chat = "\n\nClaro! Continuando de onde parei:\n\n"
+    glued = " Claro! Continuando de onde parei:\nAqui está:\n\n"
+    executa, recebe = "O container executa a partir dela.\n", "Cada container recebe uma camada.\n"
+    texts = [
+        restarted(EXPLICACAO, 3, 37, chat, {1: executa, 2: recebe}),
+        restarted(EXPLICACAO, 3, 48, chat, {1: executa, 2: recebe}),  # cut at the line's end
+        restarted(EXPLICACAO, 2, 28, chat, {0: "Uma imagem é um molde só para ler.\n", 1: executa}),
+        restarted(EXPLICACAO, 3, 37, glued, {2: recebe}),
+    ]
+
+    reports = [send(client, text, "/api/themes/preview/").json() for text in texts]
+    saves = [send(client, text).status_code for text in texts]
+
+    assert all("não fecha onde deveria" in r["documents"][-1]["errors"][0] for r in reports)
+    assert saves == [400] * 4 and not Concept.objects.exists()
+
+
+@pytest.mark.django_db
+def test_chat_pasted_after_a_space_at_a_words_end_or_before_an_apostrophe_blocks(client):
+    chat = " Claro! Continuando de onde parei:\n\nDesculpe, a resposta foi cortada.\n\nSegue:\n\n"
+    texts = [restarted(EXPLICACAO, 2, 24, chat)]  # "Cada container ganha uma|"
+    for line, kept in (
+        ("Com *had better* vem o verbo: *You'd better go*.\n", 34),
+        ("Use docker-compose para subir tudo.\n", 10),
+        ("O arquivo compose.yaml descreve os serviços.\n", 17),
+    ):
+        texts.append(restarted([EXPLICACAO[0], line, EXPLICACAO[2]], 1, kept, chat))
+
+    reports = [send(client, text, "/api/themes/preview/").json() for text in texts]
+    saves = [send(client, text).status_code for text in texts]
+
+    assert all("não fecha onde deveria" in r["documents"][-1]["errors"][0] for r in reports)
+    assert saves == [400] * 4 and not Concept.objects.exists()
+
+
+@pytest.mark.django_db
+def test_a_sections_source_shown_with_every_line_marked_or_its_first_lines_reworded_passes(client):
+    resumo = "## Resumo para o caderno\nImagem: molde.\n"
+    heading = "## Resumo para o caderno\n"
+    bullets = ["- Nota atômica: uma ideia só.", "- Título afirma a ideia.", "- Links ligam notas."]
+    copied = f"{document('Imagem e container')}\n---\n{document('Camadas')}<!-- fim -->\n"
+    shown = [
+        [f"{b} ✅" for b in bullets],
+        [f"{b} #zettelkasten" for b in bullets],
+        [f"{b[:-1]} (revisar)." for b in bullets],
+        [f"- **{b[2:]}**" for b in bullets],
+        ["- Notas atômicas: uma ideia só.", "- Títulos afirmam a ideia.", bullets[2]],
+    ]
+    texts = []
+    for lines in shown:
+        source = "".join(f"{line}\n" for line in bullets)
+        example = "".join(f"{line}\n" for line in lines)
+        paste = f"Versão para colar no caderno:\n\n{FENCE}markdown\n{heading}{example}{FENCE}\n"
+        texts.append(copied.replace(resumo, f"{heading}{source}\n{paste}"))
+
+    reports = [send(client, text, "/api/themes/preview/").json() for text in texts]
+
+    assert [[d["errors"] for d in r["documents"]] for r in reports] == [[[], []]] * 5
+
+
+@pytest.mark.django_db
+def test_a_cut_inside_an_overlined_title_continued_in_a_tilde_fence_blocks(client):
+    rst = f"{FENCE}rst\n~~~\nUso\n~~~\n\nChame a função.\n{FENCE}\n"
+    code = f"{FENCE}bash\ndocker run hello-world\n{FENCE}\n"
+    head, tail = ANSWER.replace(code, rst).rsplit("Uso\n", 1)
+    chat = "\n\nClaro! Continuando de onde parei:\n\n"
+    texts = [
+        f"{head}U{chat}{fence}\n{rest}{tail}"
+        for fence in ("~~~markdown", "~~~~")
+        for rest in ("Uso\n", "so\n")
+    ]
+
+    reports = [send(client, text, "/api/themes/preview/").json() for text in texts]
+    saves = [send(client, text).status_code for text in texts]
+
+    assert all("não fecha onde deveria" in r["documents"][-1]["errors"][0] for r in reports)
+    assert saves == [400] * 4 and not Concept.objects.exists()

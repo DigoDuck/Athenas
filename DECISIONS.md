@@ -835,27 +835,27 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
     written as the request's, with `markdown` or `md`, bare after a blank line, or bare under a line
     it does not underline, still open when the code block around it closes, only a bare fence as
     wide and as indented closing it, unless that fence is in tildes under a short line after a blank
-    one, as a reST title's underline, while a nest of another language closes at a bare fence as
-    wide or wider and a banner, a compiler's marks or a title's underline opens nothing; or a cut
-    code block opened again right after it closes, when the closing fence has a language or is wider
-    than the block's own, when the closed block is empty, or when the new block repeats the closed
-    one's lines and carries on its last, the line the cut stopped in, which a block of one line does
-    only when the new one opens right under the closing fence, and when the new block opens right
-    under a closing fence with a blank line before it any chat lines may sit under a cut inside a
-    line, and one under a cut at a line's end; or the section the cut fell in opened again in a code
-    block of its own, its heading first and then the section's lines before the block, its own code
-    fences included, carrying on the line the cut stopped in or with the chat pasted onto that line,
-    with any chat lines under the cut, or, from a cut at a line's end with up to two chat lines
-    under it, repeating up to that line and going on past it, into the section's own code too; an
-    example shown in a block pairs its own fences and the sections after it follow outside code, so
-    a README or a prompt with contract headings, a card format, cards fenced under "## Flashcards",
-    two cells that open on `%%time`, a reST title over tildes as long as it, a console banner, a
-    compiler's indented marks, four backticks nested in tildes and the Markdown of a section shown
-    inside it, a line of it rewritten and the line under it repeated, pass), and a contract heading,
-    a card or question line, or a `---` with a `subtema` key, left outside every document, whose
-    message asks to check that the answer came whole and, if the stretch is an example in the chat
-    around the documents, to delete it from the paste. A chat line such as "**Subtema:** Volumes" is
-    not.
+    one or after a fence other than its opener, as a reST title's underline, while a nest of another
+    language closes at a bare fence as wide or wider and a banner, a compiler's marks or a title's
+    underline opens nothing; or a cut code block opened again right after it closes, when the
+    closing fence has a language or is wider than the block's own, when the closed block is empty,
+    or when the new block repeats the closed one's lines and carries on its last, the line the cut
+    stopped in, which a block of one line does only when the new one opens right under the closing
+    fence, and when the new block opens right under a closing fence with a blank line before it any
+    chat lines may sit under a cut inside a line, and one under a cut at a line's end; or the
+    section the cut fell in opened again in a code block of its own, its heading first and then the
+    section's lines before the block, some of them reworded, its own code fences included, carrying
+    on the line the cut stopped in or with the chat pasted onto that line, with any chat lines under
+    the cut, or, from a cut at a line's end with up to two chat lines under it, repeating up to that
+    line and going on past it, into the section's own code too; an example shown in a block pairs
+    its own fences and the sections after it follow outside code, so a README or a prompt with
+    contract headings, a card format, cards fenced under "## Flashcards", two cells that open on
+    `%%time`, a reST title over tildes as long as it, a console banner, a compiler's indented marks,
+    four backticks nested in tildes and the Markdown of a section shown inside it, with lines of it
+    rewritten or a mark added to each, pass), and a contract heading, a card or question line, or a
+    `---` with a `subtema` key, left outside every document, whose message asks to check that the
+    answer came whole and, if the stretch is an example in the chat around the documents, to delete
+    it from the paste. A chat line such as "**Subtema:** Volumes" is not.
   - Everything else the skill's check refuses (missing headings, extra headings, draft, no `nivel`,
     no link under Fontes, a line in Flashcards that is not a card, quoted chat included unless it
     belongs to a `> [!ia]` callout, and a quoted card even there, no card at all) is listed per
@@ -958,32 +958,36 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
   fences of one character, or inside a code block that a lesson shows within a block of the other
   character, or one that opens the cut section again in a block of its own closed at that section's
   end, when the cut fell at the end of the heading line or of the section's last line, or at a
-  word's end in its first line with the chat pasted after a space, as an example may open with the
-  heading it sits under or show the Markdown of the section it sits in, when more than two chat
-  lines sit under a cut at a line's end, or when it restarts only the section's text.
-  A copy-button paste cut inside a card of a document before the last and continued at the exact
+  word's end with the chat pasted after a space in its first line, in its last line under a
+  rewritten first line, or over more than two other chat lines (one in its last line), as an example
+  may open with the heading it sits under or show the Markdown of the section it sits in, when more
+  than two chat lines sit under a cut at a line's end, when it rewrites two lines in a row keeping
+  neither one's first words nor half of its words, or when it restarts only the section's text. A
+  copy-button paste cut inside a card of a document before the last and continued at the exact
   character in a new block shows the resumed text only among the chat left out, and the card keeps
   its cut back. A bare fence of the other character inside a code example (`~~~~`, `~~~` or three
   backticks), after a blank line or under a line longer than it, read as the request's, blocks as a
   continued answer when nothing in the example pairs it; under a line as short with a word in it
   (`fi`, `done`), or indented, it reads as a reST underline or a compiler's marks, and a cut there
-  passes; a bare `~~~` that closes such a fence under a short word after a blank line (`OK` ending a
-  test run) reads as a title's underline, so the example blocks. A `~~~~markdown` an example closes
-  with a wider bare fence reads as left open and blocks. Two code blocks with only blank lines
-  between them, the second opening as the first and carrying on its last line (`FROM clientes` and
-  then `FROM clientes WHERE ...`), block as a cut block restarted, and so do two one-line blocks
-  with no line between them (`git log` right above `git log --oneline`); a block restarted from a
-  cut at a line's end or with a chat line under the cut keeps the cut part as a block of its own
-  unless a blank line comes before the closing fence and the new block opens right under it, which
-  still keeps it for a cut at a line's end under two chat lines or more, and so does a one-line
-  block restarted with a blank line between the two. Two blocks with no line between them, the first
-  ending in a blank line before its closing fence, block when the second repeats every line of the
-  first but the last (`cd site` over `mkdocs serve`, then `cd site` over `mkdocs build`) or carries
-  on one of its lines (`$ pytest -q` over its output, then `$ pytest -q -x`). A code example that
-  holds the request's lines in the last section, with no contract heading after it, blocks. An
-  example that opens with its section's heading and repeats its lines passes when it rewrites one of
-  them and repeats the line under it, but blocks as the section restarted when it adds a line or
-  rewrites the last line above it, as a cut there would go on (`empréstimo.` shown as `empréstimo
+  passes; a bare `~~~` that closes such a fence under a short word after a blank line or another
+  fence (`OK` ending a test run) reads as a title's underline, so the example blocks. A
+  `~~~~markdown` an example closes with a wider bare fence reads as left open and blocks. Two code
+  blocks with only blank lines between them, the second opening as the first and carrying on its
+  last line (`FROM clientes` and then `FROM clientes WHERE ...`), block as a cut block restarted,
+  and so do two one-line blocks with no line between them (`git log` right above `git log
+  --oneline`); a block restarted from a cut at a line's end or with a chat line under the cut keeps
+  the cut part as a block of its own unless a blank line comes before the closing fence and the new
+  block opens right under it, which still keeps it for a cut at a line's end under two chat lines or
+  more, and so does a one-line block restarted with a blank line between the two. Two blocks with no
+  line between them, the first ending in a blank line before its closing fence, block when the
+  second repeats every line of the first but the last (`cd site` over `mkdocs serve`, then `cd site`
+  over `mkdocs build`) or carries on one of its lines (`$ pytest -q` over its output, then `$ pytest
+  -q -x`). A code example that holds the request's lines in the last section, with no contract
+  heading after it, blocks. An example that opens with its section's heading and repeats its lines
+  passes when it rewrites some of them, from the first or with the line under each repeated, or
+  changes every line alike (a mark added, bold, the period dropped), but blocks as the section
+  restarted when it adds a line, or keeps its first line and rewrites its last one so that it goes
+  on past it or ends in another word, as a cut there would go on (`empréstimo.` shown as `empréstimo
   (30 min).`), or when a bare block of its fence character follows it in that section. A plain title
   card right under the frontmatter's closing rule, with no blank line, that names every key in the
   frontmatter's style reads as the document restarted and blocks. A `<!-- fim -->` written at the
