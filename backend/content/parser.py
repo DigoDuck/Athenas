@@ -622,70 +622,98 @@ def continued(text: str) -> bool:
     continuation, whose block closes after the documents.
 
     With the fences paired as the parser pairs them, the continuation's fence leaves a code block
-    holding the rest of the answer (a card, a question, two contract headings, or under a `~~~~`
-    fence one heading or the <!-- fim --> line); a fence of the other character still open when a
-    code block closes, written as the request's (`~~~~markdown`, or a bare `~~~~` after the chat's
-    blank line); or the cut code block opened again right after a fence closes it. An example
-    shown in a block pairs its own fences and holds none of the request's lines.
+    holding the rest of the answer (a card, a question, a contract heading or the <!-- fim -->
+    line) with no contract heading after it; a fence of the other character still open when a
+    code block closes, written as the request's; or the cut code block opened again right after a
+    fence closes it. An example shown in a block pairs its own fences, and the sections after it
+    follow it.
     """
     lines = text.split("\n")
     block = None  # the open code block's fence
-    first = None  # its first filled line
-    held = set()  # the contract headings in it
+    filled = []  # its filled lines
+    held = None  # the request's lines in it: "cards", or "more" for any other
     inner = None  # a fence of the other character open in it: whether it is the request's
     after = None  # the code block just closed, while only blank lines follow it
+    left = False  # a closed block held the rest of the answer: no contract heading came after it
+    wrapped = False  # whether cards in a block here are the AI's own, fenced under "## Flashcards"
     for i, line in enumerate(lines):
         found, plain = FENCE_RE.match(line), line.lstrip()
         if block is None:
             if found and after and _restarted(*after, found, lines, i):
                 return True
             if found:
-                block, first, held, inner = found, None, set(), None
-            after = None if line.strip() else after
+                block, filled, held, inner = found, [], None, None
+            elif contract_heading(plain):
+                wrapped, left = _contract_name(plain[3:]) == "Flashcards", False
+            elif CARD_LABEL_RE.match(plain):
+                wrapped = False  # the cards a block holds after these are the answer's rest
+            after = None if line.strip() and not found else after
             continue
         if found and found[1][0] == block[1][0]:
             if inner:
                 return True
-            block, after = None, (block, first, found)
+            left = left or _holds_rest(held, wrapped)
+            block, after = None, (block, filled, found, not lines[i - 1].strip())
             continue
-        first = first or (line if line.strip() else None)
+        if line.strip():
+            filled.append(line)
         if found:
             if inner is None:
                 inner = _reopens(found, lines[i - 1])
             elif not found[2].strip():
                 inner = None
-            continue
-        wide = block[1][0] == "~" and len(block[1]) > 3
-        if CARD_LABEL_RE.match(plain) or QUESTION_RE.match(plain) or (wide and END_RE.match(line)):
-            return True
-        if contract_heading(plain):
-            held.add(_contract_name(plain[3:]))
-            if wide or len(held) > 1:
-                return True
-    return False
+        elif CARD_LABEL_RE.match(plain):
+            held = held or "cards"
+        elif QUESTION_RE.match(plain) or END_RE.match(line) or contract_heading(plain):
+            held = "more"
+    return left or (block is not None and (bool(inner) or _holds_rest(held, wrapped)))
+
+
+def _holds_rest(held, wrapped) -> bool:
+    return held == "more" or (held == "cards" and not wrapped)
 
 
 def _reopens(fence, before: str) -> bool:
     """Whether a fence inside a code block of the other character opens the request's block again:
-    with its language, or as wide as the request's and bare after the chat's blank line. A tilde
-    underline sits under its text (reST, a compiler's marks), and an example names its own
-    language."""
+    with its language, bare after the chat's blank line, or as wide as the request's under a line
+    it does not underline (a reST title as long as the tildes, a compiler's indented marks)."""
     info = fence[2].strip().lower()
-    return info in ("markdown", "md") or (
-        len(fence[1]) > 3 and info in ("", "text") and not before.strip()
-    )
+    if info in ("markdown", "md"):
+        return True
+    if info not in ("", "text"):
+        return False
+    if not before.strip():
+        return True
+    title = len(fence[1]) >= len(before.strip()) and re.search(r"\w", before)
+    underline = not info and (title or fence[0][0] in " \t")
+    return len(fence[1]) > 3 and not underline
 
 
-def _restarted(closed, first, closer, fence, lines, at) -> bool:
+def _restarted(closed, old, closer, seam, fence, lines, at) -> bool:
     """Whether the fence at `at`, right after a code block closed, opens the cut block again: the
-    closer had a language or was wider than the block's own, so it was the continuation's fence,
-    or the block restarts as written after an empty one."""
+    closer had a language or was wider than the block's own, so it was the continuation's fence;
+    or the block opens as written after an empty one, or repeats the closed one's lines and carries
+    on the line the cut stopped in. A blank line before the closer is the seam of two pastes: the
+    chat line above it may sit under the cut, and the cut may fall at the end of a line."""
     if closer[2].strip() or len(closer[1]) > len(closed[1]):
         return True
     if fence[0].strip() != closed[0].strip():
         return False
-    start = _next_filled(lines, at + 1)
-    return first is None or (start < len(lines) and lines[start] == first)
+    if not old:
+        return True
+    new, j = [], at + 1
+    while j < len(lines) and len(new) < len(old) and _fence_marker(lines[j]) != fence[1][:3]:
+        new += [lines[j]] if lines[j].strip() else []
+        j += 1
+    cuts = (old, old[:-1]) if seam else (old,) if len(old) > 1 else ()
+    return any(
+        cut
+        and new[: len(cut) - 1] == cut[:-1]
+        and len(new) >= len(cut)
+        and new[len(cut) - 1].startswith(cut[-1])
+        and (seam or new[len(cut) - 1] != cut[-1])
+        for cut in cuts
+    )
 
 
 def _skeleton(body: list[str]) -> bool:
@@ -731,10 +759,11 @@ def _frontmatter_end(lines: list[str], start: int) -> int | None:
     if (found := _frontmatter_keys(lines, start)) is None:
         return None
     end, keys, bold = found
-    # A closer that opens a whole frontmatter repeating these keys: this one was cut, and the
-    # answer restarted the document after it. A title card under it (`**Subtema:** X` and a rule)
-    # names fewer keys, and one in bold beside plain keys is the card, wherever it sits.
-    if (restart := _frontmatter_keys(lines, end)) is None:
+    # A closer that opens a whole frontmatter at once, repeating these keys: this one was cut, and
+    # the answer restarted the document after it. A title card under it (`**Subtema:** X` and a
+    # rule) sits after a blank line or names fewer keys, and one in bold beside plain keys is the
+    # card, wherever it sits.
+    if (restart := _frontmatter_keys(lines, end)) is None or not lines[end + 1].strip():
         return end
     if bold != restart[2]:
         return None if bold else end

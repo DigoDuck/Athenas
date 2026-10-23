@@ -820,25 +820,32 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
     `<!DOCTYPE html>`: a real name all in lowercase inside brackets passes too), a document with no
     text after its frontmatter, a contract section that appears twice (two documents run together),
     a document, or the chat after a fenced one, that ends in a frontmatter that never closed (the
-    answer was cut inside the next document: keys with `subtema`, or starting with an unaccented
-    `area:` as the request writes them, the last maybe cut in the middle of its name, down to a lone
-    `ar`; a whole frontmatter right after the cut one that repeats its keys, the AI restarting that
-    document, does not close it, while a title card in bold beside a frontmatter of plain keys is
-    the card wherever it sits: under the frontmatter, `**Subtema:** X` and a rule, it stays in the
-    body, and between the rule and the next document it is ignored), a code block that does not
-    close where it should, which is how a cut answer pasted with the AI's continuation looks, or a
-    code block the AI left open over the rest of the answer (with the fences paired as the parser
-    pairs them: a block that holds a card, a question, two contract headings, or under a `~~~~`
-    fence one heading or the `<!-- fim -->` line; a fence of the other character written as the
-    request's, `~~~~markdown` or a bare `~~~~` after a blank line, still open when the code block
+    answer was cut inside the next document: keys right under the rule, with `subtema`, or starting
+    with an unaccented `area:` as the request writes them, the last maybe cut in the middle of its
+    name, down to a lone `ar`; a whole frontmatter that opens on the cut one's closing rule, its
+    keys right under it, and repeats them, the AI restarting that document, does not close it, while
+    a title card sits after a blank line or names fewer keys, and one in bold beside a frontmatter
+    of plain keys is the card wherever it sits: under the frontmatter, `**Subtema:** X` and a rule,
+    it stays in the body, and between the rule and the next document it is ignored), a code block
+    that does not close where it should, which is how a cut answer pasted with the AI's continuation
+    looks, or a code block the AI left open over the rest of the answer (with the fences paired as
+    the parser pairs them: a block that holds a card, a question, a contract heading or the
+    `<!-- fim -->` line with no contract heading after it outside code, where cards fenced under
+    "## Flashcards" before any card outside a block are the AI's own; a fence of the other character
+    written as the request's, with `markdown` or `md`, bare after a blank line at any width, or bare
+    and four tildes or more wide under a line it does not underline, still open when the code block
     around it closes; or a cut code block opened again right after it closes, when the closing fence
-    has a language or is wider than the block's own, or when the block starts over on its own first
-    line; an example shown in a block pairs its own fences and holds no line of the request, and a
-    tilde underline sits right under its text, so reST titles, a console banner and a compiler's
-    marks pass), and a contract heading, a card or question line, or a `---` with a `subtema` key,
-    left outside every document, whose message asks to check that the answer came whole and, if the
-    stretch is an example in the chat around the documents, to delete it from the paste. A chat line
-    such as "**Subtema:** Volumes" is not.
+    has a language or is wider than the block's own, when the closed block is empty, or when the new
+    block repeats the closed one's lines and carries on its last, the line the cut stopped in, and
+    when a blank line comes before the closing fence a chat line may sit under the cut and the cut
+    may fall at a line's end; an example shown in a block pairs its own fences and the sections
+    after it follow outside code, so a README or a prompt with contract headings, a card format,
+    cards fenced under "## Flashcards", two cells that open on `%%time`, a reST title over tildes as
+    long as it, a console banner and a compiler's indented marks pass), and a contract heading, a
+    card or question line, or a `---` with a `subtema` key, left outside every document, whose
+    message asks to check that the answer came whole and, if the stretch is an example in the chat
+    around the documents, to delete it from the paste. A chat line such as "**Subtema:** Volumes" is
+    not.
   - Everything else the skill's check refuses (missing headings, extra headings, draft, no `nivel`,
     no link under Fontes, a line in Flashcards that is not a card, quoted chat included unless it
     belongs to a `> [!ia]` callout, and a quoted card even there, no card at all) is listed per
@@ -936,13 +943,28 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
   its continuation, with the chat and the new block deleted, is read as written, so a line the
   continuation repeats is saved twice; a continuation the AI did not fence keeps its chat line too,
   in the section where the cut fell, and so does one in a bare three-backtick fence that restarts a
-  code block cut right after its opening line, in a code block of its own. A bare `~~~~` after a
-  blank line inside a code example, read as the request's fence, blocks as a continued answer. A
+  code block cut right after its opening line, in a code block of its own, or one that resumes a cut
+  in the middle of a fence line, which chat AIs write as one token, or inside a lesson that nests
+  fences of one character, or inside a code block that a lesson shows within a block of the other
+  character. A copy-button paste cut inside a card of a document before the last and continued at
+  the exact character in a new block shows the resumed text only among the chat left out, and the
+  card keeps its cut back. A bare fence of the other character after a blank line inside a code
+  example (`~~~~`, `~~~` or three backticks), read as the request's, blocks as a continued answer
+  when nothing in the example pairs it, and so does a bare `~~~~` under a code line longer than it;
+  under a line as short with a word in it (`fi`, `done`) it reads as a reST underline, and a cut
+  there passes. Two code blocks with only blank lines between them, the second opening as the first
+  and carrying on its last line (`FROM clientes` and then `FROM clientes WHERE ...`), block as a cut
+  block restarted, while a block restarted with no blank line before the closing fence, from a cut
+  at a line's end or with a chat line under the cut, keeps the cut part as a block of its own. A
+  code example that holds the request's lines in the last section, with no contract heading after
+  it, blocks. A plain title card right under the frontmatter's closing rule, with no blank line,
+  that names every key in the frontmatter's style reads as the document restarted and blocks. A
   `<!-- fim -->` written at the end of the last card's line, not on its own, warns that the answer
   may have been cut and stays in that card's back. A lesson that nests fences of one character (five
   backticks around three) is read with the first closer, as everywhere in the app, and blocks as a
-  continued answer when a `~~~~markdown` line sits in between. An answer that mixes documents with
-  the contract's headings and documents with other ones blocks the latter as content left out, with
-  the message that also suggests an example. A contract heading in the chat after the block (more
-  cards offered under "## Flashcards") blocks as content left out; deleting it from the paste fixes
-  the round. A `> [!IA]` callout in capitals is not read as one, as everywhere else in the app.
+  continued answer when a `~~~~markdown` line sits in between or another code block follows it with
+  only blank lines between. An answer that mixes documents with the contract's headings and
+  documents with other ones blocks the latter as content left out, with the message that also
+  suggests an example. A contract heading in the chat after the block (more cards offered under
+  "## Flashcards") blocks as content left out; deleting it from the paste fixes the round. A
+  `> [!IA]` callout in capitals is not read as one, as everywhere else in the app.

@@ -343,8 +343,8 @@ def _open_frontmatter(lines):
     """
     tail = list(itertools.takewhile(lambda ln: ln.strip() != "---", reversed(lines)))
     filled = [line for line in reversed(tail) if line.strip()]
-    if len(tail) == len(lines) or not filled:
-        return False  # no rule, or nothing after it
+    if len(tail) == len(lines) or not filled or not tail[-1].strip():
+        return False  # no rule, nothing after it, or a title card set apart from it
     if fragment := re.fullmatch(r"\s*\**([\w-]+)", filled[-1]):
         if len(filled) == 1:
             return len(fragment[1]) > 1 and "area".startswith(fragment[1].lower())
