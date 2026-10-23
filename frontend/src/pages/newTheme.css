@@ -1,0 +1,53 @@
+/* "Novo tema": the six request fields in two columns, the request text on demand, and each
+   document's problems under its row. */
+.new-theme__lead {
+  max-width: var(--measure-reading);
+  color: var(--color-text-muted);
+  font-size: var(--text-lead);
+}
+
+.new-theme__fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: var(--space-5) var(--space-6);
+}
+
+.new-theme__request summary {
+  cursor: pointer;
+  width: fit-content;
+  font-size: var(--text-meta);
+  color: var(--color-text-muted);
+}
+
+.new-theme__request pre {
+  margin: var(--space-3) 0 0;
+  max-height: 24rem;
+  overflow: auto;
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-code);
+  white-space: pre-wrap;
+}
+
+.new-theme__problems {
+  margin: var(--space-2) 0 0;
+  padding-left: var(--space-5);
+  font-size: var(--text-meta);
+  color: var(--color-text-muted);
+}
+
+.new-theme__problems--error {
+  color: var(--color-error);
+}
+
+/* Chat text, links and long names from an answer wrap instead of widening the page. */
+.new-theme__problems,
+.new-theme .ui-list__title,
+.new-theme .ui-callout__content,
+.new-theme .ui-state__title {
+  overflow-wrap: anywhere;
+}

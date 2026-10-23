@@ -17,11 +17,13 @@ from .serializers import (
     ImageUploadSerializer,
     ManualCardSerializer,
     MarkdownSerializer,
+    ThemeSerializer,
 )
 from .services import (
     approve_card,
     create_manual_card,
     import_content,
+    import_theme,
     reject_card,
     review_queue,
     reviews_today,
@@ -74,6 +76,22 @@ class ContentPreviewView(APIView):
 
     def post(self, request, pk):
         return Response(_preview(_parse_request(request, _subtopic(pk))))
+
+
+class ThemeView(APIView):
+    """A pasted AI answer: `preview/` reports, the bare path creates (D-040)."""
+
+    save = True
+
+    def post(self, request):
+        serializer = ThemeSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        report = import_theme(**serializer.validated_data, save=self.save)
+        if not self.save:
+            return Response(report)
+        if "track" not in report:
+            return Response(report, status=status.HTTP_400_BAD_REQUEST)
+        return Response(report, status=status.HTTP_201_CREATED)
 
 
 class ImageView(APIView):

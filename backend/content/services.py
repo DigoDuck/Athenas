@@ -1,17 +1,34 @@
 """Re-import of a parsed document into a subtopic. Identity follows the labels (spec 4.2.6)."""
 
-from collections import defaultdict
+import itertools
+import re
+from collections import Counter, defaultdict
 from datetime import UTC, datetime, time, timedelta
 
 import fsrs
-from django.db import transaction
-from django.db.models import Min
+from django.db import connection, transaction
+from django.db.models import Min, Q, Value
+from django.db.models.functions import Replace
 from django.utils import timezone
-from organization.models import Settings
+from organization.models import Area, Concept, Settings, Step, Track
+from organization.serializers import StepSerializer, SubtopicSerializer
 
 from . import images
 from .models import Block, Content, Flashcard, Image, PracticeQuestion, ReviewLog
-from .parser import ParsedContent, reading_key
+from .parser import (
+    CARD_LABEL_RE,
+    FRONTMATTER_KEY_RE,
+    QUESTION_RE,
+    ParsedContent,
+    Target,
+    continued,
+    contract_gaps,
+    contract_heading,
+    parse_markdown,
+    reading_key,
+    split_documents,
+    with_origin,
+)
 
 
 @transaction.atomic
@@ -72,7 +89,8 @@ def _sync_questions(subtopic, parsed):
 
 
 def _sync_cards(subtopic, parsed):
-    existing = {c.label: c for c in subtopic.flashcards.all()}
+    # Manual cards have no label and are not in the Markdown: a re-import never suspends them.
+    existing = {c.label: c for c in subtopic.flashcards.filter(origin=Flashcard.Origin.MARKDOWN)}
     for item in parsed.cards:
         card = existing.get(item.label)
         if card is None:
@@ -94,6 +112,260 @@ def _sync_cards(subtopic, parsed):
             card.state_before_suspension = Flashcard.State.PENDING if rejected else card.state
             card.state = Flashcard.State.SUSPENDED
             card.save()
+
+
+# "Novo tema" (DECISIONS.md D-040): one pasted AI answer becomes concepts and subtopics in a track.
+
+NAME_MAX = 160  # Concept.name and Subtopic.name
+FRONTMATTER_KEYS = {"area", "conceito", "subtema", "nivel", "origem"}
+THEME_LOCK = 4045  # any constant: the advisory lock key for saving a round
+KEPT = (
+    "O subtema já tem outro texto, que fica como está. Para trocar, cole este documento no "
+    "subtema, na Biblioteca."
+)
+NO_DOCUMENT = (
+    "Nenhum documento encontrado. Cada subtema começa pelo frontmatter: uma linha ---, as linhas "
+    "area, conceito e subtema, e outra linha ---. Copie a resposta pelo botão de copiar do bloco "
+    "de código, não selecionando o texto."
+)
+
+
+@transaction.atomic
+def import_theme(*, area, track, origem, markdown, save=False) -> dict:
+    """What the answer would create, and with `save` creates it, all or nothing.
+
+    Area and track come from the screen; each document names its concept and subtopic. Names
+    match what exists ignoring case, so a round never duplicates a row. Only what is missing is
+    created: a subtopic that already has other text keeps it, like `scripts/theme.py push`
+    without `--replace`, so nothing Diogo edited or studied changes here.
+    """
+    if save:
+        # One round at a time: a second save of the same answer waits, then finds it done.
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT pg_advisory_xact_lock(%s)", [THEME_LOCK])
+    documents, ignored, cut, ended = split_documents(markdown)
+    area_obj = Area.objects.filter(name__iexact=area).first()
+    track_obj = Track.objects.filter(name__iexact=track).first()
+    report = {
+        "area_new": area_obj is None,
+        "track_new": track_obj is None,
+        "complete": False,
+        "documents": [],
+        "warnings": [],
+        "errors": [],
+    }
+    if not documents:
+        # Chat AIs add bold, a period or a sentence around it: "Claro!\n\n**TRILHA COMPLETA**".
+        # Never a heading: "## Trilha completa" titles a plan.
+        report["complete"] = any(
+            # Bold, a period, an emoji go; a colon, a question or a list marker make it a title.
+            re.sub(r"[^\w\s:?|-]|_", "", line).strip().upper() == "TRILHA COMPLETA"
+            for line in markdown.split("\n")
+            if not re.match(r"\s*(#|[*+]\s)", line)
+        )
+        report["errors"].append(
+            "A IA respondeu que a trilha está completa." if report["complete"] else NO_DOCUMENT
+        )
+        return report
+    for stretch in ignored:
+        # A contract heading, a card or a question (a continuation read as a wrapper leaves them
+        # out), or a `---` with a `subtema` key, outside every document is content the split lost;
+        # a chat line such as "**Subtema:** Volumes" is not.
+        lines = stretch.split("\n")
+        lost = (
+            any(
+                contract_heading(line.lstrip())
+                or CARD_LABEL_RE.match(line)
+                or QUESTION_RE.match(line)
+                for line in lines
+            )
+            or _open_frontmatter(lines)
+            or (
+                any(line.strip() == "---" for line in lines)
+                and any(
+                    (k := FRONTMATTER_KEY_RE.match(line)) and k[1].lower() == "subtema"
+                    for line in lines
+                )
+            )
+        )
+        report["errors" if lost else "warnings"].append(
+            f"Um trecho com títulos ficou fora dos documentos: {_excerpt(stretch)}. Confira se a "
+            "resposta veio inteira, no formato pedido; se for um exemplo na conversa em volta dos "
+            "documentos, apague-o do texto colado."
+            if lost
+            else f"Texto fora dos documentos, ignorado: {_excerpt(stretch)}"
+        )
+
+    plans, seen = [], set()
+    for text in documents:
+        text = with_origin(text, origem)
+        names = parse_markdown(text).frontmatter
+        conceito, subtema = names.get("conceito", ""), names.get("subtema", "")
+        parsed = parse_markdown(text, Target(area, conceito, subtema))
+        errors = _document_errors(parsed, conceito, subtema)
+        if (conceito.lower(), subtema.lower()) in seen:
+            errors.append(f"Subtema repetido na resposta: {conceito} / {subtema}")
+        seen.add((conceito.lower(), subtema.lower()))
+        concept = area_obj and _named(area_obj.concepts, conceito)
+        subtopic = concept and _named(concept.subtopics, subtema)
+        stored = Content.objects.filter(subtopic=subtopic).first() if subtopic else None
+        action = "create" if subtopic is None else "fill" if stored is None else "keep"
+        warnings = parsed.warnings + contract_gaps(parsed)
+        if action == "keep" or (stored and stored.raw_markdown == parsed.raw):
+            # Never imported, so problems in its own text cannot block; a broken split still does.
+            warnings = parsed.errors + warnings
+        else:
+            errors = parsed.errors + errors
+        if stored and stored.raw_markdown == parsed.raw:
+            action = "same"
+        elif action == "keep":
+            warnings.append(KEPT)
+        joins_track = ""
+        if concept and not concept.steps.filter(track=track_obj).exists():
+            others = ", ".join(concept.steps.values_list("track__name", flat=True))
+            joins_track = (
+                f"O conceito {concept.name} já existe nesta área"
+                + (f", na trilha {others}" if others else "")
+                + ": os subtemas entram nele, e ele entra também nesta trilha."
+            )
+            warnings.append(joins_track)
+        found = set(Image.objects.filter(name__in=parsed.images).values_list("name", flat=True))
+        warnings += [f"Imagem não encontrada: {n}" for n in parsed.images if n not in found]
+        plans.append((parsed, conceito, subtema, action))
+        report["documents"].append(
+            {
+                "conceito": conceito,
+                "subtema": subtema,
+                "concept_new": concept is None,
+                # An existing concept this round adds to the track, even with no new subtopic: the
+                # note that says so, which is not a problem for the AI to fix.
+                "joins_track": joins_track,
+                "action": action,
+                "state": parsed.state,
+                "level": parsed.level,
+                "generated_by": parsed.generated_by,
+                "questions": len(parsed.questions),
+                "cards": len(parsed.cards),
+                "unsourced": sum(c.unsourced for c in parsed.callouts),
+                "warnings": warnings,
+                "errors": errors,
+            }
+        )
+    # The chat's copy button drops the fences, so the request's last line is how a cut shows.
+    if cut:
+        report["documents"][-1]["warnings"].append(
+            "O bloco de código da resposta não fechou: ela pode ter sido cortada. Confira o fim "
+            "deste documento."
+        )
+    elif not ended:
+        report["documents"][-1]["warnings"].append(
+            "A resposta não termina com a linha <!-- fim --> do pedido: ela pode ter sido cortada. "
+            "Confira o fim deste documento."
+        )
+    blocked = report["errors"] or any(d["errors"] for d in report["documents"])
+    if not save or blocked:
+        return report
+
+    area_obj = area_obj or Area.objects.create(name=area)
+    track_obj = track_obj or Track.objects.create(name=track)
+    pending = 0
+    for parsed, conceito, subtema, action in plans:
+        concept = _named(area_obj.concepts, conceito)
+        concept = concept or Concept.objects.create(area=area_obj, name=conceito)
+        if not Step.objects.filter(track=track_obj, concept=concept).exists():
+            _create(StepSerializer, track=track_obj.pk, concept=concept.pk)
+        if action in ("keep", "same"):
+            continue
+        subtopic = _named(concept.subtopics, subtema)
+        subtopic = subtopic or _create(SubtopicSerializer, concept=concept.pk, name=subtema)
+        import_content(subtopic, parsed)
+        pending += len(parsed.cards)
+    report |= {"track": track_obj.pk, "pending": pending}
+    return report
+
+
+# A tag: lowercase name and attributes (`<script setup>`, `<li *ngFor="...">`), or `<!`, `</`.
+TAG_RE = re.compile(
+    r"<(?:[!?/].*|[a-z][a-z0-9-]*(?:\s+[a-z@:#.*(\[-][\w@:#.*()\[\]-]*"
+    r"(?:=(?:\"[^\"]*\"|'[^']*'|[^\s\"'>]+))?)*\s*/?>)"
+)
+
+
+def _template(name):
+    """The request's `<nome do subtema>`, or a real name the AI left inside its brackets."""
+    if re.fullmatch(r"<\s*nome\b.*", name, re.IGNORECASE):
+        return True
+    return bool(re.fullmatch(r"<[^<>\s]*\s[^<>]*>", name)) and not TAG_RE.fullmatch(name)
+
+
+def _document_errors(parsed, conceito, subtema):
+    errors = []
+    if not conceito or not subtema:
+        errors.append("O frontmatter precisa de conceito e subtema")
+    if len(conceito) > NAME_MAX or len(subtema) > NAME_MAX:
+        errors.append(f"Nome de conceito ou subtema com mais de {NAME_MAX} caracteres")
+    if any(_template(name) for name in (conceito, subtema)):
+        errors.append(
+            "Nome entre < e >: é o modelo do pedido, não um nome. Troque pelo nome real, ou "
+            "apague o trecho se a IA só repetiu o modelo."
+        )
+    if not parsed.blocks:
+        errors.append("Documento sem texto depois do frontmatter: a resposta foi cortada?")
+    if _open_frontmatter(parsed.raw.split("\n")):
+        errors.append("O documento termina num frontmatter que não fechou: a resposta foi cortada?")
+    if continued(parsed.raw):
+        errors.append(
+            "Um bloco de código dentro do documento não fecha onde deveria: a resposta parece "
+            "cortada e continuada num bloco novo, ou um bloco ficou sem fechar. Peça a resposta "
+            "inteira de novo, ou corrija o texto colado."
+        )
+    kinds = [block.kind for block in parsed.blocks if block.kind != "extra"]
+    for kind in (kind for kind, count in Counter(kinds).items() if count > 1):
+        # Two documents run together when the second frontmatter was not recognized.
+        errors.append(f"A seção {kind} aparece mais de uma vez: dois documentos se juntaram?")
+    return errors
+
+
+def _named(rows, name):
+    # Ignoring case and the hyphens chat AIs write for "-", which the parser reads as one.
+    plain = Replace(Replace("name", Value("\u2011"), Value("-")), Value("\u2010"), Value("-"))
+    # A stored name in quotes (`"Had better"`, from tema.json) is the frontmatter's unquoted one.
+    quoted = Q(plain__iexact=f'"{name}"') | Q(plain__iexact=f"'{name}'")
+    rows = rows.annotate(plain=plain)
+    return rows.filter(plain__iexact=name).first() or rows.filter(quoted).first()
+
+
+def _open_frontmatter(lines):
+    """Whether the lines end in the next document's frontmatter, cut before its closing `---`.
+
+    Its keys follow the last rule: one is `subtema`, or all are frontmatter keys with `area` first
+    as the request asks, the last one maybe cut in the middle of its name, even the first.
+    """
+    tail = list(itertools.takewhile(lambda ln: ln.strip() != "---", reversed(lines)))
+    filled = [line for line in reversed(tail) if line.strip()]
+    if len(tail) == len(lines) or not filled or not tail[-1].strip():
+        return False  # no rule, nothing after it, or a title card set apart from it
+    if fragment := re.fullmatch(r"\s*\**([\w-]+)", filled[-1]):
+        if len(filled) == 1:
+            return len(fragment[1]) > 1 and "area".startswith(fragment[1].lower())
+        filled.pop()
+    keys = [FRONTMATTER_KEY_RE.match(line) for line in filled]
+    if not all(keys):
+        return False
+    names = [k[1].lower() for k in keys]
+    return "subtema" in names or (names[0] == "area" and set(names) <= FRONTMATTER_KEYS)
+
+
+def _create(serializer_class, **data):
+    # Reuses the serializers' append-at-the-end ordering, with its row lock.
+    serializer = serializer_class(data=data)
+    serializer.is_valid(raise_exception=True)
+    return serializer.save()
+
+
+def _excerpt(text, size=80):
+    line = " ".join(text.split())
+    return f"«{line[:size]}…»" if len(line) > size else f"«{line}»"
 
 
 def save_image(name, data, **credit) -> bool:

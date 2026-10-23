@@ -13,5 +13,7 @@ urlpatterns = [
     path("subtopics/<int:pk>/content/preview/", views.ContentPreviewView.as_view()),
     path("reviews/today/", views.ReviewTodayView.as_view()),
     path("images/<str:name>/", views.ImageView.as_view()),
+    path("themes/", views.ThemeView.as_view()),
+    path("themes/preview/", views.ThemeView.as_view(save=False)),
     path("", include(router.urls)),
 ]

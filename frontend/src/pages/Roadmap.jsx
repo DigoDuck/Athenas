@@ -16,14 +16,14 @@ import { ActionError, AddForm } from "./forms.jsx";
 import "./home.css";
 import "./roadmap.css";
 
-export default function Roadmap() {
+export default function Roadmap({ trackId = null }) {
   const { data, error, reload } = useCollections([
     "/api/tracks/",
     "/api/concepts/",
     "/api/areas/",
     "/api/subtopics/",
   ]);
-  const [selected, setSelected] = useState(null);
+  const [selected, setSelected] = useState(trackId);
   const [actionError, setActionError] = useState(null);
 
   // Runs a write and reloads. Returns the error message, or null when it worked.

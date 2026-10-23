@@ -731,3 +731,273 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
   mockups ask for and what "começar e retomar sem esforço" needs.
 - Cost: a long track scrolls sideways on the board. Text on the panorama depends on the fade:
   a new landscape needs a light left side, or its opening lines need a panel.
+
+### D-040: "Novo tema" imports a pasted AI answer, one concept per round
+
+- Date: 2026-10-21. Source: S10 in `docs/plan.md`, which D-030 brought into v1 so that any AI,
+  Gemini Notebook included, can prepare a theme without the Claude Code skill. Built with Diogo
+  away; every choice below is the recommended option.
+- Decision:
+  - The screen (`#/novo-tema`, in the navigation) takes the theme, the goal, the area, the track,
+    the level and the AI used, and writes the request to copy: the contract of spec 4.1 and the
+    `athenas-tema` rules, asking for the track's next concept only, with 2 to 4 subtopics. The
+    request lists the concepts the track already has, so the next round continues it, and the area's
+    concepts from other tracks, so the AI does not reuse one by accident. An AI that finds the theme
+    covered answers "TRILHA COMPLETA", which the screen shows as the end of the track. It counts on
+    a line of its own, in bold (`**` or `__`), with a period or an emoji, with chat around it, never
+    as a heading or a title ("## Trilha completa", "**Trilha completa:**", "- Trilha completa", "*
+    Trilha completa" or "Trilha completa?" open a plan). Nothing calls an AI from the app (D-030).
+  - The answer comes back in one code block fenced with `~~~~`, so the code inside it survives and
+    the chat's copy button gives the raw Markdown, and its last line is `<!-- fim -->`: the copy
+    button drops the fences, so that line is how the check knows the answer arrived whole, and its
+    absence after the last document warns on that document that the answer may have been cut. The
+    line ends the documents before it, inside the block or right after its closing fence (one in a
+    code snippet of the chat or of a document, or in the chat before any document, does not count),
+    and whatever follows the last one is chat, shown as ignored: neither it nor the line is saved.
+    Beside a real document, one with no contract heading, or a skeleton whose every section opens
+    with a placeholder (`...`, a phrase in brackets such as `(uma frase)` or `<objetivo>`,
+    `- C1: ... :: ...`), is chat too, wherever it sits; a frontmatter alone at the very end, with no
+    `<!-- fim -->` after it, stays a document, since the answer was cut there. So a next round's
+    header or a skeleton of the format, shown as an example around the documents, never becomes a
+    concept: it blocks as content left out. An answer whose documents all use other headings
+    (`## 📌 Objetivo`) keeps them all, each listed with its missing sections. The server cuts it into
+    documents at each frontmatter that names a `subtema` (keys in any case, with or without accents,
+    `nível`, and indented or not; values with or without quotes, `'Don''t panic'` as YAML escapes
+    it; a name that only starts and ends with quoted words, `"Since" e "for"`, keeps them; an
+    apostrophe inside a word, `'Don't panic'`, is not a quote; a non-breaking hyphen in a name, in
+    the answer or in a row that exists, is a hyphen, so the names match), drops a fence wrapped
+    around everything or around each document and a rule between documents in any spelling (`---`,
+    `* * *`, `- - -`, ChatGPT's `⸻`), and shows the chat text around them as ignored, never saved: a
+    heading or a line that opens in bold and titles the next document ("### Subtema 2", "**Subtema
+    2:** Camadas", "__Subtema 2__", "📘 **Subtema 2**"; a `__` bold needs a space or a colon inside,
+    so a line that opens with `__init__`, in backticks or not, stays in the document) is chat too,
+    unless it holds a card's ` :: ` or, at the end of the last document, reads as a frontmatter key
+    (`**area:** ...`, maybe the start of a cut document). A document nested in a list item, its
+    opening `---` and every contract heading indented alike, is read from that indentation, but a
+    code block in it loses only the indentation all its lines share, so code written at the margin
+    keeps its own nesting; a frontmatter indented alone leaves the body as written. Only a contract
+    heading, indented or not, means a document goes on, so a chat heading after the wrapper never
+    keeps it open. In a fenced answer, a frontmatter inside a code example in the body does not
+    start a document, and a code fence with any language name (```` ```c# ````) stays one. The
+    split, the parser and the reading share that fence rule, so "```` ```docker ps``` ```` lista" at
+    the start of a line is inline code everywhere, never a block that swallows the sections after
+    it. A wrapper the split did not take as one at its opening (a fenced frontmatter right after it,
+    or chat before the first frontmatter) still ends at its matching fence, so the chat after it is
+    never saved; a code snippet in the chat before the documents neither replaces it nor opens a
+    wrapper of its own. A wrapper that never closes, read at its opening or late, is reported as a
+    possibly truncated answer.
+  - Area and track come from the screen; each document's frontmatter names its concept and subtopic.
+    Names match what exists ignoring case, so a round never duplicates a row, and the parser no
+    longer warns when a frontmatter name differs from its destination only in case, or when the
+    destination is one quoted phrase (`"Had better"`) that the frontmatter writes with its quotes,
+    which is the row a round fills, never a second one (the content editor and
+    `scripts/theme.py check` included). Saving creates only what is missing (area, track, concept,
+    step at the end of the track, subtopic at the end of the concept) and imports each document
+    through the same `import_content`, so every card enters pending (spec 4.3). It is all or
+    nothing: one blocked document blocks the round. A document that keeps the app's text is never
+    imported, so the problems in its own text are only listed; a broken split in it (a section
+    twice, no text, a repeated subtopic) still blocks, since a new subtopic may have run into it and
+    been lost. A concept that exists in the area under another track is reused and joins this track
+    too, with a warning. Saving takes a database lock, so the same answer saved twice at once (two
+    tabs) is created once.
+  - A subtopic that already has text keeps it, as `scripts/theme.py push` does without `--replace`:
+    changing studied text is done in the Biblioteca, one subtopic at a time. A document identical to
+    what the app holds is reported as such. Either way the concept still joins the track, and a
+    round with nothing new to write offers "Pôr na trilha" for that alone.
+  - The origin is the AI named on the screen, written into each document's `origem` and replacing
+    whatever the answer claims, because Diogo knows which chat he pasted from and a missing key
+    would pass generated text as his (D-032). It is one lowercase word of up to 30 letters, digits,
+    dots or hyphens (spaces and underscores become hyphens: "Gemini Notebook" is `gemini-notebook`),
+    so it cannot add a frontmatter line.
+  - Blocking, as in the content editor: duplicate labels, a document without `conceito` or
+    `subtema`, a subtopic repeated in the answer, a name over 160 characters, a `P<n>` or `C<n>`
+    label over the 10 characters the database holds (which failed with a 500 before, in the content
+    editor too). Also blocking, since each means the split or the AI went wrong: a name still in the
+    request's template (`<nome do conceito>`) or a real one left inside its brackets
+    (`<Volumes no Docker>`, `<CI/CD com GitHub Actions>`), or the template with text after it
+    (`<nome do subtema>: Volumes`), though one bracketed word or a lowercase tag is a name
+    (`<canvas>`, `<script setup>`, `<input type="file">`, `<li *ngFor="let item of itens">`,
+    `<!DOCTYPE html>`: a real name all in lowercase inside brackets passes too), a document with no
+    text after its frontmatter, a contract section that appears twice (two documents run together),
+    a document, or the chat after a fenced one, that ends in a frontmatter that never closed (the
+    answer was cut inside the next document: keys right under the rule, with `subtema`, or starting
+    with an unaccented `area:` as the request writes them, the last maybe cut in the middle of its
+    name, down to a lone `ar`; a whole frontmatter that opens on the cut one's closing rule, its
+    keys right under it, and repeats them, the AI restarting that document, does not close it, while
+    a title card sits after a blank line or names fewer keys, and one in bold beside a frontmatter
+    of plain keys is the card wherever it sits: under the frontmatter, `**Subtema:** X` and a rule,
+    it stays in the body, and between the rule and the next document it is ignored), a code block
+    that does not close where it should, which is how a cut answer pasted with the AI's continuation
+    looks, or a code block the AI left open over the rest of the answer (with the fences paired as
+    the parser pairs them: a block that holds a card, a question, a contract heading or the
+    `<!-- fim -->` line with no contract heading after it outside code, where cards fenced under
+    "## Flashcards" before any card outside a block are the AI's own; a fence of the other character
+    written as the request's, with `markdown` or `md`, bare after a blank line, or bare under a line
+    it does not underline, still open when the code block around it closes, only a bare fence as
+    wide and as indented closing it, unless that fence is in tildes under a short line after a blank
+    one or after a fence other than its opener, as a reST title's underline, while a nest of another
+    language closes at a bare fence as wide or wider and a banner, a compiler's marks or a title's
+    underline opens nothing; or a cut code block opened again right after it closes, when the
+    closing fence has a language or is wider than the block's own, when the closed block is empty,
+    or when the new block repeats the closed one's lines and carries on its last, the line the cut
+    stopped in, which a block of one line does only when the new one opens right under the closing
+    fence, and when the new block opens right under a closing fence with a blank line before it any
+    chat lines may sit under a cut inside a line, and one under a cut at a line's end; or the
+    section the cut fell in opened again in a code block of its own, its heading first and then the
+    section's lines before the block, some of them reworded, its own code fences included, carrying
+    on the line the cut stopped in or with the chat pasted onto that line, with any chat lines under
+    the cut, or, from a cut at a line's end with up to two chat lines under it, repeating up to that
+    line and going on past it, into the section's own code too; an example shown in a block pairs
+    its own fences and the sections after it follow outside code, so a README or a prompt with
+    contract headings, a card format, cards fenced under "## Flashcards", two cells that open on
+    `%%time`, a reST title over tildes as long as it, a console banner, a compiler's indented marks,
+    four backticks nested in tildes and the Markdown of a section shown inside it, with lines of it
+    rewritten or a mark added to each, pass), and a contract heading, a card or question line, or a
+    `---` with a `subtema` key, left outside every document, whose message asks to check that the
+    answer came whole and, if the stretch is an example in the chat around the documents, to delete
+    it from the paste. A chat line such as "**Subtema:** Volumes" is not.
+  - Everything else the skill's check refuses (missing headings, extra headings, draft, no `nivel`,
+    no link under Fontes, a line in Flashcards that is not a card, quoted chat included unless it
+    belongs to a `> [!ia]` callout, and a quoted card even there, no card at all) is listed per
+    document and does not block. So is what the parser would read wrong without a word: a question
+    line in Prática that is not `### P<n>:` (a heading before an answer, a `###` heading or a `P<n>`
+    line anywhere; an answer may have deeper sub-headings, `#### Passo 1`), a reference answer
+    before the first `### P<n>:`, at the start of a line or right after a question on the same line,
+    whatever marks sit between them (`1. O que é? 👉 Resposta de referência: ...`; a mention in an
+    intro sentence is not one), whose question is in another format and which the reading would
+    show, two reference answers under one question, which means a question in another format ran
+    into it, a question with no reference answer, which is also the sign of a label the parser does
+    not read, text between a question and its answer, which the Prática screen does not show (the
+    question is its heading line, spec 4.2.4; the request asks for questions that fit their line,
+    with any code in Exemplo), a card indented or inside a quote, and a card with a `::` other than
+    the spaced separator (`std::vector`, `[::2]`, a second ` :: `), where the parser would end the
+    front; `:: std::cout` in the back is fine. All of it is listed, since spec 4.2.1 allows saving
+    incomplete content and Diogo sees the check before creating. `scripts/theme.py check` reads the
+    same list from the parser (`contract_gaps`), so both paths keep one contract.
+  - A check answers for the exact text, area, track and AI it was sent: any edit, or a late answer
+    for older text, takes the create button away until the next check. "Copiar pedido de correção"
+    turns the listed problems into a message for the AI, leaving out the text problems of a subtopic
+    that keeps its own text (a broken split or a possible cut there goes in) and the note on a
+    concept reused from the area, which the request allows, and the "Nenhum documento" error, whose
+    fix is usually how the answer was copied; the message can be opened and copied by hand. Saving
+    is not offered while a check runs. If the lists fail to reload, the request panel says the
+    request may be outdated and offers to reload, without freeing the buttons a check or a save
+    holds. A failed save reloads the lists and drops the check, since the server may have saved a
+    round whose answer was lost. When a save ends, the keyboard focus goes to the next step:
+    Conferir after a failure, and after a success the confirmation, which stays where Criar was and
+    says what comes next, "Pôr na trilha" included; its "Abrir o Roadmap" opens the round's track
+    (`#/roadmap/<id>`). A reload moves the focus only if it was still on the reload button.
+  - The form stays in the browser's storage for the next round; the pasted answer stays until its
+    round is created.
+  - The parser still reads "Resposta de referência:" anywhere in a line, and now also at the start
+    of a line, after list or quote markers or an emoji (`ℹ️` and keycaps too), touching the bold or
+    not, outside it or inside it (`> - `, `**💡 `, `**1. `), in any case and between bold or italic
+    markers of any mix, or under one bold that covers the answer or its first words too, or that
+    closes alone before an answer on the next line, as chat AIs write it, so the answer is stored
+    without them, and without the quote markers of an answer quoted line by line, blank lines
+    between its paragraphs included, up to its first unquoted line or a callout of its own (a code
+    block or a `> [!ia]` callout after it keeps its `>`), and stays hidden in the reading until an
+    attempt (spec 4.8.3), in the content editor too. A lowercase mention inside a sentence is never
+    the label. Content saved before this with such a variant at the start of a line, which the old
+    parser did not read, now hides that line in the reading but has no stored answer until it is
+    saved again; none is expected, since `scripts/theme.py` wrote the exact label. The same holds
+    for a stored line that starts with inline triple backticks, which the old rule read as a code
+    fence. Still ambiguous, and read with the bold's closer as part of the answer: a bold over the
+    label and the answer, with no space after the colon, around an answer that starts with that same
+    marker (`**Resposta de referência:**kwargs ...**`). A bold frontmatter key loses its markers; a
+    value keeps its own (`*args e **kwargs`) unless one bold covers all of it, whatever the key
+    looks like; the answer after the label keeps its own too (`__init__`, a bold word such as
+    `**imutável**`, or Python's `_` alone): the bold's closer is taken only where it pairs with the
+    opening, alone before the answer unless, on the label's own line, the answer ends with the
+    closer that pairs with it (`_ guarda o último resultado._`, about Python's `_`), at the end of
+    the answer, or at the end of a sentence on the label's line. Also read with the closer in the
+    answer: a bold over the label and first words that run onto a second line, in an answer with a
+    marker of the same kind (`**kwargs`). A contract heading written with a non-breaking hyphen
+    ("Pré‑requisitos", as ChatGPT may write it) is the contract one; such a heading saved before was
+    an extra section, so its read mark is lost the next time that subtopic is saved. A stored
+    `nível:` key, ignored before, sets the level then. A `P<n>` or `C<n>` label longer than the 10
+    characters the database holds is a parser error, so the content editor answers 400 where it
+    failed with a 500. A card with a blank front (`- C1: :: Verso`) is not read as one and warns
+    like a card without `::`, where it was saved with a blank front.
+  - A re-import never suspends a manual card. `import_content` suspended every card whose label left
+    the Markdown, and manual cards have no label there, so filling a subtopic or saving it in the
+    content editor suspended Diogo's own cards. It now syncs only the cards that came from the
+    Markdown, as spec 4.3.5 already required.
+- Why: one concept per round keeps a chat answer short enough not to be cut off, and pasting needs
+  no key, no cost and no dependency. The parser stays the only gate, so pasted content meets the
+  same contract as pushed content.
+- Cost: a theme of four concepts takes about five rounds of two pastes each. Links under Fontes are
+  not opened by the app: a chat AI without browsing can cite a page it never read, so the Fontes and
+  the `[!ia]` callouts are still what Diogo checks before approving a card. Images stay out of this
+  path (no upload screen, D-033). Limits of the split that are accepted, all but three visible in
+  the check before anything is created: chat text after a document the AI did not fence stays in it
+  and shows as a gap under Flashcards, the last section the request asks for (if the AI also moved
+  another section to the end, the chat is saved in that one with no warning, one of the three limits
+  the check does not show); a cut in a frontmatter written another way (`Área:` with its accent, or
+  `conceito:` first) is not blocked, and only the gap its lines leave under Flashcards and the
+  missing `<!-- fim -->` show it; a frontmatter example inside an unfenced document starts a false
+  document, listed on its own, and so does one in a bare ```` ``` ```` example inside
+  a ```` ``` ```` wrapper, which ends the wrapper there so the documents after it show as broken; a
+  body fenced apart from its frontmatter lands as one code block, with all ten sections listed as
+  missing, and blocks as a code block that does not close where it should; a chat opening with a
+  `---` rule and a "**Subtema:**" line, or a chat footer after a rule whose lines all read as
+  frontmatter keys with an unaccented `area:` first, blocks as a possibly cut frontmatter, since the
+  two look the same; a chat fence that never closes before documents the AI did not fence (a
+  decorative "~~~ Resumo ~~~" line) warns that the answer may have been cut; a line that opens in
+  bold at the very end of a document is taken for the title of the next one and listed as ignored.
+  The second: when an AI writes `<!-- fim -->` after every document, not only the last, a cut in a
+  document that others follow goes unseen, since only the end of the answer is checked; a cut last
+  document comes after the last of those lines, so it blocks as content left out, and so does a
+  whole one whose line the AI forgot, until the line is added; a cut right after the next document's
+  block opens leaves only that opening, shown as ignored. The third: a cut answer joined by hand to
+  its continuation, with the chat and the new block deleted, is read as written, so a line the
+  continuation repeats is saved twice; a continuation the AI did not fence keeps its chat line too,
+  in the section where the cut fell, and so does one in a bare three-backtick fence that restarts a
+  code block cut right after its opening line, in a code block of its own, or one that resumes a cut
+  in the middle of a fence line, which chat AIs write as one token, or inside a lesson that nests
+  fences of one character, or inside a code block that a lesson shows within a block of the other
+  character, or one that opens the cut section again in a block of its own closed at that section's
+  end, when the cut fell at the end of the heading line or of the section's last line, or at a
+  word's end with the chat pasted after a space in its first line, in its last line under a
+  rewritten first line, or over more than two other chat lines (one in its last line), as an example
+  may open with the heading it sits under or show the Markdown of the section it sits in, when more
+  than two chat lines sit under a cut at a line's end, when it rewrites two lines in a row keeping
+  neither one's first words nor half of its words, or when it restarts only the section's text. A
+  copy-button paste cut inside a card of a document before the last and continued at the exact
+  character in a new block shows the resumed text only among the chat left out, and the card keeps
+  its cut back. A bare fence of the other character inside a code example (`~~~~`, `~~~` or three
+  backticks), after a blank line or under a line longer than it, read as the request's, blocks as a
+  continued answer when nothing in the example pairs it; under a line as short with a word in it
+  (`fi`, `done`), or indented, it reads as a reST underline or a compiler's marks, and a cut there
+  passes; a bare `~~~` that closes such a fence under a short word after a blank line or another
+  fence (`OK` ending a test run) reads as a title's underline, so the example blocks. A
+  `~~~~markdown` an example closes with a wider bare fence reads as left open and blocks. Two code
+  blocks with only blank lines between them, the second opening as the first and carrying on its
+  last line (`FROM clientes` and then `FROM clientes WHERE ...`), block as a cut block restarted,
+  and so do two one-line blocks with no line between them (`git log` right above `git log
+  --oneline`); a block restarted from a cut at a line's end or with a chat line under the cut keeps
+  the cut part as a block of its own unless a blank line comes before the closing fence and the new
+  block opens right under it, which still keeps it for a cut at a line's end under two chat lines or
+  more, and so does a one-line block restarted with a blank line between the two. Two blocks with no
+  line between them, the first ending in a blank line before its closing fence, block when the
+  second repeats every line of the first but the last (`cd site` over `mkdocs serve`, then `cd site`
+  over `mkdocs build`) or carries on one of its lines (`$ pytest -q` over its output, then `$ pytest
+  -q -x`). A code example that holds the request's lines in the last section, with no contract
+  heading after it, blocks. An example that opens with its section's heading and repeats its lines
+  passes when it rewrites some of them, from the first or with the line under each repeated, or
+  changes every line alike (a mark added, bold, the period dropped), but blocks as the section
+  restarted when it adds a line, or keeps its first line and rewrites its last one so that it goes
+  on past it or ends in another word, as a cut there would go on (`empréstimo.` shown as `empréstimo
+  (30 min).`), or when a bare block of its fence character follows it in that section. A plain title
+  card right under the frontmatter's closing rule, with no blank line, that names every key in the
+  frontmatter's style reads as the document restarted and blocks. A `<!-- fim -->` written at the
+  end of the last card's line, not on its own, warns that the answer may have been cut and stays in
+  that card's back. A lesson that nests fences of one character (five backticks around three) is
+  read with the first closer, as everywhere in the app, and blocks as a continued answer when a
+  `~~~~markdown` line sits in between or another code block follows it with only blank lines
+  between; so is a fence of a block's character indented inside it (a heredoc under `run: |`), which
+  blocks the round. An answer that mixes documents with the contract's headings and documents with
+  other ones blocks the latter as content left out, with the message that also suggests an example.
+  A contract heading in the chat after the block (more cards offered under "## Flashcards") blocks
+  as content left out; deleting it from the paste fixes the round. A `> [!IA]` callout in capitals
+  is not read as one, as everywhere else in the app.
