@@ -118,8 +118,8 @@ def test_no_return_session_before_the_first_session(subtopic):
 
 
 def test_51_each_load_of_the_home_screen_records_app_opened(subtopic, client):
-    client.post("/api/home/")
-    client.post("/api/home/")
+    client.post("/api/home/", content_type="application/json")
+    client.post("/api/home/", content_type="application/json")
 
     opened = SessionEvent.objects.filter(kind=Kind.APP_OPENED)
     assert opened.count() == 2
@@ -153,7 +153,7 @@ def test_home_leads_with_the_last_block_opened_and_each_tracks_next_step(subtopi
     subtopic.study_status = Subtopic.StudyStatus.COMPLETED
     subtopic.save()
 
-    home = client.post("/api/home/").json()
+    home = client.post("/api/home/", content_type="application/json").json()
 
     assert home["last_stop"] == {
         "subtopic": subtopic.pk,

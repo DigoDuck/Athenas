@@ -130,7 +130,9 @@ def test_23_a_suggestion_changes_the_status_only_when_diogo_confirms(subtopic, c
     assert detail["completion_suggested"] is True
     assert status_of(subtopic) == Status.IN_PROGRESS
 
-    response = client.post(f"/api/subtopics/{subtopic.pk}/complete/")
+    response = client.post(
+        f"/api/subtopics/{subtopic.pk}/complete/", content_type="application/json"
+    )
 
     assert response.status_code == 200
     assert response.json()["study_status"] == Status.COMPLETED
@@ -140,7 +142,9 @@ def test_23_a_suggestion_changes_the_status_only_when_diogo_confirms(subtopic, c
 def test_23a_confirming_a_subtopic_that_is_not_suggested_is_refused(subtopic, client):
     read_all(subtopic)
 
-    response = client.post(f"/api/subtopics/{subtopic.pk}/complete/")
+    response = client.post(
+        f"/api/subtopics/{subtopic.pk}/complete/", content_type="application/json"
+    )
 
     assert response.status_code == 409
     assert status_of(subtopic) == Status.IN_PROGRESS
@@ -149,9 +153,10 @@ def test_23a_confirming_a_subtopic_that_is_not_suggested_is_refused(subtopic, cl
 def test_23a_confirming_twice_is_refused(subtopic, client):
     read_all(subtopic)
     attempt(subtopic, "right")
-    client.post(f"/api/subtopics/{subtopic.pk}/complete/")
+    url = f"/api/subtopics/{subtopic.pk}/complete/"
+    client.post(url, content_type="application/json")
 
-    assert client.post(f"/api/subtopics/{subtopic.pk}/complete/").status_code == 409
+    assert client.post(url, content_type="application/json").status_code == 409
 
 
 def test_23b_reopening_moves_back_to_in_progress_and_the_concept_too(subtopic, client):
@@ -160,7 +165,7 @@ def test_23b_reopening_moves_back_to_in_progress_and_the_concept_too(subtopic, c
     complete_subtopic(subtopic)
     assert concept_status(subtopic.concept) == Status.COMPLETED
 
-    response = client.post(f"/api/subtopics/{subtopic.pk}/reopen/")
+    response = client.post(f"/api/subtopics/{subtopic.pk}/reopen/", content_type="application/json")
 
     assert response.status_code == 200
     assert status_of(subtopic) == Status.IN_PROGRESS
