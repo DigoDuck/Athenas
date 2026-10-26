@@ -14,7 +14,15 @@ from organization.models import Area, Concept, Settings, Step, Track
 from organization.serializers import StepSerializer, SubtopicSerializer
 
 from . import images
-from .models import Block, Content, Flashcard, Image, PracticeQuestion, ReviewLog
+from .models import (
+    Block,
+    Content,
+    DailyReviewQueue,
+    Flashcard,
+    Image,
+    PracticeQuestion,
+    ReviewLog,
+)
 from .parser import (
     CARD_LABEL_RE,
     FRONTMATTER_KEY_RE,
@@ -490,7 +498,16 @@ def _today(now, cap):
     # Overflow stays due with its stored date untouched and competes again tomorrow (D-011).
     due = sorted(due, key=lambda card: (retrievability(card), card.id))[: free - len(new)]
     repeats = list(active.filter(id__in=seen_today, due__lte=now).order_by("due", "id"))
+    _record_offer(start.date(), len(seen_today) + len(new) + len(due))
     return repeats, new + due
+
+
+def _record_offer(day, offered):
+    # Rating a card only moves it from the picks to the seen set; approving cards or the end of
+    # a return session grows the queue. So the day's queue is the largest one built that day.
+    row, created = DailyReviewQueue.objects.get_or_create(day=day, defaults={"offered": offered})
+    if not created:
+        DailyReviewQueue.objects.filter(pk=row.pk, offered__lt=offered).update(offered=offered)
 
 
 def _scheduler(enable_fuzzing=True):
