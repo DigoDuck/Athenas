@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import Home from "./pages/Home.jsx";
 import Library from "./pages/Library.jsx";
+import NewTheme from "./pages/NewTheme.jsx";
 import Notebook from "./pages/Notebook.jsx";
 import Pomodoro from "./pages/Pomodoro.jsx";
 import Practice from "./pages/Practice.jsx";
@@ -16,6 +17,7 @@ const PAGES = {
   roadmap: { label: "Roadmap", icon: "roadmap", Component: Roadmap },
   biblioteca: { label: "Biblioteca", icon: "library", Component: Library },
   revisoes: { label: "Revisões", icon: "reviews", Component: Review },
+  "novo-tema": { label: "Novo tema", icon: "plus", Component: NewTheme },
 };
 
 // Configurações is a secondary action at the foot of the navigation (design system 4).
@@ -34,7 +36,8 @@ const SECONDARY_NAV_ITEMS = navItems(SECONDARY_PAGES);
 const SCENES = { inicio: "home", roadmap: "roadmap" };
 
 // "#/estudo/<subtopic id>" is reading, "#/caderno/<subtopic id>" notebook mode and
-// "#/pratica/<subtopic id>" practice; the nav keeps Biblioteca marked.
+// "#/pratica/<subtopic id>" practice; the nav keeps Biblioteca marked. "#/roadmap/<track id>"
+// opens the Roadmap on that track.
 const SUBTOPIC_PAGES = { estudo: Study, caderno: Notebook, pratica: Practice };
 
 function currentRoute() {
@@ -42,7 +45,10 @@ function currentRoute() {
   if (key in SUBTOPIC_PAGES && /^\d+$/.test(id ?? "")) {
     return { page: "biblioteca", Subpage: SUBTOPIC_PAGES[key], subtopic: Number(id), key };
   }
-  return { page: Object.hasOwn(ALL_PAGES, key) ? key : "inicio" };
+  return {
+    page: Object.hasOwn(ALL_PAGES, key) ? key : "inicio",
+    id: /^\d+$/.test(id ?? "") ? Number(id) : null,
+  };
 }
 
 export default function App() {
@@ -67,7 +73,7 @@ export default function App() {
       {route.Subpage ? (
         <route.Subpage key={`${route.key}/${route.subtopic}`} subtopicId={route.subtopic} />
       ) : (
-        <Component />
+        <Component key={route.id} trackId={route.id} />
       )}
     </AppShell>
   );
