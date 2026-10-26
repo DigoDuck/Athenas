@@ -6,7 +6,8 @@ import Icon from "./Icon.jsx";
 // Desktop layout: 224px side navigation, flexible work area with a 32px margin.
 // Below 1200px (a snapped window, for example) the navigation collapses behind a labelled button.
 // items: [{ id, label, icon, href }]; `current` is the active item id.
-// Routing is left to the caller: items are plain links.
+// Routing is left to the caller: items are plain links. `navFooter` sits at the bottom of the
+// navigation, above the secondary items, for a quiet tool such as the pomodoro.
 //
 // `scene="home"` or `scene="roadmap"` puts a sunset panorama behind the whole screen, for the
 // screens that open the day (Início, Roadmap), and the bushes cut from the same photograph in
@@ -50,6 +51,7 @@ export default function AppShell({
   secondaryItems = [],
   current,
   aside,
+  navFooter,
   scene = null,
   children,
 }) {
@@ -88,15 +90,22 @@ export default function AppShell({
       {/* The column carries the background so it reaches the bottom of long pages;
           the nav inside stays in view while the page scrolls. */}
       <div className="ui-shell__nav-column" data-print="hide">
-        {/* Following a link closes the collapsed menu, so the new page is not pushed down. */}
-        <nav className="ui-nav" id="navegacao-principal" aria-label="Principal" onClick={() => setOpen(false)}>
+        {/* Following a link closes the collapsed menu, so the new page is not pushed down; a button
+            in the footer leaves it open. */}
+        <nav
+          className="ui-nav"
+          id="navegacao-principal"
+          aria-label="Principal"
+          onClick={(e) => e.target.closest("a") && setOpen(false)}
+        >
           <div className="ui-nav__brand">
             <Brand />
           </div>
           <NavList items={items} current={current} />
-          {secondaryItems.length > 0 && (
+          {(navFooter || secondaryItems.length > 0) && (
             <div className="ui-nav__secondary">
-              <NavList items={secondaryItems} current={current} />
+              {navFooter}
+              {secondaryItems.length > 0 && <NavList items={secondaryItems} current={current} />}
             </div>
           )}
         </nav>

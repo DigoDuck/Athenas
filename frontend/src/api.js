@@ -10,6 +10,7 @@ async function request(method, url, body) {
   if (!response.ok) {
     const error = new Error(errorMessage(data, response.status));
     error.status = response.status;
+    error.data = data;
     throw error;
   }
   return data;
