@@ -133,7 +133,8 @@ export default function Practice({ subtopicId }) {
   }
 
   function onSaved(item, attempt) {
-    setPractice((p) => ({ ...p, attempts: [attempt, ...p.attempts] }));
+    if (attempt) setPractice((p) => ({ ...p, attempts: [attempt, ...p.attempts] }));
+    else load();
     setOpenKey(null);
     setSaved(item.key);
   }
@@ -303,6 +304,14 @@ function AnswerForm({ item, subtopicId, draftStorage, attempts, onDraft, onClose
       onSaved(attempt);
       return;
     } catch (e) {
+      if (e.status === 409) {
+        // The event is already completed: an earlier send saved the attempt but its answer was
+        // lost. Saving again would need a new event and record the same attempt twice (D-039).
+        writeDraft(draftStorage, null);
+        onDraft(false);
+        onSaved(null);
+        return;
+      }
       setError(`Não foi possível salvar a tentativa. ${e.message}`);
     }
     setBusy(null);

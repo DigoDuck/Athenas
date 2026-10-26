@@ -731,6 +731,162 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
   mockups ask for and what "começar e retomar sem esforço" needs.
 - Cost: a long track scrolls sideways on the board. Text on the panorama depends on the fade:
   a new landscape needs a light left side, or its opening lines need a panel.
+- Note: the "Left out" item on the leaf shadow and the new landscape, and the sideways scroll
+  in "Cost", are out of date; D-035 records what shipped.
+
+### D-035: What D-034 shipped beyond its own text
+
+- Date: 2026-10-21. Source: the last commits of PR #41 changed D-034's text after review, but
+  the PR was merged before that change reached it.
+- Decision:
+  - D-034 shipped with the kit's sunset panoramas on Início and Roadmap and the kit's leaf
+    shadow on the internal screens; neither is left out.
+  - A long track wraps to a second row on the board instead of scrolling sideways, so the step
+    menus are never clipped.
+  - Where the board meets the bushes, the leaves are matted from the approved mockups, and on
+    Início the marble cap is cut along its own outline, so both stand in front of the board;
+    that layer casts a soft shadow on it. Roadmap's board fits one window from 1440x900 up, and
+    at the mockup's 1672x941 its bottom line falls where the mockup has it.
+- Why: D-034 is the record of the new design, and it should describe what the app does.
+- Cost: the foreground layers match the mockups exactly only at 1672x941 and follow the
+  photograph, not the board, at other widths; a board that changes height moves its bottom
+  line away from the cut.
+
+### D-036: Notebook mode is a screen of its own that records one notebook event
+
+- Date: 2026-10-21. Source: slice S8 of `docs/plan.md`; spec 4.8.2 and Q16 fix which blocks
+  notebook mode shows and that it ends with one practice prompt, but not which prompt, where
+  it opens, or when its event counts.
+- Decision:
+  - Notebook mode is `#/caderno/<subtopic>`, opened from "Modo caderno" in the reading screen's
+    "Apoio ao estudo". It shows Objetivo, Ideia central, Exemplo and Resumo para o caderno on
+    one sheet, in that order whatever their order in the document. A block missing or without
+    text is left out and named in one line under the sheet. Printing drops the navigation, the
+    breadcrumb and the buttons (`docs/design-system.md` section 5) but keeps the title and the
+    origin badge, and wraps long code lines instead of cutting them. The sheet follows the
+    contract order on purpose; reading keeps the document order (D-020, D-023).
+  - The prompt is one of the questions Practice offers (not archived, with a reference
+    answer), in Practice's order, one place further on each completed notebook event on the
+    subtopic, wrapping around. It depends only on how many copies were made, never on how
+    earlier answers went, so it is not a history-based recommendation (spec 2.2). A subtopic
+    with no such question gets "explain in my words". The reference answer is never sent to
+    this screen; comparing happens in Practice.
+  - Opening the screen starts a `notebook` event on the subtopic (D-017), unless there is
+    nothing to show. "Copiei para o caderno" completes it, so only a finished copy counts as a
+    session day (spec 4.11.2) and, like any other activity, ends a return session (D-026).
+    Leaving without it abandons the event, as in reading.
+  - Notebook mode does not open blocks: it marks nothing read and does not move the subtopic to
+    in progress (spec 4.4.5 ties that to opening a block).
+- Why: rotating the question makes copying a subtopic again a new check of what stayed, not a
+  repeat of P1, even when every answer stays on paper. Completing on an explicit button keeps a
+  glance at the screen out of the measurement, the same rule reading and practice follow.
+- Cost: the answer written on paper leaves no attempt in the app; it reaches the history only
+  if Diogo also answers in Practice. A subtopic worked only in notebook mode stays not started,
+  so the Roadmap keeps it as the next step, it is never suggested complete (D-024 needs every
+  block read) and "continue where I stopped" ignores it (it reads reading events only).
+  Reloading the screen abandons its event and opens another. D-035 is reserved by a slice
+  running in parallel.
+
+### D-037: Configurações edits the Settings row, and the pomodoro lives in the navigation
+
+- Date: 2026-10-21. Source: slice S9 of `docs/plan.md` (M2). Spec 3.2 lists the settings and
+  spec 4.9 the pomodoro, but neither says where they live, what values are accepted or what
+  happens when a phase ends. D-035, D-036, D-038 and D-039 are held by the other M2 slices
+  opened the same day.
+- Decision:
+  - "Configurações" is the secondary item at the foot of the navigation (design system 4) and
+    opens `#/configuracoes`: one form with the review cap, the new card cap, the desired
+    retention as a whole percentage and the two pomodoro durations, saved by one "Salvar"
+    through the existing `PATCH /api/settings/`. "Configurações salvas." appears only after
+    the answer; a refused save marks each field with the API's message and moves the focus to
+    the first one.
+  - The API takes a review cap from 1 to 200, a new card cap from 0 to 200 and never above the
+    review cap (new cards take their slots inside it, D-022, so a larger number would do
+    nothing), a desired retention from 0.70 to 0.97, a focus from 1 to 180 minutes and a break
+    from 1 to 60, each refused with "Use um valor entre ..." in the field. Above 0.97 the
+    number of reviews grows very fast; below 0.70 more than 30% of the cards would be
+    forgotten by their review. The model's wider bounds stay, so no migration. A new card cap
+    of 0 stops new cards; a review cap of 0 is refused, since it would empty the queue with no
+    word on the screen. The cap rules themselves (spec 4.6, D-022, D-026) do not change: the
+    queue reads the new value on its next build, so scenario 9 holds, and the return session
+    keeps its 5.
+  - A new desired retention counts from each card's next rating. Stored due dates are never
+    rewritten (D-011), and the queue's order does not depend on it (retrievability does not).
+  - The pomodoro sits in the navigation, above Configurações: "Iniciar foco", then the phase
+    and the time left with "Parar", one button that keeps the focus when its label changes.
+    The durations are read at each start, so a change counts from the next focus. When the
+    focus ends its break starts on its own, and when the break ends the timer stops; there is
+    no loop, pause or count of rounds. Each end gives one notice in the bottom right corner,
+    in a live region, that never takes the focus and stays until closed or replaced: "Fim do
+    foco. Pausa de N min." and "Fim da pausa.", which is also the notice when a sleep skipped
+    the whole break. No sound and no browser notification. A button in the navigation leaves
+    the folded menu open; only a link closes it.
+  - The timer is an end time in `localStorage`, so it survives a reload or a closed tab and
+    stays right in a background tab. A phase that ended while the app was closed settles with
+    no notice: a running break shows as a break, and a timer whose break also passed is gone.
+    Open tabs share it: a start or a stop in one shows in the others, and each tab gives its
+    own notice when a phase ends.
+  - On the screens without a panorama (reading, practice, reviews and the rest) the page always
+    keeps room at its end for the notice, so the last action can be scrolled out from under it
+    and the page never jumps when a notice comes or goes.
+  - The pomodoro records no `SessionEvent`: it is not a study activity (spec 3.1, Activity) and
+    the day 28 metric does not read it.
+  - Over the panoramas of Início and Roadmap the foot of the navigation sits on the board's
+    color, so its text never lies on the photograph (design system 6).
+- Why: spec 4.9 asks for a timer that never blocks studying and never competes with the
+  content; the navigation is beside every screen and outside the content, and a notice that
+  does not take the focus leaves the reading or the answer where it was. Bounds on the caps
+  catch a typo (2000 instead of 20) before it fills a day.
+- Cost: with the window under 1200 px the navigation folds behind "Menu", so the time left is
+  hidden until it opens; the notice still shows. Until it is closed, the notice covers what
+  sits in the bottom right corner of the window: on a study screen that can be scrolled away,
+  on Início and Roadmap it cannot. The study screens end with about 90 px of empty space, so a
+  page that just fit the window now scrolls a little.
+
+### D-039: Stability hardening in the month of use
+
+- Date: 2026-10-22. Source: Diogo asked for the open tasks to run unattended; the project goal
+  puts "não perder nada" first. An audit over import, history, backup, HTTP, activity, frontend,
+  scripts and input validation found 25 issues; three independent checks kept the ones below.
+- Decision:
+  - Writes must be JSON: a POST, PUT or PATCH with any other body type answers 415
+    (`config.middleware.JsonWritesOnly`). With no login and no CSRF cookie (D-008), any page in
+    the same browser could post a form to 127.0.0.1 and write review logs, attempts and events
+    the app never deletes, or approve pending cards. A form needs no CORS preflight; JSON does,
+    and this API never answers one.
+  - A re-import only touches Markdown cards. Manual cards on the subtopic (label empty) were
+    suspended by every save of its Markdown, with no way back.
+  - Saving content takes an optional `base`, the saved text the editor started from (`null`:
+    none). When the stored text differs, the save answers 409 with the stored text and changes
+    nothing; the editor keeps Diogo's text, and saving again overwrites on purpose. theme.py
+    sends no `base`. The content editor's drafts now live in `localStorage`
+    (`athenas:conteudo:<id>`) with their `base`, so a reload or a click elsewhere keeps them and an
+    old draft cannot silently replace newer text.
+  - In practice and review, a 409 on saving means an earlier send was saved and its answer was
+    lost: the screen reloads instead of offering a retry that would record the attempt twice.
+  - `scripts/theme.py push --replace` names the files it may overwrite (paths as in
+    `tema.json`) and saves the app's copy of each replaced subtopic as `<file>.app-<time>.md`;
+    as one flag it overwrote every subtopic Diogo had edited in the app. A failed content read (502 while
+    the backend restarts) stops the push instead of counting as "no content". This supersedes
+    the `--replace` lines of D-030 and D-033.
+  - The README restore adds one step that derives `generated_by` again from the saved Markdown,
+    for exports made before content migration 0005.
+  - Bad input that crashed with 500 answers 400: a non-numeric `?subtopic=`, a non-object body
+    to move a step, and adding the same concept to a track twice at once.
+- Left as they are, with the reason:
+  - SVG images are not sanitized. They are shown as `<img>`, which never runs scripts, and the
+    image response carries `Content-Security-Policy: default-src 'none'` and `nosniff` (D-033),
+    so an SVG opened on its own runs nothing either.
+  - Core parser findings, for Diogo: a second `## Flashcards` or `## Prática` section replaces
+    the first (its cards are suspended, its questions archived, and a label repeated across the
+    two is not caught); a label over 10 characters passes the preview and fails the save with a
+    500; `### P2 sem dois-pontos` folds into the previous question's answer without a warning.
+  - D-021 (a reopened draft starts a new event) and D-023 (a block completed across a save of
+    its subtopic stays unread) are accepted risks already recorded.
+- Why: each change closes a path to losing study text or history, or to writing history Diogo
+  did not make, with the smallest change and no new dependency or migration.
+- Cost: any client of the API must send JSON, including tests. A draft kept in `localStorage`
+  stays in that browser only.
 
 ### D-040: "Novo tema" imports a pasted AI answer, one concept per round
 

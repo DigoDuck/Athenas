@@ -6,6 +6,7 @@ from django.shortcuts import get_object_or_404
 from organization.models import Subtopic
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
+from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -67,6 +68,17 @@ class ContentView(APIView):
         if parsed.errors:
             # Duplicate labels block the save (spec 4.2.7).
             return Response(_preview(parsed), status=status.HTTP_400_BAD_REQUEST)
+        # `base` is the saved text the editor started from (null: none); theme.py sends none.
+        stored = Content.objects.filter(subtopic=subtopic).values_list("raw_markdown", flat=True)
+        if "base" in request.data and request.data["base"] != stored.first():
+            return Response(
+                {
+                    "detail": "O conteúdo salvo mudou depois que você abriu o editor. Seu texto "
+                    "continua aqui; salve de novo para substituir o que está salvo.",
+                    "raw_markdown": stored.first(),
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
         import_content(subtopic, parsed)
         return Response(ContentSerializer(subtopic.content).data)
 
@@ -124,6 +136,8 @@ class FlashcardViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
     def get_queryset(self):
         cards = Flashcard.objects.all()
         if subtopic := self.request.query_params.get("subtopic"):
+            if not subtopic.isdigit():
+                raise ValidationError({"subtopic": "Informe o id do subtema."})
             cards = cards.filter(subtopic_id=subtopic)
         if state := self.request.query_params.get("state"):
             cards = cards.filter(state=state)

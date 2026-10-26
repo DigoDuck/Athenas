@@ -22,6 +22,8 @@ export default function Review() {
   // Counts ratings, so a card shown again after a rating is a new showing with a new event.
   const [round, setRound] = useState(0);
   const [creating, setCreating] = useState(false);
+  // Kept here so the typed card survives closing the form.
+  const [newCard, setNewCard] = useState({ front: "", back: "" });
 
   const load = useCallback(
     () =>
@@ -64,7 +66,9 @@ export default function Review() {
         </Button>
       </header>
       {/* Reloading under a card on screen could swap it for the new one and abandon its event. */}
-      {creating && <ManualCardForm onCreated={() => !card && load()} />}
+      {creating && (
+        <ManualCardForm text={newCard} onText={setNewCard} onCreated={() => !card && load()} />
+      )}
       {loadError ? (
         <StateMessage
           kind="error"
@@ -149,6 +153,8 @@ function ReviewCard({ card, focusOnShow, onRated }) {
         await onRated();
         return;
       } catch (e) {
+        // Already rated, or no longer active: the queue reloads past this card.
+        if (e.status === 409) return onRated();
         setError(`Não foi possível salvar a avaliação. ${e.message}`);
       }
       setBusy(null);
@@ -240,13 +246,14 @@ function ReviewCard({ card, focusOnShow, onRated }) {
 }
 
 // A manual card goes on a subtopic, or on the concept when no subtopic is chosen (spec Q6).
-function ManualCardForm({ onCreated }) {
+function ManualCardForm({ text, onText, onCreated }) {
   const [lists, setLists] = useState(null);
   const [listError, setListError] = useState(null);
   const [concept, setConcept] = useState("");
   const [subtopic, setSubtopic] = useState("");
-  const [front, setFront] = useState("");
-  const [back, setBack] = useState("");
+  const { front, back } = text;
+  const setFront = (value) => onText((t) => ({ ...t, front: value }));
+  const setBack = (value) => onText((t) => ({ ...t, back: value }));
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
   const [created, setCreated] = useState(false);
