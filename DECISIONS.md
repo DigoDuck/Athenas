@@ -731,6 +731,61 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
   mockups ask for and what "começar e retomar sem esforço" needs.
 - Cost: a long track scrolls sideways on the board. Text on the panorama depends on the fade:
   a new landscape needs a light left side, or its opening lines need a panel.
+- Note: the "Left out" item on the leaf shadow and the new landscape, and the sideways scroll
+  in "Cost", are out of date; D-035 records what shipped.
+
+### D-035: What D-034 shipped beyond its own text
+
+- Date: 2026-10-21. Source: the last commits of PR #41 changed D-034's text after review, but
+  the PR was merged before that change reached it.
+- Decision:
+  - D-034 shipped with the kit's sunset panoramas on Início and Roadmap and the kit's leaf
+    shadow on the internal screens; neither is left out.
+  - A long track wraps to a second row on the board instead of scrolling sideways, so the step
+    menus are never clipped.
+  - Where the board meets the bushes, the leaves are matted from the approved mockups, and on
+    Início the marble cap is cut along its own outline, so both stand in front of the board;
+    that layer casts a soft shadow on it. Roadmap's board fits one window from 1440x900 up, and
+    at the mockup's 1672x941 its bottom line falls where the mockup has it.
+- Why: D-034 is the record of the new design, and it should describe what the app does.
+- Cost: the foreground layers match the mockups exactly only at 1672x941 and follow the
+  photograph, not the board, at other widths; a board that changes height moves its bottom
+  line away from the cut.
+
+### D-036: Notebook mode is a screen of its own that records one notebook event
+
+- Date: 2026-10-21. Source: slice S8 of `docs/plan.md`; spec 4.8.2 and Q16 fix which blocks
+  notebook mode shows and that it ends with one practice prompt, but not which prompt, where
+  it opens, or when its event counts.
+- Decision:
+  - Notebook mode is `#/caderno/<subtopic>`, opened from "Modo caderno" in the reading screen's
+    "Apoio ao estudo". It shows Objetivo, Ideia central, Exemplo and Resumo para o caderno on
+    one sheet, in that order whatever their order in the document. A block missing or without
+    text is left out and named in one line under the sheet. Printing drops the navigation, the
+    breadcrumb and the buttons (`docs/design-system.md` section 5) but keeps the title and the
+    origin badge, and wraps long code lines instead of cutting them. The sheet follows the
+    contract order on purpose; reading keeps the document order (D-020, D-023).
+  - The prompt is one of the questions Practice offers (not archived, with a reference
+    answer), in Practice's order, one place further on each completed notebook event on the
+    subtopic, wrapping around. It depends only on how many copies were made, never on how
+    earlier answers went, so it is not a history-based recommendation (spec 2.2). A subtopic
+    with no such question gets "explain in my words". The reference answer is never sent to
+    this screen; comparing happens in Practice.
+  - Opening the screen starts a `notebook` event on the subtopic (D-017), unless there is
+    nothing to show. "Copiei para o caderno" completes it, so only a finished copy counts as a
+    session day (spec 4.11.2) and, like any other activity, ends a return session (D-026).
+    Leaving without it abandons the event, as in reading.
+  - Notebook mode does not open blocks: it marks nothing read and does not move the subtopic to
+    in progress (spec 4.4.5 ties that to opening a block).
+- Why: rotating the question makes copying a subtopic again a new check of what stayed, not a
+  repeat of P1, even when every answer stays on paper. Completing on an explicit button keeps a
+  glance at the screen out of the measurement, the same rule reading and practice follow.
+- Cost: the answer written on paper leaves no attempt in the app; it reaches the history only
+  if Diogo also answers in Practice. A subtopic worked only in notebook mode stays not started,
+  so the Roadmap keeps it as the next step, it is never suggested complete (D-024 needs every
+  block read) and "continue where I stopped" ignores it (it reads reading events only).
+  Reloading the screen abandons its event and opens another. D-035 is reserved by a slice
+  running in parallel.
 
 ### D-037: Configurações edits the Settings row, and the pomodoro lives in the navigation
 
