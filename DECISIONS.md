@@ -854,9 +854,9 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
 - Decision:
   - `python manage.py day28 [--today YYYY-MM-DD]` prints, as Markdown for the verdict entry and
     in D-010's order, the blocks with their days of use, the blocks that met the bar, the
-    support metrics, a placeholder for each item written by hand, and the reading. `--today` reads as of that date,
-    ignoring later days of use. It reads inside a read-only transaction, so a bug cannot write to
-    use mode.
+    support metrics, a placeholder for each item written by hand, and the reading. `--today`
+    reads as of that date, ignoring later days of use. It reads inside one read-only
+    transaction, so a bug cannot write to use mode.
   - A day of use is a Bahia date with at least one event that has `completed_at`, of any kind
     (`session_days`, the same set the return session reads). Days before day 1 or after the
     window do not count.

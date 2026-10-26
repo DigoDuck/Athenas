@@ -66,29 +66,30 @@ def support_lines(support):
         return ["Support metrics (spec 4.11.3, D-041): no Bahia day of the window has closed yet."]
     opening, reviews, accuracy = support["opening"], support["reviews"], support["accuracy"]
     if opening["median_seconds"] is None:
-        opened = f"no opening led to an activity ({opening['opens']} openings)."
+        opened = f"no opening led to an activity (openings: {opening['opens']})."
     else:
         opened = (
-            f"median {opening['median_seconds']:.0f} s, over {opening['started']} of "
-            f"{opening['opens']} openings."
+            f"median {opening['median_seconds']:.0f} s; openings followed by one: "
+            f"{opening['started']} of {opening['opens']}."
         )
     if reviews["fraction"] is None:
         reviewed = "no day had a review queue."
     else:
         done = sum(day[1] for day in reviews["days"])
         offered = sum(day[2] for day in reviews["days"])
+        # Rounded down, so a day with one card left never reads as 100%.
         reviewed = (
-            f"{done} of {offered} cards in the day's queue ({reviews['fraction']:.0%}); "
+            f"{done} of {offered} cards in the day's queue ({done * 100 // offered}%); "
             f"days with a queue: {len(reviews['days'])}."
         )
     ratings = accuracy["ratings"]
     if accuracy["accuracy"] is None:
         recalled = "no such review yet."
     else:
+        known, total = ratings["hard"] + ratings["good"], sum(ratings.values())
         recalled = (
-            f"{ratings['hard'] + ratings['good']} of {sum(ratings.values())} recalled "
-            f"({accuracy['accuracy']:.0%}); again {ratings['again']}, hard {ratings['hard']}, "
-            f"good {ratings['good']}."
+            f"{known} of {total} recalled ({known * 100 // total}%); again {ratings['again']}, "
+            f"hard {ratings['hard']}, good {ratings['good']}."
         )
     return [
         f"Support metrics (spec 4.11.3, D-041), Bahia days {DAY_1} to {support['end']}. They "
@@ -139,7 +140,8 @@ class Command(BaseCommand):
         with transaction.atomic():
             if outermost:  # inside a test's transaction it would stay read-only after this
                 with connection.cursor() as cursor:
-                    cursor.execute("SET TRANSACTION READ ONLY")
+                    # One snapshot for every query, as the backup export takes (D-028).
+                    cursor.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY")
             metric = day28_metric(session_days(), today=today)
             support = support_metrics(metric, today)
         self.stdout.write(report(metric, today, support))

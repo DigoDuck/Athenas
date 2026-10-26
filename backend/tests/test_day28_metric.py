@@ -162,7 +162,7 @@ def test_the_command_prints_the_support_metrics_over_the_closed_days(capsys):
 
     out = capsys.readouterr().out
     assert "Bahia days 2026-10-17 to 2026-10-18." in out
-    assert "starting an activity: median 30 s, over 1 of 1 openings." in out
+    assert "starting an activity: median 30 s; openings followed by one: 1 of 1." in out
     assert "Reviews done: 0 of 2 cards in the day's queue (0%); days with a queue: 1." in out
     assert "more than 14 days earlier: no such review yet." in out
     assert out.index("Support metrics") < out.index("Features that shipped")
