@@ -21,6 +21,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "django.middleware.common.CommonMiddleware",
+    "config.middleware.JsonWritesOnly",
 ]
 
 ROOT_URLCONF = "config.urls"

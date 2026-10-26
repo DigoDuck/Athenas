@@ -83,6 +83,8 @@ class StepSerializer(serializers.ModelSerializer):
         with transaction.atomic():
             # Lock the track row so two inserts cannot take the same position.
             Track.objects.select_for_update().get(pk=validated_data["track"].pk)
+            # Again under the lock: a double click passes validate() twice (DECISIONS.md D-039).
+            self.validate(validated_data)
             last = Step.objects.filter(track=validated_data["track"]).aggregate(last=Max("order"))
             validated_data["order"] = 0 if last["last"] is None else last["last"] + 1
             return super().create(validated_data)
@@ -104,6 +106,16 @@ class TrackSerializer(serializers.ModelSerializer):
         return step.pk if step else None
 
 
+def _bounds(low, high, message=None):
+    # Our own message: DRF's pt-BR one reads "Certifque-se".
+    message = message or f"Use um valor entre {low} e {high}."
+    return {
+        "min_value": low,
+        "max_value": high,
+        "error_messages": {"min_value": message, "max_value": message},
+    }
+
+
 class SettingsSerializer(serializers.ModelSerializer):
     class Meta:
         model = Settings
@@ -114,3 +126,22 @@ class SettingsSerializer(serializers.ModelSerializer):
             "pomodoro_focus_minutes",
             "pomodoro_break_minutes",
         ]
+        # Bounds a typo cannot cross (DECISIONS.md D-037); the model keeps the wider ones.
+        extra_kwargs = {
+            "review_cap": _bounds(1, 200),
+            "new_card_cap": _bounds(0, 200),
+            # The screen shows a percentage; "%%" because Django interpolates the message.
+            "desired_retention": _bounds(0.7, 0.97, "Use um valor entre 70%% e 97%%."),
+            "pomodoro_focus_minutes": _bounds(1, 180),
+            "pomodoro_break_minutes": _bounds(1, 60),
+        }
+
+    def validate(self, attrs):
+        # New cards take their slots inside the review cap (D-022), so a larger number does nothing.
+        review_cap = attrs.get("review_cap", self.instance.review_cap)
+        new_card_cap = attrs.get("new_card_cap", self.instance.new_card_cap)
+        if new_card_cap > review_cap:
+            raise serializers.ValidationError(
+                {"new_card_cap": "Use até o limite de revisões por dia, que já inclui os novos."}
+            )
+        return attrs
