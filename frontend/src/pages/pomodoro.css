@@ -1,0 +1,103 @@
+/* No pulse and no color change while it runs (design system: Assistente e Pomodoro). */
+.pomodoro {
+  display: grid;
+  gap: var(--space-2);
+  justify-items: start;
+  padding: 0 0 var(--space-4);
+}
+
+/* Title, time and error start where the tertiary buttons' labels start. */
+.pomodoro__title {
+  display: flex;
+  padding-left: var(--space-3);
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-body);
+  font-size: var(--text-meta);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-meta);
+  color: var(--color-text-muted);
+}
+
+.pomodoro__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+.pomodoro__phase {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding-left: var(--space-3);
+  color: var(--color-ink);
+}
+
+.pomodoro__time {
+  font-size: var(--text-lead);
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+
+.pomodoro__error {
+  padding-left: var(--space-3);
+  font-size: var(--text-meta);
+  color: var(--color-error);
+}
+
+/* Bottom right, above the page and its foliage. */
+.pomodoro-notice {
+  position: fixed;
+  right: var(--space-6);
+  bottom: var(--space-6);
+  z-index: 20;
+}
+
+.pomodoro-notice__body {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  max-width: 24rem;
+  padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-panel);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-overlay);
+  color: var(--color-ink);
+}
+
+.pomodoro-notice__body > .ui-icon {
+  flex: none;
+  color: var(--color-bronze);
+}
+
+.pomodoro-notice__close {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: var(--target-size);
+  height: var(--target-size);
+  margin-left: auto;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.pomodoro-notice__close:hover {
+  background: var(--color-surface-muted);
+  color: var(--color-text);
+}
+
+.pomodoro-notice__close:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: 2px;
+}
+
+/* Room to scroll the end of a study page out from under the notice (spec 4.9: never blocks),
+   kept even without one, so the page never jumps when it comes or goes. */
+.ui-shell:not([data-scene]) .ui-shell__main {
+  padding-bottom: calc(var(--target-size) + 2 * var(--space-3) + 2 * var(--space-6));
+}
