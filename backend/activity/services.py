@@ -1,7 +1,7 @@
-"""Session events (spec 3.2, 4.11), reading (4.4.5, 4.8.1, 4.8.4), practice (4.8.3),
-review (D-025) and the home screen (4.5)."""
+"""Session events (spec 3.2, 4.11), reading (4.4.5, 4.8.1, 4.8.4), notebook mode (4.8.2),
+practice (4.8.3), review (D-025) and the home screen (4.5)."""
 
-from content.models import Attempt, Block, ReviewLog
+from content.models import Attempt, Block, PracticeQuestion, ReviewLog
 from content.services import rate_card, reviews_today
 from django.db import transaction
 from django.db.models.functions import TruncDate
@@ -101,6 +101,38 @@ def resume_block_order(subtopic) -> int:
     # A re-import can leave fewer blocks than the event points at (DECISIONS.md D-017).
     last = Block.objects.filter(content__subtopic=subtopic).count() - 1
     return max(0, min(latest.block_order, last))
+
+
+# What notebook mode shows, in this order, before its one practice prompt (spec Q16).
+NOTEBOOK_BLOCKS = ("Objetivo", "Ideia central", "Exemplo", "Resumo para o caderno")
+
+
+def notebook(subtopic) -> dict:
+    """The notebook blocks that have text, the ones missing, and one question (DECISIONS.md D-036).
+
+    Each finished copy moves one question further in Practice's order, wrapping around, so copying
+    the subtopic again asks something else even when every answer stays on paper. It never looks
+    at how earlier answers went (spec 2.2). None means "explain in my words".
+    """
+    blocks = [
+        b
+        for b in Block.objects.filter(content__subtopic=subtopic, kind__in=NOTEBOOK_BLOCKS)
+        if b.body.strip()
+    ]
+    blocks.sort(key=lambda b: (NOTEBOOK_BLOCKS.index(b.kind), b.order))
+    shown = {b.kind for b in blocks}
+    # The same questions Practice offers, in its order, so the prompt can be answered there.
+    questions = list(
+        PracticeQuestion.objects.filter(subtopic=subtopic, archived=False).exclude(
+            reference_answer=""
+        )
+    )
+    copies = subtopic.events.filter(kind=Kind.NOTEBOOK).exclude(completed_at=None).count()
+    return {
+        "blocks": blocks,
+        "missing": [kind for kind in NOTEBOOK_BLOCKS if kind not in shown],
+        "question": questions[copies % len(questions)] if questions else None,
+    }
 
 
 def session_days() -> set:

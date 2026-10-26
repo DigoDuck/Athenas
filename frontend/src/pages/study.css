@@ -19,7 +19,8 @@
   grid-area: head;
 }
 
-.study .ui-badge {
+.study .ui-badge,
+.notebook .ui-badge {
   gap: var(--space-2);
   padding: var(--space-1) var(--space-3);
   font-size: var(--text-lead);
@@ -187,7 +188,8 @@
   color: var(--color-ink);
 }
 
-.study__block .ui-button--primary {
+.study__block .ui-button--primary,
+.notebook__actions .ui-button--primary {
   --control-height: 56px;
   padding-left: var(--space-5);
   font-size: var(--text-lead);
