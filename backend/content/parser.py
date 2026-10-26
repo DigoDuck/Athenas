@@ -1,10 +1,11 @@
 """Pure parser for the subtopic Markdown contract (spec 4.1 and 4.2). No Django, no database."""
 
+import os
 import re
 import unicodedata
 from dataclasses import dataclass, field
 
-KNOWN_HEADINGS = {
+CONTRACT_ORDER = (
     "Objetivo",
     "Pré-requisitos",
     "Ideia central",
@@ -15,16 +16,45 @@ KNOWN_HEADINGS = {
     "Resumo para o caderno",
     "Fontes",
     "Flashcards",
-}
+)
+KNOWN_HEADINGS = set(CONTRACT_ORDER)
 
-QUESTION_RE = re.compile(r"^###\s+(P\d+):\s*(.+?)\s*$")
-CARD_RE = re.compile(r"^-\s+(C\d+):\s*(.+?)\s*::\s*(.+?)\s*$")
+# The text trimmed with no lazy group, so a run of spaces reads at once, as in CARD_RE.
+QUESTION_RE = re.compile(r"^###\s+(P\d+):\s*(\S(?:.*\S)?|\s)\s*$")
+# The front ends at the first `::`, never blank; no lazy group, so a run of spaces reads at once.
+CARD_RE = re.compile(
+    r"^-\s+(C\d+):\s*+(\S(?:(?!::)\S|\s+(?=\S)(?!::))*)\s*::\s*(\S(?:.*\S)?|\s)\s*$"
+)
+LABEL_MAX = 10  # PracticeQuestion.label and Flashcard.label
 CARD_LABEL_RE = re.compile(r"^-\s+(C\d+):")
 SOURCE_RE = re.compile(r"Fonte:\s*(https?://\S+)")
+# A code fence with any info string but a backtick (CommonMark): ```c#, ```c++, never
+# "```ls``` lista", which is inline code at the start of a line. The run never backtracks.
+FENCE_RE = re.compile(r"^\s*(`{3,}+|~{3,}+)([^`]*)$")
 # One line on its own pointing at a stored image, `![legenda](/api/images/<nome>/)`, with the
 # optional `"título"` the reading screen also takes as the caption (D-033).
 IMAGE_RE = re.compile(r'^!\[([^\]]*)\]\(/api/images/([a-z0-9][a-z0-9-]*)/?(?:\s+"([^"]*)")?\)$')
-REFERENCE_PREFIX = "Resposta de referência:"
+# The label of spec 4.1 anywhere, as the parser always read it, or at the start of a line as chat
+# AIs also write it: `**Resposta de referência:**`, `Resposta de Referência:`, `> - ...`, `💡 ...`,
+# `**💡 ...`, `💡**...`, closing bold or italic runs of any mix (`**_..._**`).
+# Never a lowercase mention in a sentence ("compare com a resposta de referência: ...").
+# 💡, and ℹ️ or 1️⃣, which start with a word character; atomic, so a long run never backtracks.
+EMOJI = r"(?>(?:\w\ufe0f\u20e3?|[^\w\s*_])+)"
+REFERENCE_RE = re.compile(
+    r"^[ \t]*(?:(?:\*|\d+[.)]|" + EMOJI + r")[ \t]+)*(?:" + EMOJI + r"(?=[*_]))?(?P<m>[*_]+)?"
+    r"(?:(?:\d+[.)]|" + EMOJI + r")[^\S\n]*)?"
+    r"(?i:resposta de refer[êe]ncia)"
+    # The closing run mirrors the opening one or ends before a space, so the answer's own markers
+    # (`__init__`, `*args`) stay; `_reference_answer` finds a closer that is not here.
+    r"(?(m)(?:(?P=m):|[*_]{0,3}:[*_]{1,3}(?=\s|$)|:(?P=m)|[*_]{0,3}:)|:)"
+    r"|Resposta de referência:",
+    re.MULTILINE,
+)
+# A line in Prática that looks like a question but is not `### P<n>:`, so the parser would merge it
+# into the previous answer: `**P2:**`, `### P2.`, `### P2 sem dois-pontos`, or any heading before
+# an answer.
+QUESTION_LIKE_RE = re.compile(r"^\W*P\d+\s*[:.)–-]|^#+\s*P\d+\b")
+HEADING_RE = re.compile(r"^#{3,6}\s")
 # Stored without accents, like `Subtopic.Level` ("intermediário" -> "intermediario").
 LEVELS = {"iniciante", "intermediario", "avancado", "especialista"}
 # Fits `Content.generated_by`.
@@ -117,11 +147,16 @@ def parse_markdown(text: str, target: Target | None = None) -> ParsedContent:
         parsed.errors.append(f"Rótulo duplicado: {label}")
     for label in _duplicates([c.label for c in parsed.cards]):
         parsed.errors.append(f"Rótulo duplicado: {label}")
+    for item in (*parsed.questions, *parsed.cards):
+        if len(item.label) > LABEL_MAX:
+            parsed.errors.append(f"Rótulo com mais de {LABEL_MAX} caracteres: {item.label}")
 
     if target is not None:
         for key in ("area", "conceito", "subtema"):
             found = frontmatter.get(key)
-            if found is not None and found != getattr(target, key):
+            # Names match ignoring case (D-040), so "docker" is no news for "Docker".
+            expected = _contract_name(_unquoted(getattr(target, key)))  # read as the frontmatter
+            if found is not None and found.lower() != expected.lower():
                 parsed.warnings.append(
                     f"O frontmatter diz {key}: {found}, mas o conteúdo está sendo salvo em "
                     f"{getattr(target, key)}"
@@ -158,17 +193,55 @@ def _split_frontmatter(text: str) -> tuple[dict[str, str], str]:
     for end, line in enumerate(lines[1:], start=1):
         if line.strip() == "---":
             pairs = (item.partition(":") for item in lines[1:end])
-            data = {k.strip(): v.strip() for k, sep, v in pairs if sep}
+            # Lowercase keys and plain values, as chat AIs also write `Subtema:`, `**subtema:**`,
+            # `nível:` or a non-breaking hyphen in a name.
+            data = {
+                _without_accents(k.strip().strip("*").strip()).lower(): _contract_name(
+                    _unquoted(_value(k, v))
+                )
+                for k, sep, v in pairs
+                if sep
+            }
             return data, "\n".join(lines[end + 1 :])
     return {}, text
+
+
+def _value(key: str, value: str) -> str:
+    # `**subtema:** Nome` leaves the key's closing marker on the value, and `**Nome**` bolds it
+    # whole; `*args e **kwargs` is a name, and so is `**kwargs` after `**subtema**:`.
+    value = value.strip()
+    if "*" in key and not key.rstrip().endswith("*"):  # the key's bold closes after the colon
+        value = value[2:].strip() if value.startswith("**") else value.removesuffix("**").strip()
+    whole = len(value) > 4 and value[:2] == value[-2:] == "**" and "**" not in value[2:-2]
+    return value[2:-2].strip() if whole else value
+
+
+def _unquoted(value: str) -> str:
+    # YAML quotes a value with a colon in it, and chat AIs often quote every value; never a name
+    # that only starts and ends with quoted words (`"Since" e "for"`). An apostrophe inside a
+    # word (`'Don't panic'`) is not a quote.
+    quote = value[:1]
+    if len(value) > 1 and quote in "\"'" and value[-1] == quote:
+        inner = value[1:-1]
+        if quote == "'" and re.fullmatch(r"(?:[^']|'')*", inner):
+            return inner.replace("''", "'").strip()  # YAML's escape: `'Teachers'' tips'`
+        if not re.search(rf"(?<!\w){quote}|{quote}(?!\w)", inner):
+            return inner.strip()
+    return value
+
+
+def _fence_marker(line: str) -> str | None:
+    """ "```" or "~~~" when the line opens or closes a fenced code block."""
+    fence = FENCE_RE.match(line)
+    return fence[1][:3] if fence else None
 
 
 def _outside_fences(lines):
     """Yield (line, in_fence) so a `##` inside a fenced code block is never a heading."""
     fence = None
     for line in lines:
-        marker = line.lstrip()[:3]
-        if marker in ("```", "~~~"):
+        marker = _fence_marker(line)
+        if marker:
             if fence is None:
                 fence = marker
                 yield line, True
@@ -189,7 +262,7 @@ def _split_blocks(body: str) -> list[Block]:
         body_text = "\n".join(current).strip()
         # Text before the first heading has no heading: keep it as an extra block ([C3]).
         if heading is not None or body_text:
-            kind = heading if heading in KNOWN_HEADINGS else "extra"
+            kind = name if (name := _contract_name(heading or "")) in KNOWN_HEADINGS else "extra"
             blocks.append(Block(kind, heading or "", body_text))
 
     for line, in_fence in _outside_fences(body.split("\n")):
@@ -215,8 +288,66 @@ def _parse_questions(body: str) -> list[Question]:
 
 def _reference_answer(lines: list[str]) -> str | None:
     # Everything after the marker, up to the next question; text before it is ignored.
-    _, sep, rest = "\n".join(lines).partition(REFERENCE_PREFIX)
-    return (rest.strip() or None) if sep else None
+    text = "\n".join(lines)
+    if not (marker := REFERENCE_RE.search(text)):
+        return None
+    answer = text[marker.end() :]
+    if marker["m"] and not re.search(r"[*_]:?$", marker[0]):
+        answer = _without_closer(answer, marker["m"])
+    if quote := re.match(r"[ \t]*>", text[marker.start() :]):
+        # An answer quoted line by line, blank lines between its paragraphs included, up to its
+        # first unquoted line (code after it keeps `>>>`) or a callout of its own (`> [!ia]`).
+        lines = answer.split("\n")
+        for n in range(1, len(lines)):
+            filled = next((line for line in lines[n:] if line.strip()), "")
+            if not filled.startswith(quote[0]) or filled[len(quote[0]) :].lstrip().startswith("[!"):
+                break
+            lines[n] = lines[n].removeprefix(quote[0]).removeprefix(" ")
+        answer = "\n".join(lines)
+    return answer.strip() or None
+
+
+def _without_closer(answer: str, opener: str) -> str:
+    """The answer without the closer of a bold the label opened and did not close.
+
+    Pairs the runs as Markdown does, so the closer is found after the first words (`Não.** A
+    imagem`), across lines or at the end, past the answer's own bold (`**imutável**`), and keeps
+    the answer's own markers (`__init__`). Inline code holds no markers.
+    """
+    closer = opener[::-1]
+    plain = re.sub(r"`[^`\n]*`", lambda code: "x" * len(code[0]), answer)
+    if answer.startswith(closer):
+        return answer[len(closer) :]  # touching the answer: `:_**O molde`
+    depth, pair = 1, None
+    for run in re.finditer(r"[*_]+", plain):
+        if run[0] not in (opener, closer):
+            continue
+        before, after = plain[run.start() - 1 : run.start()], plain[run.end() : run.end() + 1]
+        if before.strip() == "" and after.strip():
+            depth += 1
+        elif before.strip() and not after.isalnum():
+            depth -= 1
+            if not depth:
+                pair = run
+                break
+    # Alone before the answer (`: **` with the answer below), unless on its own line the answer
+    # ends with the closer that pairs (`: _ guarda o resultado._`, about Python's `_`).
+    alone = re.match(rf"[ \t]+{re.escape(closer)}(?=\s|$)", answer)
+    below = alone and not answer[alone.end() :].split("\n", 1)[0].strip()
+    if alone and (below or not pair or plain[pair.end() :].strip()):
+        return answer[alone.end() :]
+    if pair:
+        return answer[: pair.start()] + answer[pair.end() :]
+    # Unpaired, so the answer's own markers are literal (`**kwargs`): the closer ends the answer,
+    # alone or stacked on its last markers (`__init__**`), or else it is the first one on the
+    # label's line that closes a sentence (`Use **kwargs.** Ele`).
+    end = len(plain.rstrip())
+    if plain[:end].endswith(closer):
+        return answer[: end - len(closer)] + answer[end:]
+    line = plain.split("\n", 1)[0]  # a sentence end, never a word's own bold (`**imutável**`)
+    if lone := re.search(rf"(?<=[.!?;:,)]){re.escape(closer)}(?![\w*_])", line):
+        return answer[: lone.start()] + answer[lone.end() :]
+    return answer
 
 
 def _parse_cards(body: str) -> tuple[list[Card], list[str]]:
@@ -226,7 +357,9 @@ def _parse_cards(body: str) -> tuple[list[Card], list[str]]:
         if match := CARD_RE.match(line):
             cards.append(Card(*match.groups()))
         elif label := CARD_LABEL_RE.match(line):
-            warnings.append(f"Cartão {label.group(1)} sem '::' entre frente e verso, ignorado")
+            warnings.append(
+                f"Cartão {label.group(1)} sem frente ou sem '::' antes do verso, ignorado"
+            )
     return cards, warnings
 
 
@@ -248,7 +381,7 @@ def split_segments(body: str) -> list[Segment]:
             segments.append(Segment(kind, text.strip("\n")))
 
     for line in body.split("\n"):
-        marker, stripped = line.lstrip()[:3], line.strip()
+        marker, stripped = _fence_marker(line), line.strip()
         # Same fence rule as `_outside_fences`: a `##` or `> [!ia]` inside code is code.
         if fence:
             if marker == fence:
@@ -256,7 +389,7 @@ def split_segments(body: str) -> list[Segment]:
                 kind, lines, fence = "text", [], None
             else:
                 lines.append(line)
-        elif marker in ("```", "~~~"):
+        elif marker:
             close()
             kind, lines, fence = "code", [], marker
         elif image := IMAGE_RE.match(stripped):
@@ -296,17 +429,17 @@ def without_reference_answers(body: str) -> str:
             in_question, hiding = True, False
         elif hiding:
             continue
-        elif in_question and REFERENCE_PREFIX in line:
+        elif in_question and (marker := REFERENCE_RE.search(line)):
             hiding = True
-            if before := line.partition(REFERENCE_PREFIX)[0].rstrip():
+            if before := line[: marker.start()].rstrip():
                 kept.append(before)
             if fence:
                 kept.append(fence)
                 fence = None
             continue
         kept.append(line)
-        marker = line.lstrip()[:3]
-        if marker in ("```", "~~~") and fence in (None, marker):
+        marker = _fence_marker(line)
+        if marker and fence in (None, marker):
             fence = None if fence else marker
     return "\n".join(kept).strip()
 
@@ -319,3 +452,644 @@ def _duplicates(labels: list[str]) -> list[str]:
             dupes.append(label)
         seen.add(label)
     return dupes
+
+
+# A pasted AI answer with several documents, for the "Novo tema" screen (DECISIONS.md D-040).
+
+# A frontmatter key as chat AIs write it, sometimes indented or in bold (`**subtema:**`).
+FRONTMATTER_KEY_RE = re.compile(r"^\s*\**([\w-]+)\**\s*:")
+COMMENT_RE = re.compile(r"^\s*<!--.*-->\s*$")
+# The request's last line inside the block: what follows it is chat, and its absence a cut.
+# Spaces only within its own line, so a long run of blank lines is read once.
+END_RE = re.compile(r"^[^\S\n]*<!--[^\S\n]*fim[^\S\n]*-->[^\S\n]*$", re.MULTILINE | re.IGNORECASE)
+# What a skeleton's lines may hold besides placeholders: labels, a reference answer, a link, and
+# a phrase in brackets standing for the text (`(uma frase)`, `<objetivo>`, `[pergunta]`).
+SKELETON_RE = re.compile(
+    r"\b[PC]\d+\b|resposta de refer[êe]ncia|fonte|\[!ia\]|https?://\S*"
+    r"|\([^()\n]*\)|<[^<>\n]*>|\[[^\[\]\n]*\]",
+    re.I,
+)
+# A rule chat AIs put between documents, in any CommonMark spelling or ChatGPT's `⸻`, at any
+# indentation, as a nested document's own.
+RULE_RE = re.compile(r"^(?:([-*_])(?:[ \t]*\1){2,}|⸻)$")
+# A heading or a line that opens in bold, as chat AIs title each document ("**Subtema 2: Camadas**",
+# "**Subtema 2:** Camadas", "📘 **Subtema 2**", "2. **Camadas**").
+LABEL_RE = re.compile(
+    r"^\s*(#{1,6}\s|(?:\d+[.)]\s+|[^\w\s*>|`-]+\s*)?(\*\*[^*].*\*\*|__[^_\s:]*[\s:][^_]*__))"
+)
+FRONTMATTER_MAX = 40  # lines; the contract's frontmatter has five
+
+
+def split_documents(text: str) -> tuple[list[str], list[str], bool, bool]:
+    """Cut an answer into subtopic documents, each starting at a frontmatter that names it.
+
+    Chat AIs wrap the answer in a code fence, one around everything, one per document or one
+    around each frontmatter, with chat text around them. One pass pairs the fences in order, as
+    the reading does: a fence opened just before a frontmatter wraps documents, its closer ends
+    them, and code fences inside a document stay in it. Returns the documents, the stretches of
+    text outside every document (so the screen can show what was left out), whether a wrapping
+    fence never closed, the sign of an answer cut short, and whether a <!-- fim --> line followed
+    the last document.
+    """
+    text = text.replace("\ufeff", "").replace("\r\n", "\n").replace("\r", "\n")
+    lines = text.split("\n")
+    documents: list[list[str]] = []
+    heads: list[int] = []  # frontmatter length of each document, which trimming never cuts
+    ignored: list[list[str]] = [[]]
+    wrapper = None  # the fence wrapping the documents: its character and length
+    chat = []  # fences open in the chat, innermost last: one may be a wrapper read late
+    inner = None  # a code fence open inside a document
+    outside = True
+    closed = None  # how many documents a <!-- fim --> line followed, at the last one
+    around = 0  # chat fences open when the last document started, which hold the documents
+    seen: dict = {}  # what _heading_ahead learned
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        fence = FENCE_RE.match(line)
+        if inner is None and (end := _frontmatter_end(lines, i)) is not None:
+            documents.append(lines[i : end + 1])
+            heads.append(end + 1 - i)
+            around = len(chat)
+            outside = False
+            i = end + 1
+            if wrapper and (closer := _closes(lines, i, wrapper)) is not None:
+                # A fence around the frontmatter alone (Gemini writes ```yaml): not a wrapper.
+                i, wrapper = closer + 1, None
+            continue
+        # The line ends the documents before it, inside the wrapper or after its closer; one in
+        # a code snippet of the chat, or in the chat before any document, does not count.
+        if (
+            documents
+            and inner is None
+            and (not outside or len(chat) <= around)
+            and END_RE.match(line)
+        ):
+            closed = len(documents)
+            if not outside:
+                outside = True
+                ignored.append([])
+                i += 1
+                continue
+        if fence and inner is not None:
+            inner = None if fence[1][:3] == inner else inner
+        elif (
+            fence
+            and wrapper is None
+            and not _closes_chat(fence, chat)
+            and _opens_documents(lines, i + 1)
+        ):
+            wrapper, outside = (fence[1][0], len(fence[1])), True
+            ignored.append([])
+            i += 1
+            continue
+        elif (
+            fence
+            and wrapper
+            and _is_closer(fence, wrapper)
+            and not _heading_ahead(lines, i + 1, seen)
+        ):
+            wrapper, outside = None, True
+            ignored.append([])
+            i += 1
+            continue
+        elif fence and not outside:
+            if (
+                wrapper is None
+                and _closes_chat(fence, chat)
+                and not _heading_ahead(lines, i + 1, seen)
+            ):
+                # A wrapper too far from its first frontmatter to be read at its opening.
+                chat.pop()
+                outside = True
+                ignored.append([])
+                i += 1
+                continue
+            inner = fence[1][:3]
+        elif fence:
+            chat.pop() if _closes_chat(fence, chat) else chat.append((fence[1][0], len(fence[1])))
+        (ignored[-1] if outside else documents[-1]).append(line)
+        i += 1
+
+    read = []
+    for n, (document, head) in enumerate(zip(documents, heads, strict=True)):
+        labels = []
+        while len(document) > head:
+            last, plain = document[-1], document[-1].lstrip()
+            if (
+                LABEL_RE.match(last)
+                and not contract_heading(plain)
+                and not QUESTION_RE.match(plain)
+                and " :: " not in last  # a card, even in bold
+                # Only the answer's end can be cut, and there a bold key may open the next document.
+                and not (n == len(documents) - 1 and FRONTMATTER_KEY_RE.match(last))
+            ):
+                labels.insert(0, last)
+            elif not (not last.strip() or RULE_RE.match(last.strip()) or COMMENT_RE.match(last)):
+                break
+            document.pop()  # blank lines, rules and comments chat AIs put between documents
+        prose = [line for line, in_fence in _outside_fences(document) if not in_fence]
+        headings = [line for line in prose if contract_heading(line.lstrip())]
+        whole = bool(headings) and not _skeleton(document[head:])
+        read.append((document, labels, headings, whole, len(document) > head))
+    real = sum(item[3] for item in read)
+    texts = []
+    for n, (document, labels, headings, whole, body) in enumerate(read):
+        ignored.append(labels)
+        cut_here = n == len(read) - 1 and closed is None and not body  # cut after a frontmatter
+        if (closed is not None and n >= closed) or (real and not whole and not cut_here):
+            # After the last <!-- fim --> line, or beside a real document a header or a skeleton
+            # of the format, which the chat shows as an example: never a document. The import
+            # blocks on it as content left out.
+            ignored.append(document)
+            continue
+        # A document nested in a list item: its opening `---` and every contract heading share
+        # an indentation, which the parser reads from the margin. A frontmatter indented alone
+        # leaves the body as written.
+        indent = document[0][: len(document[0]) - len(document[0].lstrip())]
+        if indent and headings and all(line.startswith(indent) for line in headings):
+            document = _dedented(document, indent)
+        texts.append("\n".join(document) + "\n")
+    stretches = ("\n".join(stretch).strip() for stretch in ignored)
+    cut = wrapper is not None or (bool(chat) and not outside)
+    # A real document after the last line: the AI ended each one with it, and the last was cut.
+    ended = closed is not None and not any(item[3] for item in read[closed:])
+    return texts, [stretch for stretch in stretches if stretch], cut, ended
+
+
+def continued(text: str) -> bool:
+    """Whether the request's block opens again inside a document: a cut answer pasted with the AI's
+    continuation, whose block closes after the documents.
+
+    With the fences paired as the parser pairs them, the continuation's fence leaves a code block
+    holding the rest of the answer (a card, a question, a contract heading or the <!-- fim -->
+    line) with no contract heading after it; a fence of the other character still open when a
+    code block closes, written as the request's; or the cut code block opened again right after a
+    fence closes it, or the section the cut fell in opened again in a code block of its own. An
+    example shown in a block pairs its own fences, and the sections after it follow it.
+    """
+    lines = text.split("\n")
+    block = None  # the open code block's fence
+    filled = []  # its filled lines
+    held = None  # the request's lines in it: "cards", or "more" for any other
+    inner = None  # a fence of the other character open in it: (the request's?, width, indent, line)
+    after = None  # the code block just closed, while only blank lines follow it
+    left = False  # a closed block held the rest of the answer: no contract heading came after it
+    wrapped = False  # whether cards in a block here are the AI's own, fenced under "## Flashcards"
+    section = []  # the filled lines since the last contract heading outside code, it first
+    opened = start = 0  # how many of the section's lines came before the open code block; its line
+    for i, line in enumerate(lines):
+        found, plain = FENCE_RE.match(line), line.lstrip()
+        section += [line] if line.strip() else []
+        if block is None:
+            if found and after and _restarted(*after, found, lines, i):
+                return True
+            if found:
+                block, filled, held, inner = found, [], None, None
+                opened, start = len(section) - 1, i
+            elif contract_heading(plain):
+                wrapped, left = _contract_name(plain[3:]) == "Flashcards", False
+                section = [line]
+            elif CARD_LABEL_RE.match(plain):
+                wrapped = False  # the cards a block holds after these are the answer's rest
+            after = None if line.strip() and not found else after
+            continue
+        if found and found[1][0] == block[1][0]:
+            if (inner and inner[0]) or _restarts_section(section, opened, lines, start):
+                return True
+            left = left or _holds_rest(held, wrapped)
+            block, after = None, (block, filled, found, not lines[i - 1].strip())
+            continue
+        if line.strip():
+            filled.append(line)
+        if found:
+            if inner is None:
+                kind = _reopens(found, lines[i - 1])
+                pad = len(line) - len(plain)
+                inner = None if kind is None else (kind, len(found[1]), pad, i)
+            elif _ends_inner(inner, found, lines, i):
+                inner = None
+        elif CARD_LABEL_RE.match(plain):
+            held = held or "cards"
+        elif QUESTION_RE.match(plain) or END_RE.match(line) or contract_heading(plain):
+            held = "more"
+    return left or (block is not None and (bool(inner and inner[0]) or _holds_rest(held, wrapped)))
+
+
+def _holds_rest(held, wrapped) -> bool:
+    return held == "more" or (held == "cards" and not wrapped)
+
+
+def _reopens(fence, before: str) -> bool | None:
+    """Whether a fence inside a code block of the other character opens the request's block again:
+    with its language, or bare under a line it does not underline; False for a block of another
+    language, and None for no fence at all: a banner, marks, or a reST title's underline."""
+    info = fence[2].strip().lower()
+    if info in ("markdown", "md"):
+        return True
+    if fence[1][0] in info or (info and not re.search(r"\w", info)):
+        return None  # "~~~ Iniciando ~~~", or a traceback's "~~~~^^^^"
+    if info not in ("", "text"):
+        return False
+    if not before.strip():
+        return True
+    return None if not info and (_underlines(fence, before) or fence[0][0] in " \t") else True
+
+
+def _underlines(fence, before: str) -> bool:
+    """Whether a bare fence reads as the underline of the title above it, as long or longer."""
+    return len(fence[1]) >= len(before.strip()) > 0 and bool(re.search(r"\w", before))
+
+
+def _ends_inner(inner, fence, lines, at: int) -> bool:
+    """Whether a bare fence closes the inner block: a nest of another language at its width or
+    wider, the request's only as wide and as indented as it opened, so never at a compiler's
+    indented marks, and never as a title's tilde underline, under a short line after a blank one
+    or a fence other than the inner block's opener."""
+    if fence[2].strip() or len(fence[1]) < inner[1]:
+        return False
+    pad = len(fence[0]) - len(fence[0].lstrip())
+    same = (len(fence[1]), pad) == inner[1:3]
+    above = not lines[at - 2].strip() or (FENCE_RE.match(lines[at - 2]) and at - 2 != inner[3])
+    title = fence[1][0] == "~" and above and _underlines(fence, lines[at - 1])
+    return not inner[0] or same and not title
+
+
+def _restarted(closed, old, closer, seam, fence, lines, at) -> bool:
+    """Whether the fence at `at`, right after a code block closed, opens the cut block again: the
+    closer had a language or was wider than the block's own, so it was the continuation's fence;
+    or the block opens as written after an empty one, or repeats the closed one's lines and carries
+    on the line the cut stopped in, as a one-line block may when it opens right under the closer.
+    A blank line before a closer that the new block opens right under is the seam of two pastes:
+    the chat line above it may sit under the cut, and the cut may fall at the end of a line."""
+    if closer[2].strip() or len(closer[1]) > len(closed[1]):
+        return True
+    if fence[0].strip() != closed[0].strip():
+        return False
+    if not old:
+        return True
+    new, j = [], at + 1
+    while j < len(lines) and len(new) < len(old) and _fence_marker(lines[j]) != fence[1][:3]:
+        new += [lines[j]] if lines[j].strip() else []
+        j += 1
+    tight = bool(lines[at - 1].strip())  # the new block opens right under the closer
+    same = next((k for k in range(len(new)) if new[k] != old[k]), len(new))  # new is never longer
+    carried = same < len(old) and same < len(new) and new[same].startswith(old[same])
+    if seam and tight:
+        return carried or same >= max(1, len(old) - 1)
+    return carried and same == len(old) - 1 and (len(old) > 1 or tight)
+
+
+def _restarts_section(section, opened, lines, at) -> bool:
+    """Whether the code block opening at `at` opens the section it sits in again: its contract
+    heading, then the section's lines before the block, some of them reworded, up to one it carries
+    on, the line the cut stopped in, with chat lines under it; or, from a cut at a line's end with
+    up to two chat lines under it, up to that line and on past it. An example of the section's
+    source closes there: one that rewrites a line goes on with the line under it, which chat lines
+    never come back to, and its last line changes as the line above it did, or, reworded, keeps
+    the section's last word or follows a rewritten first line, which a cut line with the chat
+    pasted after a word does not."""
+    if not contract_heading(section[0].lstrip()):
+        return False
+    fence, k = FENCE_RE.match(lines[at]), 0
+    marked, top = None, False  # the last rewrite's change; whether the first line was rewritten
+    for j in range(at + 1, len(lines)):
+        line = lines[j]
+        if not line.strip():
+            continue
+        if not k and line.strip() != section[0].strip():
+            return False
+        if k and (k >= opened or line != section[k]):
+            m = next((m for m in range(j + 1, len(lines)) if lines[m].strip()), None)
+            after, last = ("", True) if m is None else (lines[m], _ends_example(fence, lines, m))
+            change = k < opened and _change(line, section[k])
+            if k + 1 < opened and _repeats(after, section[k + 1]):
+                marked, top, k = change, top or k == 1, k + 1  # a line an example rewrites
+                continue
+            if k < opened and _carries(line, section[k]) and change != marked:
+                return True
+            if 1 < k < opened and (
+                change == marked
+                or _alike(line, section[k])
+                and (not last or top or _same_end(line, section[k]))
+            ):
+                marked, k = change, k + 1  # reworded, as the one above, or the cut line with chat
+                continue
+            return k > 1 and opened - k <= 2 and not _ends_example(fence, lines, j)
+        k += 1
+    return False
+
+
+def _change(line: str, other: str) -> tuple[str, str]:
+    """How `line` changes `other` after their common start: what replaces the rest, with the rest
+    itself as a placeholder when it is kept (`**{}**`), so every line marked alike changes alike."""
+    same = len(os.path.commonprefix([line, other]))
+    new, old = line[same:], other[same:]
+    return (new.replace(old, "\0", 1), "") if old and old in new else (new, old)
+
+
+def _repeats(line: str, other: str) -> bool:
+    return line.startswith(other) or _carries(line, other) or _alike(line, other)
+
+
+def _alike(line: str, other: str) -> bool:
+    """Whether `line` rewords `other`: it keeps its first two words, or half of its words."""
+    if len(re.findall(r"\w+(?=\W)", os.path.commonprefix([line, other]))) >= 2:
+        return True
+    words, others = _words(line), _words(other)
+    return 2 * len(words & others) >= min(len(words), len(others)) > 0
+
+
+def _same_end(line: str, other: str) -> bool:
+    """Whether two lines end with the same whole word, as a rewritten line, and a cut line with the
+    chat pasted onto it never does."""
+    return bool(re.search(r"\w\W", os.path.commonprefix([line[::-1], other[::-1]])))
+
+
+def _words(text: str) -> set[str]:
+    return set(re.findall(r"\w{3,}", text.casefold()))
+
+
+def _carries(line: str, cut: str) -> bool:
+    """Whether `line` carries on `cut`, the line a cut stopped in: it goes on from it, or the chat
+    was pasted onto the cut inside a word (`TexClaro!` or `Tex Claro!` against `Texto.`, `You
+    Claro!` against `You'd`), so `line` does not end with the words after the cut, as a rewrite."""
+    same = os.path.commonprefix([line, cut])
+    if same == cut:
+        return True
+    if FENCE_RE.match(line) or FENCE_RE.match(cut) or not re.search(r"\w", same):
+        return False
+    chat, rest = cut[len(same) :], line[len(same) :]
+    if len(same) < 2 or same[-1].isspace() or not rest or _same_end(line, cut):
+        return False
+    return not chat[0].isspace() or same[-1].isalnum() and bool(re.match(r"[^\s\w]?\w", rest))
+
+
+def _ends_example(fence, lines, at) -> bool:
+    """Whether the line at `at` closes the example `fence` opened: a bare fence of its character
+    as wide or wider, and not the opener of a bare block of the section's own code, whose closer
+    is the next fence of that character before the next contract heading."""
+    end = FENCE_RE.match(lines[at])
+    if not end or end[2].strip() or end[1][0] != fence[1][0] or len(end[1]) < len(fence[1]):
+        return False
+    for j in range(at + 1, len(lines)):
+        found = FENCE_RE.match(lines[j])
+        if contract_heading(lines[j].lstrip()) or (found and found[1][0] == fence[1][0]):
+            return not found or bool(found[2].strip())
+    return True
+
+
+def _skeleton(body: list[str]) -> bool:
+    """Whether every section opens with a placeholder (`...`, `- C1: ... :: ...`): a format shown.
+
+    Only the first line counts, so the chat after the last section does not make it a document.
+    """
+    opening = False
+    for line in body:
+        if contract_heading(line.lstrip()):
+            opening = True
+        elif opening and line.strip() and not FENCE_RE.match(line):
+            if re.search(r"\w", SKELETON_RE.sub("", line)):
+                return False
+            opening = False
+    return True
+
+
+def _dedented(lines: list[str], indent: str) -> list[str]:
+    """The lines without `indent`, but a code block loses only what all its filled lines share, so
+    code written at the margin keeps its own nesting."""
+    out, code, fence = [], [], None
+
+    def flush():
+        cut = len(os.path.commonprefix([indent, *(line for line in code if line.strip())]))
+        out.extend(line[cut:] for line in code)
+        code.clear()
+
+    for line in lines:
+        marker = _fence_marker(line)
+        if fence and marker != fence:
+            code.append(line)
+            continue
+        flush()
+        fence = None if fence else marker
+        out.append(line.removeprefix(indent))
+    flush()  # a code block the document never closed
+    return out
+
+
+def _frontmatter_end(lines: list[str], start: int) -> int | None:
+    """The closing `---` of a frontmatter naming a `subtema` that opens at `start`, if one does."""
+    if (found := _frontmatter_keys(lines, start)) is None:
+        return None
+    end, keys, bold = found
+    # A closer that opens a whole frontmatter at once, repeating these keys: this one was cut, and
+    # the answer restarted the document after it. A title card under it (`**Subtema:** X` and a
+    # rule) sits after a blank line or names fewer keys, and one in bold beside plain keys is the
+    # card, wherever it sits.
+    if (restart := _frontmatter_keys(lines, end)) is None or not lines[end + 1].strip():
+        return end
+    if bold != restart[2]:
+        return None if bold else end
+    return None if keys <= restart[1] else end
+
+
+def _frontmatter_keys(lines: list[str], start: int) -> tuple[int, set, bool] | None:
+    """The closing `---`, the keys and whether all are in bold, of a frontmatter naming a `subtema`
+    that opens at `start`.
+
+    Blank, comment, indented and list lines may sit between the keys, as `_split_frontmatter`
+    reads them; anything else means a `---` rule, not a frontmatter.
+    """
+    if start >= len(lines) or lines[start].strip() != "---":
+        return None
+    keys, bold = set(), True
+    for end in range(start + 1, min(start + FRONTMATTER_MAX, len(lines))):
+        line = lines[end]
+        stripped = line.strip()
+        if stripped == "---":
+            return (end, keys, bold) if "subtema" in keys else None
+        if match := FRONTMATTER_KEY_RE.match(line):
+            keys.add(_without_accents(match[1].lower()))
+            bold = bold and stripped.startswith("*")
+        elif stripped and line[0] not in " \t" and not stripped.startswith(("# ", "- ")):
+            return None
+    return None
+
+
+def _opens_documents(lines: list[str], start: int) -> bool:
+    # A frontmatter within the next three filled lines, as when a chat writes "### Subtema 2"
+    # between the fence and the frontmatter.
+    for _ in range(3):
+        start = _next_filled(lines, start)
+        if _frontmatter_end(lines, start) is not None:
+            return True
+        if (
+            start >= len(lines)
+            or FENCE_RE.match(lines[start])
+            or contract_heading(lines[start].lstrip())
+        ):
+            return False
+        start += 1
+    return False
+
+
+def _heading_ahead(lines: list[str], start: int, seen: dict) -> bool:
+    """Whether the document goes on after the code the fence at `start - 1` would open.
+
+    Inside a ``` wrapper, a bare ``` may open an example as well as close the wrapper. Code it
+    opens ends at the next bare fence, and then a contract heading must follow before the next
+    frontmatter, outside any later code block: a chat heading ("## Próximos passos") or one in a
+    chat snippet after the wrapper does not keep it open. `seen` keeps the answer of each line
+    read after that code, so a run of fences is read once.
+    """
+    inner, fence = True, None  # in the code the fence would open; in a later code block
+    path = []  # the states after the code, which all lead to this answer
+    for at in range(start, len(lines)):
+        state = (at, fence is None)
+        if not inner:
+            if state in seen:
+                result = seen[state]
+                break
+            path.append(state)
+        if fence is None and _frontmatter_end(lines, at) is not None:
+            result = False
+            break
+        found = FENCE_RE.match(lines[at])
+        if found and inner:
+            if found[2].strip():
+                return False  # a fence with a language opens code, it cannot end it
+            inner = False
+        elif found:
+            fence = None if fence else found[1]
+        elif not inner and fence is None and contract_heading(lines[at].lstrip()):
+            result = True
+            break
+    else:
+        result = False
+    seen.update(dict.fromkeys(path, result))
+    return result
+
+
+def contract_heading(line: str) -> bool:
+    return line.startswith("## ") and _contract_name(line[3:]) in KNOWN_HEADINGS
+
+
+def _contract_name(heading: str) -> str:
+    # Chat AIs may write a non-breaking hyphen (U+2011) in "Pré-requisitos".
+    return heading.strip().replace("\u2011", "-").replace("\u2010", "-")
+
+
+def _next_filled(lines: list[str], start: int) -> int:
+    while start < len(lines) and not lines[start].strip():
+        start += 1
+    return start
+
+
+def _is_closer(fence, wrapper) -> bool:
+    return not fence[2].strip() and fence[1][0] == wrapper[0] and len(fence[1]) >= wrapper[1]
+
+
+def _closes_chat(fence, chat) -> bool:
+    return bool(chat) and _is_closer(fence, chat[-1])
+
+
+def _closes(lines, start, wrapper) -> int | None:
+    """The index of a closer of `wrapper` at `start`, past blank lines, if there is one."""
+    at = _next_filled(lines, start)
+    fence = FENCE_RE.match(lines[at]) if at < len(lines) else None
+    return at if fence and _is_closer(fence, wrapper) else None
+
+
+def with_origin(text: str, origem: str) -> str:
+    """The document with its frontmatter `origem` set to `origem`, replacing any it had."""
+    lines = text.split("\n")
+    end = next(i for i in range(1, len(lines)) if lines[i].strip() == "---")
+    kept = [
+        line
+        for line in lines[1:end]
+        if not ((key := FRONTMATTER_KEY_RE.match(line)) and key[1].lower() == "origem")
+    ]
+    return "\n".join(["---", *kept, f"origem: {origem}", *lines[end:]])
+
+
+def contract_gaps(parsed: ParsedContent) -> list[str]:
+    """What a complete generated document has and this one lacks; none of it blocks a save."""
+    gaps = []
+    kinds = [block.kind for block in parsed.blocks]
+    if missing := [h for h in CONTRACT_ORDER if h not in kinds]:
+        gaps.append(f"Faltam seções: {', '.join(missing)}")
+    if "extra" in kinds:
+        gaps.append("Há seção fora do contrato, ou texto antes do primeiro ##")
+    if parsed.state != "ready":
+        gaps.append("Rascunho: falta Ideia central ou uma pergunta com resposta de referência")
+    if not parsed.frontmatter.get("nivel"):  # an unknown one already warns
+        gaps.append("O frontmatter não diz o nivel")
+    if not any(b.kind == "Fontes" and "http" in b.body for b in parsed.blocks):
+        gaps.append("Fontes sem nenhum link")
+    for block in (b for b in parsed.blocks if b.kind == "Prática"):
+        odd, orphan, between, answer, label = [], [], [], False, None
+        for line, in_fence in _outside_fences(block.body.split("\n")):
+            if not in_fence and (question := QUESTION_RE.match(line)):
+                answer, label = False, question[1]
+                continue
+            if label and not answer and line.strip() and not REFERENCE_RE.search(line):
+                between.append(label)
+            if in_fence:
+                continue
+            # A label opening the line, or right after a question in another format; not an intro.
+            if label is None and (found := REFERENCE_RE.search(line)):
+                before = line[: found.start()]
+                # Read backwards, so a long run of marks is scanned once.
+                if not before.strip() or "?" in re.match(r"[\W_]*", before[::-1])[0]:
+                    orphan.append(line)  # its question is in another format: the reading shows it
+            # An answer may have its own sub-headings (`#### Passo 1`), never a question's level.
+            heading = HEADING_RE.match(line) and (not answer or line.startswith("### "))
+            if QUESTION_LIKE_RE.match(line) or heading:
+                odd.append(line)
+            answer = answer or bool(REFERENCE_RE.search(line))
+        if odd:
+            gaps.append(f"Pergunta fora do formato ### P1: ...: {odd[0].strip()[:80]}")
+        if orphan:
+            gaps.append(
+                "Resposta de referência antes da primeira pergunta ### P1: ...: "
+                f"{orphan[0].strip()[:80]}"
+            )
+        if between:
+            # Practice shows only the question's line (spec 4.2.4): code under it would be lost.
+            gaps.append(
+                f"Texto entre ### {between[0]} e a resposta de referência: a Prática mostra só a "
+                "linha da pergunta"
+            )
+    if unanswered := [q.label for q in parsed.questions if not q.reference_answer]:
+        # Also the sign of a label written in a way the parser does not read.
+        gaps.append(f"Pergunta sem resposta de referência: {unanswered[0]}")
+    if merged := [
+        q.label for q in parsed.questions if REFERENCE_RE.search(q.reference_answer or "")
+    ]:
+        gaps.append(
+            f"Duas respostas de referência em {merged[0]}: uma pergunta fora do formato "
+            "### P1: ... entrou nela"
+        )
+    for block in (b for b in parsed.blocks if b.kind == "Flashcards"):
+        stray, callout = [], False
+        for raw in block.body.split("\n"):
+            line = raw.strip()
+            # A `> [!ia]` callout may sit anywhere; anything else here would vanish from the cards.
+            callout = line.startswith("> [!ia]") or (callout and line.startswith(">"))
+            if callout and not CARD_LABEL_RE.match(line.lstrip("> ")):
+                continue  # a quoted card, even in a callout, is never read as one
+            if not line or (CARD_LABEL_RE.match(raw) and not CARD_RE.match(raw)):
+                continue  # empty, or a label without `::`, which already warns
+            if CARD_RE.match(raw):
+                # The parser cuts at the first `::`: one in code (`std::vector`, `[::2]`) or a
+                # second spaced one means the front may end in the wrong place.
+                before, _, after = raw.partition("::")
+                if not (before[-1:].isspace() and after[:1].isspace()) or " :: " in after:
+                    gaps.append(f"Cartão com '::' fora do separador ' :: ': {line[:80]}")
+            else:
+                stray.append(line)
+        if stray:
+            gaps.append(f"Linha em Flashcards fora do formato - C1: ... :: ...: {stray[0][:80]}")
+    if "Flashcards" in kinds and not parsed.cards:
+        gaps.append("Nenhum cartão em Flashcards")
+    return gaps

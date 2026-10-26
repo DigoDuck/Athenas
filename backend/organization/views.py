@@ -82,7 +82,7 @@ class StepViewSet(
 
     @action(detail=True, methods=["post"])
     def move(self, request, pk=None):
-        direction = request.data.get("direction")
+        direction = request.data.get("direction") if isinstance(request.data, dict) else None
         if direction not in ("up", "down"):
             return Response(
                 {"direction": ['Use "up" ou "down".']}, status=status.HTTP_400_BAD_REQUEST

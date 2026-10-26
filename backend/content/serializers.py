@@ -1,5 +1,6 @@
 import base64
 import binascii
+import re
 
 from rest_framework import serializers
 
@@ -56,3 +57,21 @@ class ManualCardSerializer(serializers.ModelSerializer):
 
 class MarkdownSerializer(serializers.Serializer):
     markdown = serializers.CharField(trim_whitespace=False)
+
+
+class ThemeSerializer(serializers.Serializer):
+    """The "Novo tema" paste: where it goes, which AI wrote it, and its answer (D-040)."""
+
+    area = serializers.CharField(max_length=120)
+    track = serializers.CharField(max_length=120)
+    origem = serializers.CharField(max_length=60)
+    markdown = serializers.CharField(trim_whitespace=False)
+
+    def validate_origem(self, value):
+        # Written into each frontmatter line, so one word: no line break can sneak a key in.
+        value = re.sub(r"[\s_]+", "-", value.lower())
+        if not re.fullmatch(r"[\w.-]{1,30}", value):
+            raise serializers.ValidationError(
+                "IA usada: até 30 letras, números, ponto ou hífen, como gemini ou chatgpt."
+            )
+        return value

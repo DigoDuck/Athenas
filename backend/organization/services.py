@@ -2,6 +2,7 @@
 
 from content.models import Attempt, Block
 from django.db import transaction
+from django.utils import timezone
 
 from .models import Subtopic
 
@@ -29,17 +30,20 @@ def complete_subtopic(subtopic) -> None:
     if not completion_suggested(locked):
         raise ValueError("Este subtema não está sugerido para conclusão.")
     locked.study_status = Status.COMPLETED
-    locked.save(update_fields=["study_status"])
+    locked.completed_at = timezone.now()
+    locked.save(update_fields=["study_status", "completed_at"])
     subtopic.study_status = Status.COMPLETED
+    subtopic.completed_at = locked.completed_at
 
 
 def reopen_subtopic(subtopic) -> None:
     reopened = Subtopic.objects.filter(pk=subtopic.pk, study_status=Status.COMPLETED).update(
-        study_status=Status.IN_PROGRESS
+        study_status=Status.IN_PROGRESS, completed_at=None
     )
     if not reopened:
         raise ValueError("Só um subtema concluído pode ser reaberto.")
     subtopic.study_status = Status.IN_PROGRESS
+    subtopic.completed_at = None
 
 
 def concept_status(concept) -> str:

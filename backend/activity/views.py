@@ -16,6 +16,7 @@ from .serializers import (
 )
 from .services import (
     complete_activity,
+    notebook,
     open_home,
     record_attempt,
     record_review,
@@ -69,6 +70,26 @@ class ReadingView(APIView):
                 "generated_by": _generated_by(subtopic),
                 "blocks": ReadingBlockSerializer(blocks, many=True).data,
                 "resume_block_order": resume_block_order(subtopic),
+            }
+        )
+
+
+class NotebookView(APIView):
+    """Notebook mode: the blocks to copy and one practice prompt (spec 4.8.2, D-036)."""
+
+    def get(self, request, pk):
+        subtopic = get_object_or_404(Subtopic.objects.select_related("concept"), pk=pk)
+        page = notebook(subtopic)
+        question = page["question"]
+        return Response(
+            {
+                "subtopic": subtopic.name,
+                "concept": subtopic.concept.name,
+                "generated_by": _generated_by(subtopic),
+                "blocks": ReadingBlockSerializer(page["blocks"], many=True).data,
+                "missing": page["missing"],
+                # Never the reference answer: the prompt is answered without looking (4.8.2).
+                "question": question and {"label": question.label, "prompt": question.prompt},
             }
         )
 

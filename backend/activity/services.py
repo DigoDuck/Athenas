@@ -1,14 +1,18 @@
-"""Session events (spec 3.2, 4.11), reading (4.4.5, 4.8.1, 4.8.4), practice (4.8.3),
-review (D-025), the home screen (4.5) and the day 28 metric (4.11.2)."""
+"""Session events (spec 3.2, 4.11), reading (4.4.5, 4.8.1, 4.8.4), notebook mode (4.8.2),
+practice (4.8.3), review (D-025), the home screen (4.5), the day 28 metric (4.11.2) and the
+support metrics (4.11.3)."""
 
+from collections import Counter
 from datetime import date, timedelta
+from statistics import median
 
-from content.models import Attempt, Block, ReviewLog
+from content.models import Attempt, Block, DailyReviewQueue, PracticeQuestion, ReviewLog
 from content.services import rate_card, reviews_today
 from django.db import transaction
-from django.db.models.functions import TruncDate
+from django.db.models import Count
+from django.db.models.functions import Coalesce, TruncDate
 from django.utils import timezone
-from organization.models import Subtopic, Track
+from organization.models import Concept, Subtopic, Track
 from organization.services import next_step
 
 from .models import SessionEvent
@@ -103,6 +107,38 @@ def resume_block_order(subtopic) -> int:
     # A re-import can leave fewer blocks than the event points at (DECISIONS.md D-017).
     last = Block.objects.filter(content__subtopic=subtopic).count() - 1
     return max(0, min(latest.block_order, last))
+
+
+# What notebook mode shows, in this order, before its one practice prompt (spec Q16).
+NOTEBOOK_BLOCKS = ("Objetivo", "Ideia central", "Exemplo", "Resumo para o caderno")
+
+
+def notebook(subtopic) -> dict:
+    """The notebook blocks that have text, the ones missing, and one question (DECISIONS.md D-036).
+
+    Each finished copy moves one question further in Practice's order, wrapping around, so copying
+    the subtopic again asks something else even when every answer stays on paper. It never looks
+    at how earlier answers went (spec 2.2). None means "explain in my words".
+    """
+    blocks = [
+        b
+        for b in Block.objects.filter(content__subtopic=subtopic, kind__in=NOTEBOOK_BLOCKS)
+        if b.body.strip()
+    ]
+    blocks.sort(key=lambda b: (NOTEBOOK_BLOCKS.index(b.kind), b.order))
+    shown = {b.kind for b in blocks}
+    # The same questions Practice offers, in its order, so the prompt can be answered there.
+    questions = list(
+        PracticeQuestion.objects.filter(subtopic=subtopic, archived=False).exclude(
+            reference_answer=""
+        )
+    )
+    copies = subtopic.events.filter(kind=Kind.NOTEBOOK).exclude(completed_at=None).count()
+    return {
+        "blocks": blocks,
+        "missing": [kind for kind in NOTEBOOK_BLOCKS if kind not in shown],
+        "question": questions[copies % len(questions)] if questions else None,
+    }
 
 
 def session_days() -> set:
@@ -250,3 +286,81 @@ def _next_steps():
             }
         )
     return steps
+
+
+# Support metrics (spec 4.11.3) over the Bahia days `start` to `end`, both included. They inform
+# the day 28 verdict and decide nothing (DECISIONS.md D-038, D-041).
+
+
+def open_to_start(*, start, end) -> dict:
+    """Seconds from opening the app to starting an activity, the same Bahia day."""
+    events = (
+        SessionEvent.objects.annotate(day=TruncDate("started_at"))
+        .filter(day__range=(start, end))
+        .order_by("started_at", "id")
+    )
+    opens, gaps, opened = 0, [], None
+    for kind, day, started_at in events.values_list("kind", "day", "started_at"):
+        if kind == Kind.APP_OPENED:
+            opens, opened = opens + 1, (day, started_at)
+        elif opened and opened[0] == day:
+            gaps.append((started_at - opened[1]).total_seconds())
+            opened = None
+    return {"opens": opens, "started": len(gaps), "median_seconds": median(gaps) if gaps else None}
+
+
+def reviews_done(*, start, end) -> dict:
+    """Distinct cards rated over the day's capped queue, never the backlog (D-011, D-041)."""
+    offered = dict(
+        DailyReviewQueue.objects.filter(day__range=(start, end), offered__gt=0).values_list(
+            "day", "offered"
+        )
+    )
+    rated = dict(
+        ReviewLog.objects.annotate(day=TruncDate("reviewed_at"))
+        .filter(day__in=offered)
+        .values("day")
+        .annotate(cards=Count("flashcard", distinct=True))
+        .values_list("day", "cards")
+    )
+    # A card rated outside the recorded queue cannot make a day more than done.
+    days = [(day, min(rated.get(day, 0), cards), cards) for day, cards in sorted(offered.items())]
+    total = sum(cards for _, _, cards in days)
+    return {"days": days, "fraction": sum(done for _, done, _ in days) / total if total else None}
+
+
+LATE_AFTER_DAYS = 14
+
+
+def late_card_accuracy(*, start, end) -> dict:
+    """First rating of each card per Bahia day, more than 14 days after its concept's completion.
+
+    A concept is completed when all its subtopics are, on the day of the last one (spec 4.4.6).
+    Hard counts as recalled, as in Py-FSRS.
+    """
+    completed = {}
+    for concept in Concept.objects.prefetch_related("subtopics"):
+        dates = [s.completed_at for s in concept.subtopics.all()]
+        # Subtopics completed before D-041 have no date, so their concept cannot be placed.
+        if dates and all(dates):
+            completed[concept.id] = timezone.localdate(max(dates))
+    logs = (
+        ReviewLog.objects.annotate(
+            day=TruncDate("reviewed_at"),
+            concept=Coalesce("flashcard__concept", "flashcard__subtopic__concept"),
+        )
+        .filter(day__range=(start, end), concept__in=completed)
+        # A same-day repeat comes right after the answer was shown, so it tests no recall.
+        .order_by("flashcard_id", "day", "reviewed_at")
+        .distinct("flashcard_id", "day")
+        .values_list("concept", "day", "rating")
+    )
+    ratings = Counter(
+        rating for concept, day, rating in logs if (day - completed[concept]).days > LATE_AFTER_DAYS
+    )
+    total = sum(ratings.values())
+    recalled = ratings[ReviewLog.Rating.HARD] + ratings[ReviewLog.Rating.GOOD]
+    return {
+        "ratings": {rating: ratings[rating] for rating in ReviewLog.Rating.values},
+        "accuracy": recalled / total if total else None,
+    }

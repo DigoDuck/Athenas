@@ -1,0 +1,56 @@
+/* Configurações: one sheet with two groups of short number fields and one save action. */
+.settings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.settings__head {
+  padding-bottom: var(--space-5);
+  border-bottom: var(--border-width) solid var(--color-border);
+}
+
+.settings__form {
+  gap: var(--space-6);
+  width: 100%;
+  max-width: 48rem;
+  padding: var(--space-6);
+}
+
+.settings__group {
+  display: grid;
+  gap: var(--space-5);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.settings__group + .settings__group {
+  padding-top: var(--space-6);
+  border-top: var(--border-width) solid var(--color-border);
+}
+
+.settings__group legend {
+  float: left;
+  width: 100%;
+  padding: 0;
+}
+
+/* Three digits need little room; the help line keeps the full width. */
+.settings__group .ui-input {
+  max-width: 10rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.settings__status {
+  font-size: var(--text-meta);
+  color: var(--color-text-muted);
+}
+
+.settings__status[data-kind="saved"] {
+  color: var(--color-success);
+}
+
+.settings__status[data-kind="error"] {
+  color: var(--color-error);
+}

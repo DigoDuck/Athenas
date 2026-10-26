@@ -19,6 +19,7 @@ import json
 import sys
 import urllib.error
 import urllib.request
+from datetime import UTC, datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -45,7 +46,7 @@ def theme_images(folder, theme):
 def check(folder):
     """The theme and the problems that block a push; prints one line per file that passes."""
     from content import images
-    from content.parser import KNOWN_HEADINGS, Target, parse_markdown
+    from content.parser import Target, contract_gaps, parse_markdown
 
     theme = json.loads((folder / "tema.json").read_text(encoding="utf-8"))
     problems = []
@@ -79,21 +80,11 @@ def check(folder):
                 continue
             target = Target(theme["area"], concept["name"], subtopic["name"])
             parsed = parse_markdown(path.read_text(encoding="utf-8"), target)
-            found = parsed.errors + parsed.warnings
-            kinds = [block.kind for block in parsed.blocks]
-            if missing := KNOWN_HEADINGS - set(kinds):
-                found.append(f"missing headings: {', '.join(sorted(missing))}")
-            if "extra" in kinds:
-                found.append("a heading outside the contract, or text before the first ##")
-            if parsed.state != "ready":
-                found.append("draft: needs Ideia central and a question with its reference answer")
-            if parsed.level is None:
-                found.append("frontmatter needs nivel")
+            # The same gaps the "Novo tema" screen lists, so both paths share one contract (D-040).
+            found = parsed.errors + parsed.warnings + contract_gaps(parsed)
             if not parsed.generated_by:
                 # Without it the app shows generated text as Diogo's own (DECISIONS.md D-032).
                 found.append("frontmatter needs origem: claude")
-            if not any(b.kind == "Fontes" and "http" in b.body for b in parsed.blocks):
-                found.append("Fontes has no URL")
             found += [f"image not in tema.json: {n}" for n in parsed.images if n not in declared]
             problems += [f"{subtopic['file']}: {item}" for item in found]
             if not found:
@@ -151,15 +142,28 @@ def push(folder, base, first, replace):
         )
         return 2
 
+    # --replace names the files it may overwrite: as one flag for the whole run it also overwrote
+    # every subtopic Diogo had edited in the app (DECISIONS.md D-039).
+    files = {path.relative_to(folder).as_posix() for _, path, _ in theme_images(folder, theme)}
+    files |= {s["file"] for c in theme["concepts"] for s in c["subtopics"] if s.get("file")}
+    if unknown := sorted(set(replace) - files):
+        print("--replace names files that are not in tema.json:", *unknown)
+        return 1
+
     images_saved, images_kept = 0, []
     for name, path, credit in theme_images(folder, theme):
         data = path.read_bytes()
         stored = image_bytes(base, name)
-        if stored is not None and not replace:
-            if stored != data:
-                # Another theme or an earlier push owns this name: replacing it is on purpose.
-                images_kept.append(name)
+        file = path.relative_to(folder).as_posix()
+        if stored == data and file not in replace:
             continue
+        if stored is not None:
+            if file not in replace:
+                # Another theme or an earlier push owns this name: replacing it is on purpose.
+                images_kept.append(file)
+                continue
+            # Named: sent even with the same bytes, so a corrected credit reaches the app.
+            print(f"replaced image {name}")
         body = {"data": base64.b64encode(data).decode(), **credit}
         status, answer = api(base, "PUT", f"/api/images/{name}/", body)
         if status not in (200, 201):
@@ -196,14 +200,23 @@ def push(folder, base, first, replace):
             text = (folder / entry["file"]).read_text(encoding="utf-8")
             url = f"/api/subtopics/{subtopic['id']}/content/"
             status, current = api(base, "GET", url)
+            if status not in (200, 404):
+                # A 502 while the backend restarts is not "no content": never overwrite on it.
+                sys.exit(f"GET {url}: HTTP {status} {current}")
             if status == 200 and current["raw_markdown"] == text:
                 unchanged += 1
                 continue
-            if status == 200 and not replace:
+            if status == 200 and entry["file"] not in replace:
                 # Diogo may have edited it in the app. A re-import keeps history by label (4.2.6),
                 # but it only happens on purpose.
                 kept.append(entry["file"])
                 continue
+            if status == 200:
+                # The app keeps no past Markdown: its copy stays beside the file, one per replace.
+                stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S")
+                copy = folder / f"{entry['file']}.app-{stamp}.md"
+                copy.write_text(current["raw_markdown"], encoding="utf-8")
+                print(f"replaced {entry['file']} (the app's copy is in {copy.name})")
             call(base, "PUT", url, {"markdown": text})
             saved += 1
             query = f"/api/flashcards/?subtopic={subtopic['id']}&state=pending"
@@ -211,10 +224,10 @@ def push(folder, base, first, replace):
 
     print(f"saved {images_saved} images")
     if images_kept:
-        print("images left untouched, the app has other bytes (use --replace):", *images_kept)
+        print("images left untouched, the app has other bytes (--replace <file>):", *images_kept)
     print(f"saved {saved} contents ({pending} cards pending approval), {unchanged} up to date")
     if kept:
-        print("left untouched, the app has other content (use --replace):", ", ".join(kept))
+        print("left untouched, the app has other content (--replace <file>):", ", ".join(kept))
     return 0
 
 
@@ -238,13 +251,21 @@ def download(url, file):
 
 
 def main():
+    # The check quotes document lines, emoji included; a Windows pipe writes cp1252.
+    sys.stdout.reconfigure(errors="backslashreplace")
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("command", choices=["check", "push", "download"])
     parser.add_argument("folder", type=Path, help="the theme folder; for download, the file")
     parser.add_argument("--url", help="download: a Wikimedia file or thumbnail address")
     parser.add_argument("--base", default=USE_MODE, help=f"API address, default {USE_MODE}")
     parser.add_argument("--first", action="store_true", help="allow the first concept (day 1)")
-    parser.add_argument("--replace", action="store_true", help="re-import changed content")
+    parser.add_argument(
+        "--replace",
+        nargs="+",
+        default=[],
+        metavar="FILE",
+        help="re-import these files (paths as in tema.json) even if the app has other content",
+    )
     args = parser.parse_args()
     if args.command == "download":
         if not args.url:

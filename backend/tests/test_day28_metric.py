@@ -10,6 +10,7 @@ from zoneinfo import ZoneInfo
 import pytest
 from activity.models import SessionEvent
 from activity.services import day28_metric
+from content.models import DailyReviewQueue
 from django.core.management import call_command
 from django.db import DatabaseError
 from organization.models import Area
@@ -144,6 +145,33 @@ def test_the_command_counts_completed_activities_by_bahia_day(capsys):
     assert "Reading: hypothesis not confirmed." in out
     # D-010's order: the reading comes after the items written by hand.
     assert out.index("Features that shipped") < out.index("Sessions lost") < out.index("Reading:")
+
+
+@pytest.mark.django_db
+def test_the_command_prints_the_support_metrics_over_the_closed_days(capsys):
+    opened = datetime(2026, 10, 18, 9, 0, tzinfo=BAHIA)
+    SessionEvent.objects.create(kind=SessionEvent.Kind.APP_OPENED, started_at=opened)
+    finished_at(opened + timedelta(seconds=30))
+    DailyReviewQueue.objects.create(day=date(2026, 10, 18), offered=2)
+    # The read date is not over, so its opening stays out.
+    SessionEvent.objects.create(
+        kind=SessionEvent.Kind.APP_OPENED, started_at=datetime(2026, 10, 19, 9, 0, tzinfo=BAHIA)
+    )
+
+    call_command("day28", "--today", "2026-10-19")
+
+    out = capsys.readouterr().out
+    assert "Bahia days 2026-10-17 to 2026-10-18." in out
+    assert "starting an activity: median 30 s, over 1 of 1 openings." in out
+    assert "Reviews done: 0 of 2 cards in the day's queue (0%); days with a queue: 1." in out
+    assert "more than 14 days earlier: no such review yet." in out
+    assert out.index("Support metrics") < out.index("Features that shipped")
+
+
+@pytest.mark.django_db
+def test_no_support_metrics_before_a_day_of_the_window_closes(capsys):
+    call_command("day28", "--today", "2026-10-17")
+    assert "no Bahia day of the window has closed yet." in capsys.readouterr().out
 
 
 @pytest.mark.django_db(transaction=True)
