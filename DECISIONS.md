@@ -843,6 +843,40 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
   on Início and Roadmap it cannot. The study screens end with about 90 px of empty space, so a
   page that just fit the window now scrolls a little.
 
+### D-038: The day 28 metric is a read-only command, and the 2 of 4 tie-break needs one extra block
+
+- Date: 2026-10-21. Source: M3 of `docs/plan.md`, built on day 5 so the reading is fixed before
+  any number is seen. Diogo chose the tie-break below over "skip the extension" and "flag only";
+  the agent took the recommended options for the rest.
+- Context: D-010 fixes the window, the unit and the reading, and D-029 fixes day 1. It does not
+  say what "the tie-break leans toward success" changes, when a block counts as decided, or how
+  the numbers are read without touching use mode's data.
+- Decision:
+  - `python manage.py day28 [--today YYYY-MM-DD]` prints, as Markdown for the verdict entry and
+    in D-010's order, the blocks with their days of use, the blocks that met the bar, the
+    support metrics, a placeholder for each item written by hand, and the reading. `--today`
+    reads as of that date, ignoring later days of use. It reads inside one read-only
+    transaction, so a bug cannot write to use mode.
+  - A day of use is a Bahia date with at least one event that has `completed_at`, of any kind
+    (`session_days`, the same set the return session reads). Days before day 1 or after the
+    window do not count.
+  - A block is met with 3 days of use, missed when its days of use plus the days left (today
+    included) cannot reach 3, and open otherwise. The reading is printed as soon as open blocks
+    can no longer change it, and stays "not decided yet" until then.
+  - 2 of 4 opens blocks 5 (2026-11-14 to 11-20) and 6 (11-21 to 11-27). Both met is success. When
+    the two blocks met were 3 and 4, one met extension block is enough: that is how the tie-break
+    leans toward success. Anything less is "hypothesis not confirmed", as D-010's line below it.
+  - Not computed: the sessions lost to being away from the computer and the features of the
+    month, written by hand (D-010).
+  - The support metrics of spec 4.11.3 (D-041) cover the closed Bahia days of the window: day 1
+    to the earlier of its last day (day 28, or block 6 once the extension opens) and the day
+    before the read date. They inform the verdict and decide nothing.
+- Why: a reading the script applies cannot be bent after the numbers are known, which is the
+  bias D-010 guards against. With the tie-break, "blocks 3, 4 and one extension block" is 3 of
+  the last 4 blocks, the same bar as the original window.
+- Risk: read on 2026-11-13 itself, block 4 can still be open; run it on 11-14 or later for the
+  verdict.
+
 ### D-039: Stability hardening in the month of use
 
 - Date: 2026-10-22. Source: Diogo asked for the open tasks to run unattended; the project goal
