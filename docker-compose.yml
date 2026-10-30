@@ -22,7 +22,6 @@ services:
       target: use
     restart: unless-stopped
     env_file: .env.use
-    command: sh -c "python manage.py migrate --noinput && exec gunicorn config.wsgi -b 0.0.0.0:8000 --workers 2"
     environment:
       BACKUP_DIR: /backup
     # Staging folder on C: only: a G: bind fails silently (D-019). scripts/backup.py copies it to
