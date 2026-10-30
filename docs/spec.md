@@ -53,6 +53,8 @@ screen, which imports a pasted AI answer, `DECISIONS.md` D-040), history-based
 recommendations, mobile screens, deploy, login, drag-to-reorder, prerequisite graphs,
 configurable completion criteria, rich text editor, restore through the UI, metrics dashboard,
 folders deeper than three levels, multi-user. Any change to this list needs Diogo's ok.
+`DECISIONS.md` D-042 (2026-10-30) moves some of these items into the next phase, a hosted
+Athenas for three testers; `docs/plan-testers.md` orders that work.
 
 ### 2.3 Constraints
 

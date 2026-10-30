@@ -2,7 +2,8 @@
 
 Status: accepted, 2026-10-14. `docs/spec.md` says what v1 is; this file says in which order it
 gets built and what each slice needs. Where the two disagree, the spec wins. Proposals P-03 to
-P-06 were accepted as `DECISIONS.md` D-016 to D-019; P-07 is still open.
+P-06 were accepted as `DECISIONS.md` D-016 to D-019; P-07 is still open. The phase after v1 (hosting, login,
+three testers) is ordered in `docs/plan-testers.md` (D-042).
 
 ## 1. Where v1 stands
 

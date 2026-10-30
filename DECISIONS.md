@@ -1241,3 +1241,43 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
   for the four blocks), without editing the roadmap first. Days before this release
   reached use mode have no queue row, so the fraction of reviews done starts at that release,
   not at day 1.
+
+### D-042: A hosted Athenas for Diogo and three testers, with AI filling the data
+
+- Date: 2026-10-30. Source: Diogo, in the project chat ("já tenho 3 usuários que vão testar a
+  primeira versão, quero o site com integração com IA para popular os dados, mesmas mecânicas de
+  sites famosos para concurseiros"). This is his explicit ok for the scope change spec 2.2
+  requires. The order and the recommended options are in `docs/plan-testers.md`.
+- Context: v1 is local, for one person, with no login (D-008), and AI only prepares content
+  outside the app (D-001). Diogo is away from his computer for an open period and follows the work
+  on GitHub only. Use mode's last export reached the vault on 2026-10-27.
+- Decision:
+  - The next phase is a hosted Athenas for Diogo and three testers. These items leave spec 2.2
+    for this phase: integrated AI (to prepare content only), automatic generation of practice
+    questions, deploy, login, multiple users and a performance screen. Phone width for the question
+    screens is open (plan section 3.6). Everything else in spec 2.2 stays out.
+  - D-008 is superseded once production exists (slice T4 of the plan): the app runs on a host,
+    behind a login, with each person's data visible only to them and a backup that does not
+    depend on the PC. Until then use mode stays as it is.
+  - D-001 changes in one point: the app may call an AI, on the user's request, to prepare
+    content. Origin marking (D-032), Markdown cards pending one by one (D-007), and studying,
+    practicing and reviewing without AI in the loop all stay. The gate for generated objective
+    questions is fixed in the slice that builds them.
+  - D-010 and D-038 stand: the window closes on 2026-11-13 and the verdict is written from the
+    data, with the days away from the computer recorded as lost. One line changes: a result of 0
+    or 1 of 4 blocks still gets its written diagnosis, but it no longer has to come before new
+    features, because this decision is taken before the verdict.
+  - Spec 5.3's "SimpleJWT, Railway and Vercel" is replaced by the hosting choice in the plan
+    (recommended: one origin on Railway with Django's session login).
+  - No real exam questions from the boards and no scraping of exam prep sites. AI writes original
+    questions in a board's style, never labeled as a real exam.
+  - Every PR is proven by the thread before the merge: pytest on PostgreSQL 16, CI green,
+    Playwright, and from hosting on a preview environment. Merge, force push, CI changes, a
+    migration that drops or renames a column, a new production dependency and any write of real
+    data still need Diogo's ok, typed.
+- Why: Diogo has testers ready and wants their feedback on a version they can reach; a hosted
+  app is also the only way he can use Athenas without his PC.
+- Cost: the app faces the internet for the first time; three other people's data comes under
+  LGPD; AI calls cost money; and `AGENTS.md` and `CLAUDE.md` still describe a local, single-user
+  app until Diogo can update them from his PC. Until then this entry and `docs/plan-testers.md`
+  win over them where they disagree.
