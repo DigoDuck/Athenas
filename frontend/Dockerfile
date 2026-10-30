@@ -13,5 +13,7 @@ RUN npm run build
 FROM nginx:alpine AS use
 # Compose defaults; the host overrides both (docs/hosting.md).
 ENV PORT=80 BACKEND_URL=http://backend:8000
+# The image then exports NGINX_LOCAL_RESOLVERS from /etc/resolv.conf for the template.
+ENV NGINX_ENTRYPOINT_LOCAL_RESOLVERS=1
 COPY nginx.conf /etc/nginx/templates/default.conf.template
 COPY --from=build /app/dist /usr/share/nginx/html
