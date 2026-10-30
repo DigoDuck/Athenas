@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import Home from "./pages/Home.jsx";
 import Library from "./pages/Library.jsx";
+import Login from "./pages/Login.jsx";
 import NewTheme from "./pages/NewTheme.jsx";
 import Notebook from "./pages/Notebook.jsx";
 import Pomodoro from "./pages/Pomodoro.jsx";
@@ -10,7 +11,8 @@ import Review from "./pages/Review.jsx";
 import Roadmap from "./pages/Roadmap.jsx";
 import Settings from "./pages/Settings.jsx";
 import Study from "./pages/Study.jsx";
-import { AppShell } from "./ui/index.js";
+import { api } from "./api.js";
+import { AppShell, Button, StateMessage } from "./ui/index.js";
 
 const PAGES = {
   inicio: { label: "Início", icon: "home", Component: Home },
@@ -51,7 +53,45 @@ function currentRoute() {
   };
 }
 
+// Who is signed in: undefined while asking, null for nobody, an Error when the API is down.
+function useSession() {
+  const [user, setUser] = useState(undefined);
+  const fetchUser = () =>
+    api
+      .get("/api/auth/me/")
+      .then(setUser)
+      .catch((error) => setUser(error.status === 403 ? null : error));
+  useEffect(() => {
+    fetchUser();
+  }, []);
+  const ask = () => {
+    setUser(undefined);
+    fetchUser();
+  };
+  return { user, setUser, ask };
+}
+
 export default function App() {
+  const { user, setUser, ask } = useSession();
+  if (user === undefined) return null;
+  if (user instanceof Error) {
+    return (
+      <main className="login">
+        <StateMessage
+          kind="error"
+          title="Não foi possível abrir o Athenas."
+          action={<Button onClick={ask}>Tentar de novo</Button>}
+        >
+          {user.message}
+        </StateMessage>
+      </main>
+    );
+  }
+  if (user === null) return <Login onSignedIn={setUser} />;
+  return <SignedIn />;
+}
+
+function SignedIn() {
   const [route, setRoute] = useState(currentRoute);
 
   useEffect(() => {
@@ -62,11 +102,21 @@ export default function App() {
 
   const { Component } = ALL_PAGES[route.page];
 
+  // A full reload after leaving drops every screen's state, so nothing of this session lingers.
+  const signOut = () => api.post("/api/auth/logout/").finally(() => window.location.reload());
+
   return (
     <AppShell
       items={NAV_ITEMS}
       secondaryItems={SECONDARY_NAV_ITEMS}
-      navFooter={<Pomodoro />}
+      navFooter={
+        <>
+          <Pomodoro />
+          <Button variant="tertiary" onClick={signOut}>
+            Sair
+          </Button>
+        </>
+      }
       current={route.page}
       scene={route.Subpage ? null : (SCENES[route.page] ?? null)}
     >

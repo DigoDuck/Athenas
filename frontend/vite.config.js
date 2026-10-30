@@ -8,6 +8,9 @@ export default defineConfig({
     port: 5173,
     // Bind mounts on Windows do not emit file events.
     watch: { usePolling: true },
-    proxy: { "/api": process.env.API_PROXY_TARGET ?? "http://backend:8000" },
+    // Keep the browser's Host: Django's CSRF origin check compares the two (D-044).
+    proxy: {
+      "/api": { target: process.env.API_PROXY_TARGET ?? "http://backend:8000", changeOrigin: false },
+    },
   },
 });
