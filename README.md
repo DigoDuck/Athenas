@@ -19,8 +19,10 @@ make test        # pytest against the dev Postgres
 
 ## Use mode
 
-Always on, listens on `127.0.0.1:8470` only, no login, own database and volume (`athenas`).
-It only runs a clean, tagged commit.
+Always on, listens on `127.0.0.1:8470` only, own database and volume (`athenas`). It only runs
+a clean, tagged commit. From the release with login (D-044) on, the account named in
+`DJANGO_SUPERUSER_USERNAME` and `DJANGO_SUPERUSER_PASSWORD` in `.env.use` is created on start;
+`make use-init` writes both, and an older `.env.use` needs the two lines added by hand.
 
 ```bash
 make use-init    # once: creates .env.use with generated secrets (git-ignored)

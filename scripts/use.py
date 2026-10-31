@@ -26,6 +26,8 @@ def init():
         f"POSTGRES_PASSWORD={secrets.token_urlsafe(24)}\n"
         f"DJANGO_SECRET_KEY={secrets.token_urlsafe(50)}\n"
         "DJANGO_ALLOWED_HOSTS=127.0.0.1,localhost\n"
+        "DJANGO_SUPERUSER_USERNAME=diogo\n"
+        f"DJANGO_SUPERUSER_PASSWORD={secrets.token_urlsafe(18)}\n"
         f"BACKUP_STAGING={Path.home() / 'AthenasBackup'}\n"
         "BACKUP_VAULT=\n",
         encoding="utf-8",

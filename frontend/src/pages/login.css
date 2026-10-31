@@ -1,0 +1,20 @@
+/* Sign-in: the brand and one short form on a raised sheet, centered on the marble page. */
+.login {
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  padding: var(--space-5);
+}
+
+.login__panel {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-6);
+  width: 100%;
+  max-width: 26rem;
+  padding: var(--space-6);
+}
+
+.login__panel form {
+  width: 100%;
+}

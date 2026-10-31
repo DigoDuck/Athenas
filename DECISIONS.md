@@ -1305,3 +1305,33 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
 - Cost: the setup lives in the dashboard, not in the repo, so a change there is invisible in
   review; `docs/hosting.md` is the record and must be kept in step. Until T2 lands, anyone with
   the production or preview address can write to those empty databases.
+
+### D-044: Session login, accounts made in the admin, CSRF on every write
+
+- Date: 2026-10-30. Source: slice T2 of `docs/plan-testers.md`, with the options Diogo accepted.
+- Decision:
+  - Django's own auth with a session cookie. Every endpoint needs a signed-in user
+    (`IsAuthenticated`), except `GET /api/health/` (the host's check) and the three under
+    `/api/auth/`: `me` (who is signed in; it also sets the CSRF cookie), `login` and `logout`.
+  - Writes carry the CSRF token from that cookie in `X-CSRFToken`; `login` checks it too, so a
+    page on another site cannot sign a browser into an account of its choosing. D-039's JSON-only
+    rule stays as a second guard, except under `/admin/`, which posts forms behind Django's own
+    CSRF check.
+  - Accounts: Diogo's superuser is created on start from `DJANGO_SUPERUSER_USERNAME` and
+    `DJANGO_SUPERUSER_PASSWORD` when it does not exist, and never changed afterwards. He creates
+    and resets the testers' accounts in `/admin/`, which works from a phone. No sign-up page, no
+    email, no password reset by link. Passwords need 12 characters and pass Django's common and
+    numeric checks when set in the admin.
+  - Over https (`DJANGO_SECURE_COOKIES=1` on the host) the cookies are secure-only; nginx passes
+    the host's `X-Forwarded-Proto` on so Django sees https. Use mode on `127.0.0.1` stays http.
+  - Tests: a repo-root `conftest.py` overrides pytest-django's `client` with a signed-in one, so
+    the existing tests, `tests/acceptance/` included, run unchanged against the new rule.
+    `backend/tests/test_login.py`, written by the agent, covers the rule itself.
+  - The Vite dev proxy keeps the browser's `Host`; with Vite's default it rewrote it and every
+    write failed the CSRF origin check.
+- Why: the smallest login that needs no new dependency and no token handling in the frontend,
+  which a single origin allows (D-043).
+- Cost: Django has no login rate limit, so long generated passwords are the guard. The admin
+  serves its CSS and JS through Django, a shortcut that holds for one admin. A session lasts
+  Django's default two weeks, then asks for the password again. Until T3 every signed-in account
+  sees the same data, so no tester gets an account before T3 is on `main`.

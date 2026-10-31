@@ -25,6 +25,9 @@ Everything here works from a phone browser. Service names matter: the variables 
    RAILWAY_DOCKERFILE_PATH=backend/Dockerfile
    DJANGO_SECRET_KEY=<at least 50 random characters from a password manager>
    DJANGO_ALLOWED_HOSTS=${{web.RAILWAY_PUBLIC_DOMAIN}},healthcheck.railway.app
+   DJANGO_SECURE_COOKIES=1
+   DJANGO_SUPERUSER_USERNAME=diogo
+   DJANGO_SUPERUSER_PASSWORD=<another password from the password manager>
    POSTGRES_DB=${{Postgres.PGDATABASE}}
    POSTGRES_USER=${{Postgres.PGUSER}}
    POSTGRES_PASSWORD=${{Postgres.PGPASSWORD}}
@@ -45,6 +48,12 @@ Everything here works from a phone browser. Service names matter: the variables 
 
 Each service builds the last stage of its Dockerfile (`use`). The backend runs its migrations on
 every start, as use mode does.
+
+## Accounts
+
+The backend creates the `DJANGO_SUPERUSER_USERNAME` account on start when it does not exist, and
+never changes it afterwards. Diogo signs in at `/admin/` with it to create the testers' accounts
+(Users, Add) and to reset a forgotten password. There is no sign-up page and no email.
 
 ## Previews
 
