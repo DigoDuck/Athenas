@@ -1281,3 +1281,27 @@ The day 28 verdict (spec section 4.11) is written here as its own entry.
   LGPD; AI calls cost money; and `AGENTS.md` and `CLAUDE.md` still describe a local, single-user
   app until Diogo can update them from his PC. Until then this entry and `docs/plan-testers.md`
   win over them where they disagree.
+
+### D-043: Railway runs the use-mode images, configured in its dashboard
+
+- Date: 2026-10-30. Source: slice T1 of `docs/plan-testers.md`; Diogo took every recommended
+  option of its section 9 ("vamos seguir como recomendar"), including Railway with one origin.
+- Context: Railway's config files (`railway.json`) are deprecated and stop being read on
+  2026-12-01. Its replacement, infrastructure as code, needs the Railway CLI, an npm package and
+  a token in GitHub Actions, that is a CI change and a secret in the repo settings.
+- Decision:
+  - The project is set up once in the Railway dashboard, following `docs/hosting.md`. The repo
+    keeps no Railway file.
+  - The images are the ones use mode already builds. The backend's start command (migrate, then
+    gunicorn) moves from `docker-compose.yml` into the `use` stage of `backend/Dockerfile`, so
+    both places run the same thing. nginx's config becomes a template: the port and the backend
+    address come from the environment, with the compose values as defaults.
+  - gunicorn listens on `0.0.0.0:8000` unless `GUNICORN_BIND` says otherwise. Railway projects
+    created after 2025-10-16 resolve private names to IPv4 too; `[::]` fails where a container
+    has no IPv6, which is the case in local Docker.
+  - Production stays empty until T4: the app has no login before T2.
+- Why: the smallest change that runs on Railway without a CI change, and use mode keeps the
+  exact same images.
+- Cost: the setup lives in the dashboard, not in the repo, so a change there is invisible in
+  review; `docs/hosting.md` is the record and must be kept in step. Until T2 lands, anyone with
+  the production or preview address can write to those empty databases.
